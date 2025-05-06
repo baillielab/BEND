@@ -35,8 +35,8 @@ hydra :
             chromatin_accessibility
             cpg_methylation
 
-chunk_size : 50000
-chunk : null # can be given as a list of chunks to embed 
+chunk_size : 1 # 50000
+chunk : [0] # can be given as a list of chunks to embed 
 data_dir : ./data/
 embedders_dir : ./pretrained_models/
 splits : null
