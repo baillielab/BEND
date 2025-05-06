@@ -30,10 +30,10 @@ hydra :
       task: 
             gene_finding,
             enhancer_annotation,
-            variant_effects,
             histone_modification,
-            chromatin_accessibility
+            chromatin_accessibility,
             cpg_methylation
+            # variant_effects,
 
 chunk_size : 1 # 50000
 chunk : [0] # can be given as a list of chunks to embed 
