@@ -534,7 +534,9 @@ class BaseTrainer:
         print('TESTING')
         if checkpoint is None:
             df = pd.read_csv(f'{self.config.output_dir}/losses.csv')
-            checkpoint = pd.DataFrame(df.iloc[df[f"val_{self.config.params.metric}"].idxmax()]).T.reset_index(drop=True) 
+            idx = df[f"val_{self.config.params.metric}"].idxmax()
+            idx = idx if not pd.isna(idx) else 0
+            checkpoint = pd.DataFrame(df.iloc[idx]).T.reset_index(drop=True) 
         #print('before load checkpoint', )
         #print(self.model.state_dict()['conv2.1.bias'])
         # load checkpoint
