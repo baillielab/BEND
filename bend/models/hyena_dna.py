@@ -1185,7 +1185,8 @@ class HyenaDNAPreTrainedModel(PreTrainedModel):
         scratch_model = HyenaDNAModel(**config, use_head=use_head, use_lm_head=use_lm_head, n_classes=n_classes)  # the new model format
         loaded_ckpt = torch.load(
             os.path.join(pretrained_model_name_or_path, 'weights.ckpt'),
-            map_location=torch.device(device)
+            map_location=torch.device(device),
+            weights_only=False
         )
 
         # need to load weights slightly different if using gradient checkpointing

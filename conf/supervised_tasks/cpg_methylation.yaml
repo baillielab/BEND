@@ -51,7 +51,7 @@ data:
   padding_value : -100
   shuffle : 200
 params:
-  epochs: 100
+  epochs: 1 # 100
   load_checkpoint: false
   mode: train
   gradient_accumulation_steps: 1

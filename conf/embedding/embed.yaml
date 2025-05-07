@@ -9,33 +9,34 @@ hydra :
     - file://conf 
   sweeper:
     params:
-      model: gena-lm-bigbird-base-t2t,
-             gena-lm-bert-large-t2,
-             hyenadna-tiny-1k,
-             hyenadna-large-1m,
-             dnabert6,
-             resnetlm,
-             nt_transformer_ms,
-             nt_transformer_human_ref,
-             nt_transformer_1000g,
-             dnabert2,
-             onehot, 
-             awdlstm,
-             nt_transformer_v2_500m,
-             grover
-             #hyenadna-small-32k,
-             #hyenadna-medium-160k,
-             #hyenadna-medium-450k,
+      model:
+            gena-lm-bigbird-base-t2t,
+            gena-lm-bert-large-t2,
+            hyenadna-tiny-1k,
+            hyenadna-large-1m,
+            dnabert6,
+            resnetlm,
+            nt_transformer_ms,
+            nt_transformer_human_ref,
+            nt_transformer_1000g,
+            dnabert2,
+            onehot, 
+            awdlstm,
+            nt_transformer_v2_500m,
+            grover
+            #hyenadna-small-32k,
+            #hyenadna-medium-160k,
+            #hyenadna-medium-450k,
       task: 
             gene_finding,
             enhancer_annotation,
-            variant_effects,
             histone_modification,
-            chromatin_accessibility
+            chromatin_accessibility,
             cpg_methylation
+            # variant_effects,
 
-chunk_size : 50000
-chunk : null # can be given as a list of chunks to embed 
+chunk_size : 1 # 50000
+chunk : [0] # can be given as a list of chunks to embed 
 data_dir : ./data/
 embedders_dir : ./pretrained_models/
 splits : null
@@ -76,10 +77,10 @@ hyenadna-medium-450k:
   model_path : ${embedders_dir}/hyenadna/hyenadna-medium-450k-seqlen
 resnetlm : 
   _target_ : bend.utils.embedders.ConvNetEmbedder
-  model_path : ${embedders_dir}/resnetlm/
+  model_path : ${embedders_dir}/convnet/
 awdlstm : 
   _target_ : bend.utils.embedders.AWDLSTMEmbedder
-  model_path : ${embedders_dir}/awdlstm/
+  model_path : ${embedders_dir}/awd_lstm/
 nt_transformer_ms :
   _target_ : bend.utils.embedders.NucleotideTransformerEmbedder
   model_name : InstaDeepAI/nucleotide-transformer-2.5b-multi-species
