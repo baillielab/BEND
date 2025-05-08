@@ -33,8 +33,7 @@ hydra :
             histone_modification,
             chromatin_accessibility,
             cpg_methylation
-            # variant_effects,
-
+            
 chunk_size : 1 # 50000
 chunk : [0] # can be given as a list of chunks to embed 
 data_dir : ./data/
@@ -113,10 +112,6 @@ enhancer_annotation:
   reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   hdf5_file : ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
   bed : ${data_dir}/enhancer_annotation/enhancer_annotation.bed
-  read_strand : false
-variant_effects:
-  reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  bed : ${data_dir}/variant_effects/variant_effects.bed
   read_strand : false
 histone_modification:
   bed : ${data_dir}/histone_modification/histone_modification.bed
