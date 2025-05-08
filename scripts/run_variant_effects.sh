@@ -19,11 +19,11 @@ python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_
 python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_hyenadna_large1m_512.csv hyenadna LongSafari/hyenadna-large-1m-seqlen data/genomes/GRCh38.primary_assembly.genome.fa --extra_context 512 --embedding_idx 511 # autoreregressive
 
 # nt
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_href_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-human-ref  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_v2_500m.csv nt InstaDeepAI/nucleotide-transformer-v2-500m-multi-species data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_href_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-human-ref  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_v2_500m.csv nt InstaDeepAI/nucleotide-transformer-v2-500m-multi-species data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 
 # dnabert2
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
@@ -53,11 +53,11 @@ python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_
 python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_hyenadna_large1m_512.csv hyenadna LongSafari/hyenadna-large-1m-seqlen data/genomes/GRCh38.primary_assembly.genome.fa --extra_context 512 --embedding_idx 511 # autoreregressive
 
 # nt
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_href_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-human-ref  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_v2_500m.csv nt InstaDeepAI/nucleotide-transformer-v2-500m-multi-species data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_href_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-human-ref  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_v2_500m.csv nt InstaDeepAI/nucleotide-transformer-v2-500m-multi-species data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 
 # dnabert2
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
