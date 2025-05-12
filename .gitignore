@@ -9,6 +9,7 @@ submit.sh
 multirun/
 nohup.out
 results_variant_effects/
+results/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
