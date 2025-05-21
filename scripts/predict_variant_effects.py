@@ -158,6 +158,17 @@ def main():
         print(f'Saving cosine distances for {version_name}')
         genome_annotation.annotation.to_csv(os.path.join(output_dir, f'{version_name}_cos_dist.csv'), index=False)
         
+        roc_auc = roc_auc_score(genome_annotation.annotation['label'], genome_annotation.annotation['distance'])
+        print(f'ROC AUC: {roc_auc} for {version_name}')
+
+        results['model'] = version_name
+        results['roc_auc'] = roc_auc
+
+    print('Saving all results')
+    results_df = pd.DataFrame({'model': version_name, 'roc_auc': [roc_auc]})
+    results_df.to_csv(os.path.join(output_dir, f'{args.model}_rocauc.csv'), index=False)
+
+        
 
 if __name__ == '__main__':
     main()
