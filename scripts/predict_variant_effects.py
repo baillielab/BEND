@@ -9,7 +9,9 @@ from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
 import os
+import pandas as pd
 from sklearn.metrics import roc_auc_score
+import numpy as np
 
 HYENA_VERSIONS = [
     'hyenadna-tiny-1k-seqlen',
@@ -20,12 +22,13 @@ HYENA_VERSIONS = [
 ]
 
 NT_VERSIONS = [
-                'nucleotide-transformer-500m-1000g',
-                'nucleotide-transformer-2.5b-1000g',
-                'nucleotide-transformer-2.5b-multi-species',
-                'nucleotide-transformer-500m-human-ref',
-                'nucleotide-transformer-v2-500m-multi-species'
-            ]
+    'nucleotide-transformer-500m-1000g',
+    'nucleotide-transformer-2.5b-1000g',
+    'nucleotide-transformer-2.5b-multi-species',
+    'nucleotide-transformer-500m-human-ref',
+    'nucleotide-transformer-v2-500m-multi-species'
+]
+
 
 def main():
 
@@ -43,10 +46,12 @@ def main():
     embedding_idx = 256
     extra_context = extra_context_left = extra_context_right = 256
 
-    annotation_path = os.path.join(args.work_dir,'data', 'variant_effects', f'variant_effects_{args.type}.bed')
+    experiment_name = f'variant_effects_{args.type}'
+
+    annotation_path = os.path.join(args.work_dir,'data', 'variant_effects', f'{experiment_name}.bed')
     reference_path = os.path.join(args.work_dir, 'data', 'genomes', 'GRCh38.primary_assembly.genome.fa')
     
-    output_dir = os.path.join(args.work_dir, 'results', f'variant_effects_{args.type}')
+    output_dir = os.path.join(args.work_dir, 'results', experiment_name)
     os.makedirs(output_dir, exist_ok=True)
 
     kwargs = {'disable_tqdm': True}
@@ -64,12 +69,12 @@ def main():
 
             embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'awd_lstm')
             embedder = embedders.AWDLSTMEmbedder(embedder_dir)
-            embedders_list.append(embedder)
+            embedders_list.append((embedder, 'awdlstm'))
 
         case 'convnet':
             embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'convnet')
             embedder = embedders.ConvNetEmbedder(embedder_dir)
-            embedders_list.append(embedder)
+            embedders_list.append((embedder, 'convnet'))
 
         case 'nt':
             kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
@@ -77,7 +82,7 @@ def main():
             for version in NT_VERSIONS:
                 embedder_dir = os.path.join('InstaDeepAI', version)
                 embedder = embedders.NucleotideTransformerEmbedder(embedder_dir)
-                embedders_list.append(embedder)
+                embedders_list.append((embedder, version))
 
         case 'hyenadna':
             embedding_idx = 511
@@ -87,15 +92,15 @@ def main():
             extra_context_right = 0
 
             for version in HYENA_VERSIONS:
-                embedder_dir = os.path.join('LongSafari', version)
+                embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'LongSafari', version)
                 embedder = embedders.HyenaDNAEmbedder(embedder_dir)
-                embedders_list.append(embedder)
+                embedders_list.append((embedder, version))
 
         case 'dnabert2':
             kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
             embedder_dir = 'zhihan1996/DNABERT-2-117M'
             embedder = embedders.DNABert2Embedder(embedder_dir)
-            embedders_list.append(embedder)
+            embedders_list.append((embedder, 'dnabert2'))
 
         # case 'grover':
         #     embedder = embedders.GROVEREmbedder(args.embedder_dir)
@@ -110,12 +115,16 @@ def main():
 
         case _:
             raise ValueError('Model not supported')
-        
+    
+
 
     # load the bed file
     genome_annotation = Annotation(annotation_path, reference_genome=reference_path)
 
-    for idx, embedder in enumerate(embedders_list):
+    results = {}
+
+    for idx, (embedder, version_name) in enumerate(embedders_list):
+
         # extend the segments if necessary
         if extra_context > 0:
             genome_annotation.extend_segments(extra_context_left=extra_context_left, extra_context_right=extra_context_right)
@@ -123,7 +132,6 @@ def main():
         genome_annotation.annotation['distance'] = None
 
         for index, row in tqdm(genome_annotation.annotation.iterrows()):
-
 
             # middle_point = row['start'] + 256
             # index the right embedding with dna[len(dna)//2]
@@ -140,12 +148,16 @@ def main():
             dna_alt = ''.join(dna_alt)
 
             embedding_wt, embedding_alt = embedder.embed([dna, dna_alt], **kwargs)
-            d = spatial.distance.cosine(embedding_alt[0, embedding_idx], embedding_wt[0, embedding_idx])
+
+            embedding_alt = embedding_alt[0, embedding_idx]
+            embedding_wt = embedding_wt[0, embedding_idx]
+                
+            d = spatial.distance.cosine(embedding_alt, embedding_wt)
             genome_annotation.annotation.loc[index, 'distance'] = d
-            break
 
-        genome_annotation.annotation.to_csv(os.path.join(output_dir, f'{args.model}_{idx}_cos_dist.csv'), index=False)
-
+        print(f'Saving cosine distances for {version_name}')
+        genome_annotation.annotation.to_csv(os.path.join(output_dir, f'{version_name}_cos_dist.csv'), index=False)
+        
 
 if __name__ == '__main__':
     main()
