@@ -10,6 +10,8 @@ multirun/
 nohup.out
 results_variant_effects/
 results/
+notebooks/
+.DS_store
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
