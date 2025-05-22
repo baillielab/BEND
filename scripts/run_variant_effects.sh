@@ -8,7 +8,7 @@ OUT_PREFIX=variant_effects_expression
 mkdir -p $OUT_DIR
 
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert_6.csv dnabert pretrained_models/dnabert/6-new-12w-0 data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 254 --kmer 6 # index 254 has the variant at its 3rd position in the 6-mer
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
@@ -33,7 +33,7 @@ OUT_PREFIX=variant_effects_disease
 mkdir -p $OUT_DIR
 
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert_6.csv dnabert pretrained_models/dnabert/6-new-12w-0 data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 254 --kmer 6 # index 254 has the variant at its 3rd position in the 6-mer
-# python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
+python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_dnabert2.csv dnabert2 zhihan1996/DNABERT-2-117M  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_500m.csv nt InstaDeepAI/nucleotide-transformer-500m-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_1000g_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-1000g  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256
 # python3 scripts/predict_variant_effects.py $VARIANT_FILE $OUT_DIR/${OUT_PREFIX}_nt_ms_25b.csv nt InstaDeepAI/nucleotide-transformer-2.5b-multi-species  data/genomes/GRCh38.primary_assembly.genome.fa --embedding_idx 256

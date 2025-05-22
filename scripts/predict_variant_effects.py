@@ -8,7 +8,8 @@ import argparse
 from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
-
+from sklearn.metrics import roc_auc_score
+import pandas as pd
 
 def main():
 
@@ -95,7 +96,11 @@ def main():
 
 
     genome_annotation.annotation.to_csv(args.out_file)
+    score = roc_auc_score(genome_annotation.annotation['label'], genome_annotation.annotation['distance'])
+    print(f'ROC AUC: {score} for {args.model}')
 
+    # save the results
+    pd.DataFrame({'model': [args.model], 'roc_auc': [score]}).to_csv(args.out_file.replace('.csv', '_rocauc.csv'), index=False)
 
 
 
