@@ -84,7 +84,7 @@ def main():
     genome_annotation.annotation['distance'] = 0.0
 
 
-    for index, row in tqdm(genome_annotation.annotation.head(10).iterrows()):
+    for index, row in tqdm(genome_annotation.annotation.iterrows()):
 
         # middle_point = row['start'] + 256
         # index the right embedding with dna[len(dna)//2]
