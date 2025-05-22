@@ -8,73 +8,83 @@ import argparse
 from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
-from sklearn.metrics import roc_auc_score
+import os
 import pandas as pd
+from sklearn.metrics import roc_auc_score
+
+
 
 def main():
 
     parser = argparse.ArgumentParser('Compute embeddings')
-    parser.add_argument('bed_file', type=str, help='Path to the bed file')
-    parser.add_argument('out_file', type=str, help='Path to the output file')
-    # model can be any of the ones supported by bend.utils.embedders
-    parser.add_argument('model', choices=['nt', 'dnabert', 'awdlstm', 'gpn', 'convnet', 'genalm', 'hyenadna', 'dnabert2','grover'], type=str, help='Model architecture for computing embeddings')
-    parser.add_argument('checkpoint', type=str, help='Path to or name of the model checkpoint')
-    parser.add_argument('genome', type=str, help='Path to the reference genome fasta file')
-    parser.add_argument('--extra_context', type=int, default=256, help='Number of extra nucleotides to include on each side of the sequence')
-    parser.add_argument('--kmer', type=int, default=3, help = 'Kmer size for the DNABERT model')
-    parser.add_argument('--embedding_idx', type=int, default=0, help = 'Index of the embedding to use for computing the distance')
+    parser.add_argument('--work_dir', type=str, help='Path to the data directory')
+    parser.add_argument('--type', choices=['expression', 'disease'], type=str, help='Type of variant effects experiment (expression or disease)')
+    parser.add_argument('--model', choices=['nt', 'awdlstm', 'convnet', 'hyenadna', 'dnabert2'], type=str, help='Model architecture for computing embeddings')
+    parser.add_argument('--version', required=True, type=str, help='Name of the model version')
 
     args = parser.parse_args()
 
-    extra_context_left = args.extra_context
-    extra_context_right = args.extra_context
+    embedding_idx = 256
+    extra_context = extra_context_left = extra_context_right = 256
+
+    experiment_name = f'variant_effects_{args.type}'
+
+    annotation_path = os.path.join(args.work_dir,'data', 'variant_effects', f'{experiment_name}.bed')
+    reference_path = os.path.join(args.work_dir, 'data', 'genomes', 'GRCh38.primary_assembly.genome.fa')
+    
+    output_dir = os.path.join(args.work_dir, 'results', experiment_name)
+    os.makedirs(output_dir, exist_ok=True)
 
     kwargs = {'disable_tqdm': True}
+
     # get the embedder
-    if args.model == 'nt':
-         embedder = embedders.NucleotideTransformerEmbedder(args.checkpoint)
-         kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
-    elif args.model == 'dnabert':
-        embedder = embedders.DNABertEmbedder(args.checkpoint, kmer = args.kmer)
-    elif args.model == 'awdlstm':
-        # autogressive model. No use for right context.
-        extra_context_left = args.extra_context
-        extra_context_right = 0
-        embedder = embedders.AWDLSTMEmbedder(args.checkpoint)
-    elif args.model == 'gpn':
-        embedder = embedders.GPNEmbedder(args.checkpoint)
-    elif args.model == 'convnet':
-        embedder = embedders.ConvNetEmbedder(args.checkpoint)
-    elif args.model == 'genalm':
-        embedder = embedders.GENALMEmbedder(args.checkpoint)
-        kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
-    elif args.model == 'hyenadna':
-        embedder = embedders.HyenaDNAEmbedder(args.checkpoint)
-        # autogressive model. No use for right context.
-        extra_context_left = args.extra_context
-        extra_context_right = 0
-    elif args.model == 'dnabert2':
-        embedder = embedders.DNABert2Embedder(args.checkpoint)
-        kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
-    elif args.model == 'grover':
-        embedder = embedders.GROVEREmbedder(args.checkpoint)
-        kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
-    else:
-        raise ValueError('Model not supported')
+    match args.model:
+        case 'awdlstm':
+            embedding_idx = 511
+            extra_context = 512
+            # autogressive model. No use for right context.
+            extra_context_left = extra_context
+            extra_context_right = 0
+
+            embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'awd_lstm')
+            embedder = embedders.AWDLSTMEmbedder(embedder_dir)
+
+        case 'convnet':
+            embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'convnet')
+            embedder = embedders.ConvNetEmbedder(embedder_dir)
+
+        case 'nt':
+            kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
+            embedder_dir = os.path.join('InstaDeepAI', args.version)
+            embedder = embedders.NucleotideTransformerEmbedder(embedder_dir)
+            
+        case 'hyenadna':
+            embedding_idx = 511
+            extra_context = 512
+            # autogressive model. No use for right context.
+            extra_context_left = extra_context
+            extra_context_right = 0
+
+            embedder_dir = os.path.join(args.work_dir, 'pretrained_models', 'LongSafari', args.version)
+            embedder = embedders.HyenaDNAEmbedder(embedder_dir)
+
+        case 'dnabert2':
+            kwargs['upsample_embeddings'] = True # each nucleotide has an embedding
+            embedder_dir = 'zhihan1996/DNABERT-2-117M'
+            embedder = embedders.DNABert2Embedder(embedder_dir)
+
+        case _:
+            raise ValueError('Model not supported')
     
 
     # load the bed file
-    genome_annotation = Annotation(args.bed_file, reference_genome=args.genome)
-
-
-    # extend the segments if necessary
-    if args.extra_context > 0:
+    genome_annotation = Annotation(annotation_path, reference_genome=reference_path)
+    if extra_context > 0:
         genome_annotation.extend_segments(extra_context_left=extra_context_left, extra_context_right=extra_context_right)
+    genome_annotation.annotation['distance'] = 0.0
 
-    genome_annotation.annotation['distance'] = None
 
-    for index, row in tqdm(genome_annotation.annotation.iterrows()):
-
+    for index, row in tqdm(genome_annotation.annotation.head(10).iterrows()):
 
         # middle_point = row['start'] + 256
         # index the right embedding with dna[len(dna)//2]
@@ -91,16 +101,19 @@ def main():
         dna_alt = ''.join(dna_alt)
 
         embedding_wt, embedding_alt = embedder.embed([dna, dna_alt], **kwargs)
-        d = spatial.distance.cosine(embedding_alt[0, args.embedding_idx], embedding_wt[0, args.embedding_idx])
+        
+        embedding_wt = embedding_wt[0, embedding_idx]
+        embedding_alt = embedding_alt[0, embedding_idx]
+
+        d = spatial.distance.cosine(embedding_alt, embedding_wt)
         genome_annotation.annotation.loc[index, 'distance'] = d
 
+    print(f'Saving cosine distances for {args.version}')
+    genome_annotation.annotation.to_csv(os.path.join(output_dir, f'{args.version}_annotation.csv'), index=False)
 
-    genome_annotation.annotation.to_csv(args.out_file)
     score = roc_auc_score(genome_annotation.annotation['label'], genome_annotation.annotation['distance'])
-    print(f'ROC AUC: {score} for {args.model}')
-
-    # save the results
-    pd.DataFrame({'model': [args.model], 'roc_auc': [score]}).to_csv(args.out_file.replace('.csv', '_rocauc.csv'), index=False)
+    print(f'ROC AUC: {score} for {args.version}')
+    pd.DataFrame({'model': [args.version], 'roc_auc': [score]}).to_csv(os.path.join(output_dir, f'{args.version}_roc_auc.csv'), index=False)
 
 
 
