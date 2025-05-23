@@ -9,6 +9,7 @@ einops
 webdataset
 beautifulsoup4
 pysam
+tables
 h5py
 lxml
 

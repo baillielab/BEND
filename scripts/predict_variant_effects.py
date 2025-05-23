@@ -5,14 +5,34 @@ sequence. The variant sequence is obtained by replacing the reference nucleotide
 with the variant nucleotide at the variant position.
 '''
 import argparse
+import time
+
+import h5py
 from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
 import os
 import pandas as pd
 from sklearn.metrics import roc_auc_score
+import numpy as np
 
+EMBEDDING_SIZES = {
+    'convnet': 256,
+    'awdlstm': 64,
+    'dnabert2': 768,
 
+    'nucleotide-transformer-2.5b-1000g': 2560,
+    'nucleotide-transformer-2.5b-multi-species': 2560,
+    'nucleotide-transformer-500m-1000g': 1280,
+    'nucleotide-transformer-500m-human-ref': 1280,
+    'nucleotide-transformer-v2-500m-multi-species': 1024,
+    
+    'hyenadna-tiny-1k-seqlen': 128,    
+    'hyenadna-small-32k-seqlen': 256,
+    'hyenadna-medium-160k-seqlen': 256,
+    'hyenadna-medium-450k-seqlen': 256,
+    'hyenadna-large-1m-seqlen': 256,
+}
 
 def main():
 
@@ -37,7 +57,7 @@ def main():
 
     kwargs = {'disable_tqdm': True}
 
-    # get the embedder
+    print('Loading embedder')
     match args.model:
         case 'awdlstm':
             embedding_idx = 511
@@ -77,17 +97,31 @@ def main():
             raise ValueError('Model not supported')
     
 
-    # load the bed file
+    print('Loading genome data')
     genome_annotation = Annotation(annotation_path, reference_genome=reference_path)
     if extra_context > 0:
         genome_annotation.extend_segments(extra_context_left=extra_context_left, extra_context_right=extra_context_right)
     genome_annotation.annotation['distance'] = 0.0
 
+    print('Creating hdf5 file')
+    h5_file_path = os.path.join(output_dir, f'{args.version}.h5')
+    h5_file = h5py.File(h5_file_path, 'w')
 
-    for index, row in tqdm(genome_annotation.annotation.iterrows()):
+    h5_file.create_group(args.version)
 
-        # middle_point = row['start'] + 256
-        # index the right embedding with dna[len(dna)//2]
+    h5_emb_ref_name = f'{args.version}/embeddings_ref'
+    h5_emb_alt_name = f'{args.version}/embeddings_alt'
+    for dataset_name in [h5_emb_ref_name, h5_emb_alt_name]:
+        h5_file.create_dataset(dataset_name, (len(genome_annotation.annotation), EMBEDDING_SIZES[args.version]), dtype=np.float64, compression='lzf', chunks=(1, EMBEDDING_SIZES[args.version]))
+
+    start = time.time()
+
+    print(f'Computing embeddings for {args.version}')
+
+    # iterate over the genome annotation
+    for index, row in genome_annotation.annotation.iterrows():
+        
+        # get the reference and alternate dna sequences
         dna = genome_annotation.get_dna_segment(index = index)
         dna_alt = [x for x in dna]
         if extra_context_left == extra_context_right:
@@ -100,21 +134,39 @@ def main():
             raise ValueError('Not implemented')
         dna_alt = ''.join(dna_alt)
 
+        # compute the embeddings
         embedding_wt, embedding_alt = embedder.embed([dna, dna_alt], **kwargs)
-        
         embedding_wt = embedding_wt[0, embedding_idx]
         embedding_alt = embedding_alt[0, embedding_idx]
 
+        # compute the cosine distance
         d = spatial.distance.cosine(embedding_alt, embedding_wt)
         genome_annotation.annotation.loc[index, 'distance'] = d
 
+        h5_file[h5_emb_ref_name][index] = embedding_wt
+        h5_file[h5_emb_alt_name][index] = embedding_alt
+
+        if index < 10:
+            print(f'Processed {index+1} sequences')
+
+        if (index+1) % 10000 == 0:
+            print(f'Processed {index+1} sequences')
+        
+
+    end = time.time()
+    print(f'Finished computing embeddings in {end - start:.2f} seconds')
+    h5_file[args.version].attrs['running_time'] = end-start
+    h5_file[args.version].attrs['use_dataloader'] = 'No'
+    
+    roc_auc = roc_auc_score(genome_annotation.annotation['label'], genome_annotation.annotation['distance'])
+    print(f'ROC AUC: {roc_auc} for {args.version}')
+    h5_file[args.version].attrs['rocauc_score'] = roc_auc
+    # h5_file.create_dataset(f'{args.version}/rocauc_score', data=roc_auc, dtype=np.float64)
+
+    h5_file.close()
+
     print(f'Saving cosine distances for {args.version}')
-    genome_annotation.annotation.to_csv(os.path.join(output_dir, f'{args.version}_annotation.csv'), index=False)
-
-    score = roc_auc_score(genome_annotation.annotation['label'], genome_annotation.annotation['distance'])
-    print(f'ROC AUC: {score} for {args.version}')
-    pd.DataFrame({'model': [args.version], 'roc_auc': [score]}).to_csv(os.path.join(output_dir, f'{args.version}_roc_auc.csv'), index=False)
-
+    genome_annotation.annotation.to_hdf(h5_file_path, key=f'{args.version}/annotation', mode='r+', format='fixed', complevel=1, index=False)
 
 
 if __name__ == '__main__':
