@@ -12,6 +12,7 @@ results_variant_effects/
 results/
 notebooks/
 .DS_store
+.env
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

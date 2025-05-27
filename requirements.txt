@@ -12,6 +12,7 @@ pysam
 tables
 h5py
 lxml
+python-dotenv
 
 # If not using the Docker image, install the following packages
 # torch>=2.0.1

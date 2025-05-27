@@ -13,6 +13,7 @@ results/
 pretrained_models/
 notebooks/
 .DS_store
+.env
 
 # Git
 .git
