@@ -10,7 +10,7 @@ multirun/
 nohup.out
 results_variant_effects/
 results/
-notebooks/
+test_notebooks/
 .DS_store
 .env
 
