@@ -11,7 +11,7 @@ nohup.out
 results_variant_effects/
 results/
 pretrained_models/
-notebooks/
+test_notebooks/
 .DS_store
 
 # Git
