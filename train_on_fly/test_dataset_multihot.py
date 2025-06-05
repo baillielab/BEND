@@ -24,6 +24,13 @@ cfg_histone = {
 }
 
 
+cfg_chromatin = {
+    "annotation_path": "data/chromatin_accessibility/chromatin_accessibility.bed",
+    "genome_path": "data/genomes/GRCh37.no-chr.fa",
+    "label_depth": 125,
+}
+
+
 def get_annotation_path(task):
     return os.path.join("data", task, f"{task}.bed")
 
@@ -81,12 +88,15 @@ def dataset(request):
 @pytest.mark.parametrize(
     "gt_data, dataset",
     [
-        ((cfg_cpg, "valid"), (cfg_cpg, "valid")),
-        ((cfg_histone, "valid"), (cfg_histone, "valid")),
         ((cfg_cpg, "train"), (cfg_cpg, "train")),
-        ((cfg_histone, "train"), (cfg_histone, "train")),
+        ((cfg_cpg, "valid"), (cfg_cpg, "valid")),
         ((cfg_cpg, "test"), (cfg_cpg, "test")),
+        ((cfg_histone, "train"), (cfg_histone, "train")),
+        ((cfg_histone, "valid"), (cfg_histone, "valid")),
         ((cfg_histone, "test"), (cfg_histone, "test")),
+        ((cfg_chromatin, "train"), (cfg_chromatin, "train")),
+        ((cfg_chromatin, "valid"), (cfg_chromatin, "valid")),
+        ((cfg_chromatin, "test"), (cfg_chromatin, "test")),
     ],
     indirect=True,
 )
