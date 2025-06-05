@@ -11,6 +11,7 @@ beautifulsoup4
 pysam
 h5py
 lxml
+pytest
 
 # If not using the Docker image, install the following packages
 # torch>=2.0.1
