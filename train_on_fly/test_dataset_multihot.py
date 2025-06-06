@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from bend.io.sequtils import data_from_bed
 import pytest
-from datasets import DatasetMultiHot
+from bend.utils.datasets import DatasetMultiHot
 import os
 
 GENOME_PATH = "data/genomes/GRCh38.primary_assembly.genome.fa"
