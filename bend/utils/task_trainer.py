@@ -234,8 +234,8 @@ class BaseTrainer:
             self.config.output_dir
         )  # create the output dir for the model
         self.gradient_accumulation_steps = gradient_accumulation_steps
-        self.scaler = (
-            torch.cuda.amp.GradScaler()
+        self.scaler = torch.amp.GradScaler(
+            "cuda", enabled=True
         )  # init scaler for mixed precision training
 
     def _create_output_dir(self, path):
