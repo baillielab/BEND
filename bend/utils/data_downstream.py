@@ -107,9 +107,10 @@ def return_dataloader(
     # '''Load data to dataloader from a list of paths or a single path'''
     if isinstance(data, str):
         data = [data]
-    dataset = wds.WebDataset(data)
-    if shuffle is not None:
-        dataset = dataset.shuffle(shuffle)
+
+    shuffle = shuffle if shuffle is not None else False
+    dataset = wds.WebDataset(data, shardshuffle=shuffle)
+
     dataset = (
         dataset.decode()
     )  # iterator over samples - each sample is dict with keys "input.npy" and "output.npy"
