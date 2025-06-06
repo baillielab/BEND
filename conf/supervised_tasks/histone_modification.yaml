@@ -36,6 +36,9 @@ embedders_dir: ${work_dir}/pretrained_models/
 hyenadna-tiny-1k:
   _target_: bend.utils.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
+resnetlm:
+  _target_: bend.utils.embedders.ConvNetEmbedder
+  model_path: ${embedders_dir}/convnet/
 task: histone_modification
 output_dir: ${work_dir}/memoryless_downstream_tasks/${task}/${embedder}/
 model:
