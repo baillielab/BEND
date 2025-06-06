@@ -930,6 +930,17 @@ class MemoryLessTrainer:
             raise ValueError(f"Checkpoint {checkpoint_path} does not exist")
         return checkpoint_path
 
+    def _embed_data(self, data):
+        data_embed = self.embedder.embed(data)  # list of numpy arrays
+        # print(f"Data embed shape: {len(data_embed)}")
+        data_embed = np.array(data_embed)  # convert to numpy matrix
+        data_embed = data_embed.squeeze()
+        # print(f"Data embed shape after np.array: {data_embed.shape}")
+        data_embed = torch.from_numpy(data_embed)
+        # print(f"Data embed shape after torch.from_numpy: {data_embed.shape}")
+
+        return data_embed
+
     def train_epoch(self, train_loader):  # one epoch
         """
         Performs one epoch of training.
@@ -956,22 +967,13 @@ class MemoryLessTrainer:
 
         for idx, batch in enumerate(train_loader):
 
-            print(f"Processing batch {idx + 1}")
-
             data, labels = batch
 
-            data_embed = self.embedder.embed(data)  # list of numpy arrays
-            # print(f"Data embed shape: {len(data_embed)}")
-            data_embed = np.array(data_embed)  # convert to numpy matrix
-            data_embed = data_embed.squeeze()
-            # print(f"Data embed shape after np.array: {data_embed.shape}")
-            data_embed = torch.from_numpy(data_embed)
-            # print(f"Data embed shape after torch.from_numpy: {data_embed.shape}")
+            data_embed = self._embed_data(data)
 
             # with torch.profiler.record_function('h2d copy'):
             train_loss += self.train_step((data_embed, labels), idx=idx)
 
-            print(f"Batch {idx + 1} processed, current train loss: {train_loss:.4f}")
             # prof.step()
 
         # print(prof.key_averages().table(sort_by="self_cpu_time_total"))
@@ -1101,9 +1103,7 @@ class MemoryLessTrainer:
         with torch.no_grad():
             for idx, (data, target) in enumerate(data_loader):
 
-                data_embed = self.embedder.embed(data)  # list of numpy arrays
-                data_embed = np.array(data_embed)  # convert to numpy matrix
-                data_embed = torch.from_numpy(data_embed)
+                data_embed = self._embed_data(data)
 
                 output = self.model(
                     data_embed.to(self.device), activation=self.config.params.activation
