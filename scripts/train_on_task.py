@@ -48,6 +48,8 @@ def run_experiment(cfg: DictConfig) -> None:
     )  # save the config to the experiment dir
     # set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
     print("device", device)
 
     # instantiate model
@@ -69,7 +71,7 @@ def run_experiment(cfg: DictConfig) -> None:
         model = CustomDataParallel(model)
     # print(model)
 
-    print(torch.cuda.current_device())
+    # print(torch.cuda.current_device())
 
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
