@@ -3,7 +3,12 @@ from bend.utils.datasets import DatasetMultiHot
 
 
 def get_cpg_dataloader(
-    annotations_path, reference_path, label_depth, batch_size=32, num_workers=0
+    annotations_path,
+    reference_path,
+    label_depth,
+    batch_size=32,
+    num_workers=0,
+    **kwargs
 ):
     dataloaders = []
 

@@ -60,7 +60,7 @@ data:
   # cross_validation: false
   batch_size: 256
   num_workers: 0
-  # padding_value: -100
+  padding_value: -100
   # shuffle: 200
 params:
   epochs: 100
