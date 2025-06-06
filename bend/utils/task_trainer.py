@@ -449,6 +449,7 @@ class BaseTrainer:
         #                            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/fullwds')) as prof:
 
         for idx, batch in tqdm(enumerate(train_loader)):
+            print(f"Batch {idx+1}/{len(train_loader)}")
             # with torch.profiler.record_function('h2d copy'):
             train_loss += self.train_step(batch, idx=idx)
             # prof.step()
@@ -499,6 +500,7 @@ class BaseTrainer:
             )
 
         for epoch in range(1 + start_epoch, epochs + 1):
+            print(f"Epoch {epoch}/{epochs}")
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
