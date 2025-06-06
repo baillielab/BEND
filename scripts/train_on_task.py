@@ -49,6 +49,7 @@ def run_experiment(cfg: DictConfig) -> None:
     # set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)
+
     # instantiate model
     # initialization for supervised models
     if cfg.embedder == "resnet-supervised":
@@ -66,7 +67,9 @@ def run_experiment(cfg: DictConfig) -> None:
 
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = CustomDataParallel(model)
-    print(model)
+    # print(model)
+
+    print(torch.cuda.current_device())
 
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
