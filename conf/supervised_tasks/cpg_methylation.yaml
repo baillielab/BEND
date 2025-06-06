@@ -37,8 +37,9 @@ hyenadna-tiny-1k:
 resnetlm:
   _target_: bend.utils.embedders.ConvNetEmbedder
   model_path: ${embedders_dir}/convnet/
+mode: memoryless
 task: cpg_methylation
-output_dir: ${work_dir}/memoryless_downstream_tasks/${task}/${embedder}/
+output_dir: ${work_dir}/${mode}_downstream_tasks/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
   encoder: null

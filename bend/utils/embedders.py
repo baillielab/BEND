@@ -687,7 +687,7 @@ class ConvNetEmbedder(BaseEmbedder):
     Embed using the GPN-inspired ConvNet baseline LM trained in BEND.
     """
 
-    def load_model(self, model_path, **kwargs):
+    def load_model(self, model_path, mode, **kwargs):
         """
         Load the GPN-inspired ConvNet baseline LM trained in BEND.
 
@@ -708,6 +708,7 @@ class ConvNetEmbedder(BaseEmbedder):
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         # load model
         self.model = ConvNetModel.from_pretrained(model_path).to(device).eval()
+        self.mode = mode  # 'batch' or 'sequential'
 
     def embed(
         self,
@@ -733,6 +734,21 @@ class ConvNetEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
+
+        if self.mode == "batch":
+            with torch.no_grad():
+                input_ids = self.tokenizer(
+                    sequences,
+                    return_tensors="pt",
+                    return_attention_mask=False,
+                    return_token_type_ids=False,
+                )["input_ids"]
+                input_ids = input_ids.to(device)
+                embeddings = self.model(input_ids=input_ids).last_hidden_state
+                embeddings = embeddings.detach().cpu().numpy()
+
+            return embeddings
+
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):

@@ -68,7 +68,7 @@ def run_experiment(cfg: DictConfig) -> None:
         model = CustomDataParallel(model)
     print(model)
 
-    embedder = hydra.utils.instantiate(cfg[cfg.embedder])
+    embedder = hydra.utils.instantiate(cfg[cfg.embedder], mode=cfg.mode)
 
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
