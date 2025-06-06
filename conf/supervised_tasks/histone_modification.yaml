@@ -1,57 +1,67 @@
 defaults:
-  - datadims : [label_dims,embedding_dims,downstream_downsample]
-  #- hydra : multirun 
-  - supervised_encoder : [resnet-supervised, basset-supervised]
+  - datadims: [label_dims, embedding_dims, downstream_downsample]
+  #- hydra : multirun
+  - supervised_encoder: [resnet-supervised, basset-supervised]
   #- override hydra/launcher: joblib # ability to launch jobs in parallel fashion
   - _self_
-hydra :
+hydra:
   searchpath:
-    - file://conf 
+    - file://conf
   sweeper:
     params:
-      embedder : gena-lm-bigbird-base-t2t,
-                 gena-lm-bert-large-t2,
-                 hyenadna-tiny-1k,
-                 hyenadna-large-1m,
-                 dnabert6,
-                 resnetlm,
-                 nt_transformer_ms,
-                 nt_transformer_human_ref,
-                 nt_transformer_1000g,
-                 dnabert2,
-                 onehot,
-                 awdlstm,
-                 resnet-supervised,
-                 basset-supervised,
-                 nt_transformer_v2_500m,
-                 grover
-                 #hyenadna-small-32k,
-                 #hyenadna-medium-160k,
-                 #hyenadna-medium-450k,
-embedder : onehot
-task : histone_modification 
-output_dir: ./downstream_tasks/${task}/${embedder}/
+      embedder:
+        gena-lm-bigbird-base-t2t,
+        gena-lm-bert-large-t2,
+        hyenadna-tiny-1k,
+        hyenadna-large-1m,
+        dnabert6,
+        resnetlm,
+        nt_transformer_ms,
+        nt_transformer_human_ref,
+        nt_transformer_1000g,
+        dnabert2,
+        onehot,
+        awdlstm,
+        resnet-supervised,
+        basset-supervised,
+        nt_transformer_v2_500m,
+        grover
+        #hyenadna-small-32k,
+        #hyenadna-medium-160k,
+        #hyenadna-medium-450k,
+embedder: onehot
+work_dir: ./
+data_dir: ${work_dir}/data/
+embedders_dir: ${work_dir}/pretrained_models/
+hyenadna-tiny-1k:
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
+task: histone_modification
+output_dir: ${work_dir}/memoryless_downstream_tasks/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
-  encoder : null
+  encoder: null
   input_size: ${datadims.${embedder}}
   output_size: ${datadims.${task}}
   hidden_size: 64
   kernel_size: 3
-  output_downsample_window : 512
-optimizer : 
-  _target_ : torch.optim.AdamW 
-  lr : 0.003
+  output_downsample_window: 512
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.003
   weight_decay: 0.01
 data:
-  _target_: bend.utils.data_downstream.get_data
-  parent_dir: ./data/
-  data_dir : ${data.parent_dir}/${task}/${embedder}/
-  cross_validation : false
-  batch_size : 256
-  num_workers : 32
-  padding_value : -100
-  shuffle : 200
+  _target_: bend.utils.dataloaders.get_cpg_dataloader
+  annotations_path: ${data_dir}/histone_modification/histone_modification.bed
+  reference_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  label_depth: ${datadims.histone_modification}
+  # parent_dir: ./data/
+  # data_dir: ${data.parent_dir}/${task}/${embedder}/
+  # cross_validation: false
+  batch_size: 256
+  num_workers: 0
+  # padding_value: -100
+  # shuffle: 200
 params:
   epochs: 100
   load_checkpoint: false
@@ -59,9 +69,7 @@ params:
   gradient_accumulation_steps: 1
   criterion: bce
   class_weights: null
-  metric : auroc
-  activation : none
+  metric: auroc
+  activation: none
 wandb:
-  mode : disabled 
-
-
+  mode: disabled
