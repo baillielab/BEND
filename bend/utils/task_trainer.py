@@ -741,7 +741,7 @@ class MemoryLessTrainer:
         )  # create the output dir for the model
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.scaler = torch.amp.GradScaler(
-            "cuda", enabled=True
+            "cuda", enabled=True if device == torch.device("cuda") else False
         )  # init scaler for mixed precision training
 
     def _create_output_dir(self, path):
@@ -965,8 +965,7 @@ class MemoryLessTrainer:
         #                            record_shapes=True,
         #                            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/fullwds')) as prof:
 
-        for idx, batch in enumerate(train_loader):
-
+        for idx, batch in tqdm(enumerate(train_loader)):
             data, labels = batch
 
             data_embed = self._embed_data(data)
