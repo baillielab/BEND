@@ -615,7 +615,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
     Embed using the AWD-LSTM (https://arxiv.org/abs/1708.02182) baseline LM trained in BEND.
     """
 
-    def load_model(self, model_path, **kwargs):
+    def load_model(self, model_path, mode, **kwargs):
         """
         Load the AWD-LSTM baseline LM trained in BEND.
 
@@ -638,6 +638,8 @@ class AWDLSTMEmbedder(BaseEmbedder):
         self.model.eval()
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+        self.mode = mode
 
     def embed(
         self,
@@ -663,6 +665,20 @@ class AWDLSTMEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
+        if self.mode == "batch":
+            with torch.no_grad():
+                input_ids = self.tokenizer(
+                    sequences,
+                    return_tensors="pt",
+                    return_attention_mask=False,
+                    return_token_type_ids=False,
+                )["input_ids"]
+                input_ids = input_ids.to(device)
+                embeddings = self.model(input_ids=input_ids).last_hidden_state
+                embeddings = embeddings.detach().cpu().numpy()
+
+            return embeddings
+
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
@@ -933,6 +949,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
         return_logits: bool = False,
         return_loss: bool = False,
+        mode: str = "batch",
         **kwargs,
     ):
         # '''Load the model from the checkpoint path
@@ -962,6 +979,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
 
         """
+        self.mode = mode
         checkpoint_path, model_name = os.path.split(model_path)
         max_lengths = {
             "hyenadna-tiny-1k-seqlen": 1024,
@@ -1056,6 +1074,24 @@ class HyenaDNAEmbedder(BaseEmbedder):
         embeddings : List[np.ndarray]
             List of embeddings.
         """
+        if self.mode == "batch":
+            with torch.no_grad():
+                input_ids = self.tokenizer(
+                    sequences,
+                    return_tensors="pt",
+                    return_attention_mask=False,
+                    return_token_type_ids=False,
+                )["input_ids"]
+                input_ids = torch.LongTensor(input_ids)
+                input_ids = input_ids.to(device)
+                embeddings = self.model(input_ids=input_ids)
+
+                if remove_special_tokens:
+                    embeddings = embeddings[:, 1:-1, :]
+
+                embeddings = embeddings.detach().cpu().numpy()
+
+            return embeddings
 
         embeddings = []
         with torch.inference_mode():
