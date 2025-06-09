@@ -6,44 +6,25 @@ from bend.io.sequtils import data_from_bed
 import pytest
 from bend.utils.datasets import DatasetMultiHot
 import os
-
-GENOME_PATH = "data/genomes/GRCh38.primary_assembly.genome.fa"
-READ_STRAND = True
-
-
-cfg_cpg = {
-    "annotation_path": "data/cpg_methylation/cpg_methylation.bed",
-    "genome_path": GENOME_PATH,
-    "label_depth": 7,
-}
-
-cfg_histone = {
-    "annotation_path": "data/histone_modification/histone_modification.bed",
-    "genome_path": GENOME_PATH,
-    "label_depth": 18,
-}
+from hydra import compose, initialize
+from omegaconf import OmegaConf
 
 
-cfg_chromatin = {
-    "annotation_path": "data/chromatin_accessibility/chromatin_accessibility.bed",
-    "genome_path": "data/genomes/GRCh37.no-chr.fa",
-    "label_depth": 125,
-}
+with initialize(version_base=None, config_path="../conf/embedding/"):
+    cfg = compose(config_name="embed")
+    # cfg = OmegaConf.to_yaml(cfg)
+    # print(cfg)
 
 
 def get_annotation_path(task):
     return os.path.join("data", task, f"{task}.bed")
 
 
-@pytest.fixture
-def gt_data(request):
-    cfg, split = request.param
-    annotation_path = cfg["annotation_path"]
-    genome_path = cfg["genome_path"]
-    label_depth = cfg["label_depth"]
+def get_gt_data(task, split):
+    # task, split = request.param
 
-    chunk_size = 50000
-    df = pd.read_csv(annotation_path, sep="\t", low_memory=False)
+    chunk_size = cfg["chunk_size"]
+    df = pd.read_csv(cfg[task]["bed"], sep="\t", low_memory=False)
     df = df[df.iloc[:, -1] == split] if split is not None else df
     chunks = list(range(int(len(df) / chunk_size) + 1))
     print(f"Splitting {len(df)} rows into {len(chunks)} chunks of size {chunk_size}.")
@@ -52,10 +33,10 @@ def gt_data(request):
 
     for n, chunk in enumerate(chunks):
         sequences, labels = data_from_bed(
-            annotation_path,
-            genome_path,
-            label_depth=label_depth,
-            read_strand=READ_STRAND,
+            cfg[task]["bed"],
+            cfg[task]["reference_fasta"],
+            label_depth=cfg[task]["label_depth"],
+            read_strand=cfg[task]["read_strand"],
             split=split,
             chunk_size=chunk_size,
             chunk=chunk,
@@ -73,36 +54,44 @@ def gt_data(request):
     return sequences, labels
 
 
-@pytest.fixture
-def dataset(request):
-    cfg, split = request.param
-    annotation_path = cfg["annotation_path"]
-    genome_path = cfg["genome_path"]
-    label_depth = cfg["label_depth"]
-
-    dataset = DatasetMultiHot(annotation_path, genome_path, label_depth, split=split)
+def get_dataset_data(task, split):
+    dataset = DatasetMultiHot(
+        cfg[task]["bed"],
+        cfg[task]["reference_fasta"],
+        label_depth=cfg[task]["label_depth"],
+        split=split,
+    )
 
     return dataset.sequences, dataset.labels
 
 
+@pytest.fixture
+def data(request):
+    task, split = request.param
+
+    gt_seq, gt_labels = get_gt_data(task, split)
+    dataset_seq, dataset_labels = get_dataset_data(task, split)
+
+    return gt_seq, gt_labels, dataset_seq, dataset_labels
+
+
 @pytest.mark.parametrize(
-    "gt_data, dataset",
+    "data",
     [
-        ((cfg_cpg, "train"), (cfg_cpg, "train")),
-        ((cfg_cpg, "valid"), (cfg_cpg, "valid")),
-        ((cfg_cpg, "test"), (cfg_cpg, "test")),
-        ((cfg_histone, "train"), (cfg_histone, "train")),
-        ((cfg_histone, "valid"), (cfg_histone, "valid")),
-        ((cfg_histone, "test"), (cfg_histone, "test")),
-        ((cfg_chromatin, "train"), (cfg_chromatin, "train")),
-        ((cfg_chromatin, "valid"), (cfg_chromatin, "valid")),
-        ((cfg_chromatin, "test"), (cfg_chromatin, "test")),
+        ("cpg_methylation", "train"),
+        ("cpg_methylation", "valid"),
+        ("cpg_methylation", "test"),
+        ("histone_modification", "train"),
+        ("histone_modification", "valid"),
+        ("histone_modification", "test"),
+        ("chromatin_accessibility", "train"),
+        ("chromatin_accessibility", "valid"),
+        ("chromatin_accessibility", "test"),
     ],
     indirect=True,
 )
-def test_sequence_labels(gt_data, dataset):
-    gt_sequences, gt_labels = gt_data
-    dataset_sequences, dataset_labels = dataset
+def test_sequence_labels(data):
+    gt_sequences, gt_labels, dataset_sequences, dataset_labels = data
 
     assert len(gt_sequences) == len(dataset_sequences)
     assert len(gt_labels) == len(dataset_labels)
