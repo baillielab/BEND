@@ -66,13 +66,6 @@ def get_batch_embeddings(dataset, embedder, task):
     return embeddings
 
 
-def get_embedding_metrics(batch_embedding, seq_embedding):
-    batch_emb = batch_embedding.flatten()
-    seq_emb = seq_embedding.flatten()
-
-    return pearsonr(batch_emb, seq_emb)[0], np.max(np.abs(batch_emb - seq_emb))
-
-
 @pytest.mark.parametrize(
     "embedder",
     EMBEDDERS,
@@ -90,18 +83,22 @@ def test_embeddings(data, embedder):
     gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
     batch_embeddings = get_batch_embeddings(dataset, embedder, task)
 
-    gt_emb = np.array(gt_embeddings).astype(np.float64)
-    batch_emb = np.array(batch_embeddings).astype(np.float64)
+    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
+    batch_embeddings = np.array(batch_embeddings).astype(np.float64)
 
-    print(f"GT Embeddings shape: {gt_emb.shape}")
-    print(f"Batch Embeddings shape: {batch_emb.shape}")
+    print(f"GT Embeddings shape: {gt_embeddings.shape}")
+    print(f"Batch Embeddings shape: {batch_embeddings.shape}")
 
     assert (
-        gt_emb.shape == batch_emb.shape
-    ), f"Shape mismatch: {gt_emb.shape} != {batch_emb.shape}"
+        gt_embeddings.shape == batch_embeddings.shape
+    ), f"Shape mismatch: {gt_embeddings.shape} != {batch_embeddings.shape}"
 
-    pearson_corr, max_diff = get_embedding_metrics(batch_emb, gt_emb)
+    batch_embeddings = batch_embeddings.flatten()
+    gt_embeddings = gt_embeddings.flatten()
+
+    pearson_corr = pearsonr(batch_embeddings, gt_embeddings)[0]
+
     assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
     assert np.allclose(
-        gt_emb, batch_emb, atol=ABS_TOL
-    ), f"Max difference too high: {max_diff}"
+        gt_embeddings, batch_embeddings, atol=ABS_TOL
+    ), f"Max difference too high: {np.max(np.abs(gt_embeddings - batch_embeddings))}"
