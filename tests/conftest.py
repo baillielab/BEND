@@ -64,4 +64,4 @@ def get_dataset(task, split):
 def data(request):
     task, split = request.param
 
-    return get_gt_data(task, split), get_dataset(task, split)
+    return task, split, get_gt_data(task, split), get_dataset(task, split)

@@ -4,7 +4,10 @@ import pytest
 
 def test_sequences_and_labels(data):
 
-    gt_data, dataset = data
+    task, split, gt_data, dataset = data
+
+    print(f"Testing sequences and labels for task: {task}, split: {split}")
+
     gt_sequences, gt_labels = gt_data
     dataset_sequences, dataset_labels = dataset.sequences, dataset.labels
 
