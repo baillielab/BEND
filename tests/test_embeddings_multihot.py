@@ -17,7 +17,7 @@ EMBEDDERS = ["hyenadna-tiny-1k"]
 
 N_EMBEDDINGS = 1000  # Number of embeddings to retrieve for testing
 MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
-ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values
+ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
     CFG = compose(config_name="embed")
