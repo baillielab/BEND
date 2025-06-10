@@ -90,8 +90,8 @@ def test_embeddings(data, embedder):
     gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
     batch_embeddings = get_batch_embeddings(dataset, embedder, task)
 
-    gt_emb = np.array(gt_embeddings)
-    batch_emb = np.array(batch_embeddings)
+    gt_emb = np.array(gt_embeddings).astype(np.float64)
+    batch_emb = np.array(batch_embeddings).astype(np.float64)
 
     print(f"GT Embeddings shape: {gt_emb.shape}")
     print(f"Batch Embeddings shape: {batch_emb.shape}")
