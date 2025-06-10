@@ -98,6 +98,8 @@ def test_embeddings(data, embedder):
 
     pearson_corr = pearsonr(batch_embeddings, gt_embeddings)[0]
 
+    print(f"Pearson correlation: {pearson_corr}")
+
     assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
     assert np.allclose(
         gt_embeddings, batch_embeddings, atol=ABS_TOL
