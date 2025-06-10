@@ -82,7 +82,7 @@ def get_batch_embeddings(task, embedder, split, n_embeddings):
         embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
 
         idx_sample = (idx_batch + 1) * len(batch_embedded)
-        if idx_sample >= n_embeddings - 1:
+        if idx_sample >= n_embeddings:
             break
 
     embeddings = embeddings[:n_embeddings]
