@@ -13,57 +13,33 @@ import hydra
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr
 
+EMBEDDERS = ["hyenadna-tiny-1k"]
 
 N_EMBEDDINGS = 1000  # Number of embeddings to retrieve for testing
 MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
 ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
-    cfg = compose(config_name="embed")
+    CFG = compose(config_name="embed")
 
 
-class DatasetMultiHotTest(DatasetMultiHot):
+def get_gt_embeddings(gt_sequences, embedder):
+    embedder = hydra.utils.instantiate(CFG[embedder], mode="sequential")
 
-    def _get_data(
-        self,
-        annotations,
-        genome,
-        label_column_idx,
-        strand_column_idx,
-        flank,
-        label_depth,
-    ):
-        annotations = annotations.head(N_EMBEDDINGS)
-        return super()._get_data(
-            annotations, genome, label_column_idx, strand_column_idx, flank, label_depth
-        )
+    gt_embeddings = []
+    for idx_sample, seq in tqdm(enumerate(gt_sequences), desc="Embedding GT sequences"):
+        seq_embed = embedder(seq)
+        gt_embeddings.extend(seq_embed)
 
-
-def get_gt_embeddings(task, embedder, split, n_embeddings):
-
-    gt_embeddings = get_embeddings_from_bed(
-        cfg[task]["bed"],
-        cfg[task]["reference_fasta"],
-        embedder=hydra.utils.instantiate(cfg[embedder], mode="sequential"),
-        label_depth=cfg[task]["label_depth"],
-        read_strand=cfg[task]["read_strand"],
-        split=split,
-        chunk_size=n_embeddings,
-        chunk=0,
-    )
+        if (idx_sample + 1) == N_EMBEDDINGS:
+            break
 
     return gt_embeddings
 
 
-def get_batch_embeddings(task, embedder, split, n_embeddings):
+def get_batch_embeddings(dataset, embedder, task):
 
-    embedder = hydra.utils.instantiate(cfg[embedder], mode="batch")
-    dataset = DatasetMultiHotTest(
-        cfg[task]["bed"],
-        cfg[task]["reference_fasta"],
-        cfg[task]["label_depth"],
-        split=split,
-    )
+    embedder = hydra.utils.instantiate(CFG[embedder], mode="batch")
 
     with initialize(version_base=None, config_path="../conf/supervised_tasks/"):
         cfg_task = compose(config_name=task)
@@ -76,28 +52,18 @@ def get_batch_embeddings(task, embedder, split, n_embeddings):
     )
 
     embeddings = []
-    for idx_batch, (seq, label) in tqdm(enumerate(dataloader)):
+    for idx_batch, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
         batch_embedded = embedder.embed(seq)
 
         embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
 
         idx_sample = (idx_batch + 1) * len(batch_embedded)
-        if idx_sample >= n_embeddings:
+        if idx_sample >= N_EMBEDDINGS:
             break
 
-    embeddings = embeddings[:n_embeddings]
+    embeddings = embeddings[:N_EMBEDDINGS]
 
     return embeddings
-
-
-@pytest.fixture
-def embeddings(request):
-    task, embedder, split, n_embeddings = request.param
-
-    gt_embeddings = get_gt_embeddings(task, embedder, split, n_embeddings)
-    batch_embeddings = get_batch_embeddings(task, embedder, split, n_embeddings)
-
-    return gt_embeddings, batch_embeddings
 
 
 def get_embedding_metrics(batch_embedding, seq_embedding):
@@ -108,16 +74,21 @@ def get_embedding_metrics(batch_embedding, seq_embedding):
 
 
 @pytest.mark.parametrize(
-    "embeddings",
-    [
-        ("cpg_methylation", "hyenadna-tiny-1k", "train", N_EMBEDDINGS),
-        ("cpg_methylation", "hyenadna-tiny-1k", "valid", N_EMBEDDINGS),
-        ("cpg_methylation", "hyenadna-tiny-1k", "test", N_EMBEDDINGS),
-    ],
-    indirect=True,
+    "embedder",
+    EMBEDDERS,
 )
-def test_sequence_labels(embeddings):
-    gt_embeddings, batch_embeddings = embeddings
+def test_embeddings(data, embedder):
+
+    task, split, gt_data, dataset = data
+
+    print(
+        f"\nTesting embeddings for task: {task}, split: {split}, embedder: {embedder}\n"
+    )
+
+    gt_sequences, _ = gt_data
+
+    gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
+    batch_embeddings = get_batch_embeddings(dataset, embedder, task)
 
     gt_emb = np.array(gt_embeddings)
     batch_emb = np.array(batch_embeddings)
