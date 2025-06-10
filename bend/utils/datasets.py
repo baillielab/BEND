@@ -89,6 +89,15 @@ class DatasetMultiHot(Dataset):
         flank: int = DEFAULT_FLANK,
     ):
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+
+        if split:
+            print(f"Filtering annotations {len(annotations)} for split: {split}")
+            # Get only data belonging to specific split
+            mask = annotations.iloc[:, split_column_idx] == split
+            annotations = annotations[mask]
+            annotations = annotations.reset_index(drop=True)
+            print(f"Filtered annotations to {len(annotations)} for split: {split}")
+
         genome = Fasta(genome_path)
 
         label_column_idx = (
@@ -103,16 +112,27 @@ class DatasetMultiHot(Dataset):
             else default_strand_column_idx
         )
 
-        if split:
-            print(f"Filtering annotations {len(annotations)} for split: {split}")
-            # Get only data belonging to specific split
-            mask = annotations.iloc[:, split_column_idx] == split
-            annotations = annotations[mask]
-            annotations = annotations.reset_index(drop=True)
-            print(f"Filtered annotations to {len(annotations)} for split: {split}")
+        self.sequences, self.labels = self._get_data(
+            annotations,
+            genome,
+            label_column_idx,
+            strand_column_idx,
+            flank,
+            label_depth,
+        )
 
-        self.sequences = []
-        self.labels = []
+    def _get_data(
+        self,
+        annotations,
+        genome,
+        label_column_idx,
+        strand_column_idx,
+        flank,
+        label_depth,
+    ):
+
+        sequences = []
+        labels = []
 
         for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
 
@@ -125,7 +145,7 @@ class DatasetMultiHot(Dataset):
             )
 
             sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
-            self.sequences.append(sequence)
+            sequences.append(sequence)
 
             # compute labels
             label = item.iloc[label_column_idx]
@@ -134,7 +154,9 @@ class DatasetMultiHot(Dataset):
             )  # if no label for sample
             label = self._multi_hot(label, label_depth)
 
-            self.labels.append(label)
+            labels.append(label)
+
+        return sequences, labels
 
     def _multi_hot(self, labels, num_labels):
         """
