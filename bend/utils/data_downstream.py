@@ -108,8 +108,12 @@ def return_dataloader(
     if isinstance(data, str):
         data = [data]
 
-    shuffle = shuffle if shuffle is not None else False
-    dataset = wds.WebDataset(data, shardshuffle=shuffle)
+    dataset = wds.WebDataset(data)
+
+    if shuffle is not None:
+        dataset = dataset.shuffle(
+            shuffle
+        )  # Use in-memory shuffle buffer - here 'shuffle' is the buffer size
 
     dataset = (
         dataset.decode()
