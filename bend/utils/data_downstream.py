@@ -108,7 +108,11 @@ def return_dataloader(
     if isinstance(data, str):
         data = [data]
 
-    dataset = wds.WebDataset(data)
+    # shardShuffle is not explicitly set in the original code, which would lead to not be shuffled as the default value is None.
+    # However, this raises a warning asking to be set explicitly to False, True or a number.
+    # To avoid the warning and keep the original behavior, we set it to False.
+
+    dataset = wds.WebDataset(data, shardshuffle=False)
 
     if shuffle is not None:
         dataset = dataset.shuffle(
