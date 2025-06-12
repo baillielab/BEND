@@ -12,6 +12,8 @@ import os
 import glob
 from typing import List, Tuple, Union
 import webdataset as wds
+from bend.utils.set_seed import SEED
+import numpy as np
 
 
 def pad_to_longest(sequences: List[torch.Tensor], padding_value=-100, batch_first=True):
@@ -127,7 +129,12 @@ def return_dataloader(
         partial(collate_fn_pad_to_longest, padding_value=padding_value)
     )
 
-    dataloader = wds.WebLoader(dataset, num_workers=num_workers, batch_size=None)
+    dataloader = wds.WebLoader(
+        dataset,
+        num_workers=num_workers,
+        batch_size=None,
+        worker_init_fn=lambda _: np.random.seed(SEED),
+    )
 
     return dataloader
 

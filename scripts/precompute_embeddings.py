@@ -6,6 +6,9 @@ import bend.io.sequtils as sequtils
 import pandas as pd
 import numpy as np
 import sys
+from bend.utils.set_seed import set_seed
+
+set_seed()
 
 
 # load config
