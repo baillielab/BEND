@@ -6,7 +6,7 @@ import bend.io.sequtils as sequtils
 import pandas as pd
 import numpy as np
 import sys
-from bend.utils.set_seed import set_seed
+from bend.utils.set_seed import set_seed, SEED
 
 set_seed()
 
@@ -27,7 +27,7 @@ def run_experiment(cfg: DictConfig) -> None:
     if "shuffled_" in cfg.task and not os.path.exists(cfg[cfg.task].bed):
         not_shuffled_bed = cfg[cfg.task].bed.replace("shuffled_", "")
         df = pd.read_csv(not_shuffled_bed, sep="\t", low_memory=False)
-        df = df.sample(frac=1, random_state=cfg.seed)
+        df = df.sample(frac=1, random_state=SEED)
         df.to_csv(cfg[cfg.task].bed, sep="\t", index=False)
 
         print(f"Shuffled {not_shuffled_bed} and saved to {cfg[cfg.task].bed}")

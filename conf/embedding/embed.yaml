@@ -40,7 +40,6 @@ embedders_dir: ./pretrained_models/
 splits: null
 model: nt_transformer_1000g
 task: gene_finding
-seed: 42
 # model instatiators
 dnabert2:
   _target_: bend.utils.embedders.DNABert2Embedder
