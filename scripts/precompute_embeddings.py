@@ -20,6 +20,15 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
     print("Embedding data for", cfg.task)
+
+    if "shuffled_" in cfg.task and not os.path.exists(cfg[cfg.task].bed):
+        not_shuffled_bed = cfg[cfg.task].bed.replace("shuffled_", "")
+        df = pd.read_csv(not_shuffled_bed, sep="\t", low_memory=False)
+        df = df.sample(frac=1, random_state=cfg.seed)
+        df.to_csv(cfg[cfg.task].bed, sep="\t", index=False)
+
+        print(f"Shuffled {not_shuffled_bed} and saved to {cfg[cfg.task].bed}")
+
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:
         splits = sequtils.get_splits(cfg[cfg.task].bed)

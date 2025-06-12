@@ -40,6 +40,7 @@ embedders_dir: ./pretrained_models/
 splits: null
 model: nt_transformer_1000g
 task: gene_finding
+seed: 42
 # model instatiators
 dnabert2:
   _target_: bend.utils.embedders.DNABert2Embedder
@@ -126,6 +127,12 @@ chromatin_accessibility:
   label_depth: ${datadims.chromatin_accessibility}
 cpg_methylation:
   bed: ${data_dir}/cpg_methylation/cpg_methylation.bed
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  read_strand: true
+  hdf5_file: null
+  label_depth: ${datadims.cpg_methylation}
+shuffled_cpg_methylation:
+  bed: ${data_dir}/cpg_methylation/shuffled_cpg_methylation.bed
   reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   read_strand: true
   hdf5_file: null
