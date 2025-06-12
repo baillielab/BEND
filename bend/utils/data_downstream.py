@@ -136,6 +136,13 @@ def return_dataloader(
         partial(collate_fn_pad_to_longest, padding_value=padding_value)
     )
 
+    # number of workers has to be equal or less than the number of shards in the dataset, otherwise it will raise an error
+    if num_workers > len(data):
+        print(
+            f"Number of workers ({num_workers}) is greater than the number of shards ({len(data)}). Setting num_workers to {len(data)}."
+        )
+        num_workers = len(data)
+
     dataloader = wds.WebLoader(dataset, num_workers=num_workers, batch_size=None)
 
     return dataloader
