@@ -42,7 +42,7 @@ def run_experiment(cfg: DictConfig) -> None:
     embedder = hydra.utils.instantiate(cfg[cfg.model])
     for split in splits:
         print(f"Embedding split: {split}")
-        output_dir = f"{cfg.data_dir}/{cfg.task}/{cfg.model}/"
+        output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
 
         os.makedirs(output_dir, exist_ok=True)
 

@@ -36,6 +36,7 @@ hydra:
 chunk_size: 50000
 chunk: null # can be given as a list of chunks to embed
 data_dir: ./data/
+output_dir: ${data_dir}
 embedders_dir: ./pretrained_models/
 splits: null
 model: nt_transformer_1000g
