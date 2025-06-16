@@ -1365,13 +1365,11 @@ class DNABert2Embedder(BaseEmbedder):
                         output = (
                             self.model(input_ids.to(device), output_hidden_states=True)[
                                 "hidden_states"
-                            ][-1]
+                            ]
                             .detach()
                             .cpu()
                             .numpy()
                         )
-
-                    output = np.expand_dims(output, axis=0)
 
                     if upsample_embeddings and not (
                         self.return_loss and remove_special_tokens
