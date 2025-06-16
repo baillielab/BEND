@@ -464,7 +464,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         sequences: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
-        upsample_embeddings: bool = False,
+        upsample_embeddings: bool = True,
     ):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
@@ -485,6 +485,43 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
+
+        if self.mode == "batch":
+            with torch.no_grad():
+                output_tokens = self.tokenizer(
+                    sequences, return_tensors="pt", return_token_type_ids=False
+                )
+
+                input_ids = output_tokens["input_ids"].int()
+
+                outputs = (
+                    self.model(input_ids.to(device), output_hidden_states=True)[
+                        "hidden_states"
+                    ][-1]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+
+                embeddings = []
+                for idx_emb, embedding in enumerate(outputs):
+                    tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
+
+                    embedding = BaseEmbedder._upsample(
+                        tokens=tokens,
+                        embedding=embedding,
+                        has_special_tokens=True,
+                    )
+
+                    if remove_special_tokens:
+                        embedding = embedding[1:, :]
+
+                    embeddings.append(embedding)
+
+                embeddings = np.array(embeddings)
+
+            return embeddings
+
         cls_tokens = []
         embeddings = []
 
