@@ -59,7 +59,7 @@ class BaseEmbedder:
     All embedders should inherit from this class.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, mode: str = "batch", **kwargs):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
         Parameters
@@ -69,6 +69,7 @@ class BaseEmbedder:
         **kwargs
             Keyword arguments. Passed to `load_model`.
         """
+        self.mode = mode
         self.load_model(*args, **kwargs)
 
     def load_model(self, *args, **kwargs):
@@ -615,7 +616,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
     Embed using the AWD-LSTM (https://arxiv.org/abs/1708.02182) baseline LM trained in BEND.
     """
 
-    def load_model(self, model_path, mode, **kwargs):
+    def load_model(self, model_path, **kwargs):
         """
         Load the AWD-LSTM baseline LM trained in BEND.
 
@@ -638,8 +639,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
         self.model.eval()
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-
-        self.mode = mode
 
     def embed(
         self,
@@ -703,7 +702,7 @@ class ConvNetEmbedder(BaseEmbedder):
     Embed using the GPN-inspired ConvNet baseline LM trained in BEND.
     """
 
-    def load_model(self, model_path, mode, **kwargs):
+    def load_model(self, model_path, **kwargs):
         """
         Load the GPN-inspired ConvNet baseline LM trained in BEND.
 
@@ -724,7 +723,6 @@ class ConvNetEmbedder(BaseEmbedder):
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         # load model
         self.model = ConvNetModel.from_pretrained(model_path).to(device).eval()
-        self.mode = mode  # 'batch' or 'sequential'
 
     def embed(
         self,
@@ -949,7 +947,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
         return_logits: bool = False,
         return_loss: bool = False,
-        mode: str = "batch",
         **kwargs,
     ):
         # '''Load the model from the checkpoint path
@@ -979,7 +976,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
 
         """
-        self.mode = mode
+
         checkpoint_path, model_name = os.path.split(model_path)
         max_lengths = {
             "hyenadna-tiny-1k-seqlen": 1024,
@@ -1201,7 +1198,7 @@ class DNABert2Embedder(BaseEmbedder):
         sequences: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
-        upsample_embeddings: bool = False,
+        upsample_embeddings: bool = True,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
