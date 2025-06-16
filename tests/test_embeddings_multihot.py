@@ -2,7 +2,6 @@ from tqdm.auto import tqdm
 import pysam
 import pandas as pd
 import numpy as np
-from bend.io.sequtils import get_embeddings_from_bed
 import pytest
 from bend.utils.datasets import DatasetMultiHot
 import os
@@ -25,14 +24,14 @@ with initialize(version_base=None, config_path="../conf/embedding/"):
 
 def get_gt_embeddings(gt_sequences, embedder):
     embedder = hydra.utils.instantiate(CFG[embedder], mode="sequential")
+    sequences_subset = gt_sequences[:N_EMBEDDINGS]
 
     gt_embeddings = []
-    for idx_sample, seq in tqdm(enumerate(gt_sequences), desc="Embedding GT sequences"):
+    for idx_sample, seq in tqdm(
+        enumerate(sequences_subset), desc="Embedding GT sequences"
+    ):
         seq_embed = embedder(seq)
         gt_embeddings.extend(seq_embed)
-
-        if (idx_sample + 1) == N_EMBEDDINGS:
-            break
 
     return gt_embeddings
 
@@ -80,14 +79,13 @@ def test_embeddings(data, embedder):
 
     gt_sequences, _ = gt_data
 
-    gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
     batch_embeddings = get_batch_embeddings(dataset, embedder, task)
-
-    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
     batch_embeddings = np.array(batch_embeddings).astype(np.float64)
-
-    print(f"GT Embeddings shape: {gt_embeddings.shape}")
     print(f"Batch Embeddings shape: {batch_embeddings.shape}")
+
+    gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
+    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
+    print(f"GT Embeddings shape: {gt_embeddings.shape}")
 
     assert (
         gt_embeddings.shape == batch_embeddings.shape
