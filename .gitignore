@@ -12,6 +12,7 @@ results_variant_effects/
 results/
 test_notebooks/
 .DS_store
+shards_*/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
