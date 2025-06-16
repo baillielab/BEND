@@ -105,6 +105,32 @@ class BaseEmbedder:
         """
         return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
 
+    @staticmethod
+    def _upsample(
+        tokens: Iterable[str],
+        embedding: np.ndarray,
+        has_special_tokens: bool = True,
+    ):
+        """
+        Upsample the embeddings to match the length of the input sequences.
+        This is done by repeating the embedding vectors for each letter in the token.
+        """
+        new_embeddings = []
+        for idx, token in enumerate(tokens):
+            token_embedding = embedding[idx]  # (1, 768)
+
+            if token == "[UNK]" or (
+                has_special_tokens and (idx == 0 or idx == len(tokens) - 1)
+            ):
+                new_embeddings.append(token_embedding)  # (1, 768)
+                continue
+
+            new_embeddings.extend([token_embedding] * len(token))
+
+        new_embeddings = np.array(new_embeddings)  # (n, 768)
+
+        return new_embeddings
+
 
 class GPNEmbedder(BaseEmbedder):
     """Embed using the GPN model https://www.biorxiv.org/content/10.1101/2022.08.22.504706v1"""
@@ -1223,6 +1249,52 @@ class DNABert2Embedder(BaseEmbedder):
         # upsample_embedding repeats BPE token embeddings so that each nucleotide has its own embedding.
         # The [CLS] and [SEP] tokens are removed from the output if remove_special_tokens is True.
         # '''
+        if self.mode == "batch":
+            with torch.no_grad():
+                output_tokens = self.tokenizer(
+                    sequences,
+                    return_tensors="pt",
+                    return_token_type_ids=False,
+                    padding="longest",
+                )
+                input_ids = output_tokens["input_ids"]
+                mask = output_tokens["attention_mask"]
+
+                # print(mask.shape)
+
+                outputs = (
+                    self.model(
+                        input_ids=input_ids.to(device),
+                        attention_mask=mask.to(device),
+                        output_hidden_states=True,
+                    )["hidden_states"]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+
+                embeddings = []
+                for idx_emb, embedding in enumerate(outputs):
+                    # remove padding
+                    embedding = embedding[mask[idx_emb] == 1, :]
+                    tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
+                    tokens = [token for token in tokens if token != "[PAD]"]
+
+                    embedding = BaseEmbedder._upsample(
+                        tokens=tokens,
+                        embedding=embedding,
+                        has_special_tokens=True,
+                    )
+
+                    if remove_special_tokens:
+                        embedding = embedding[1:-1, :]
+
+                    embeddings.append(embedding)
+
+                embeddings = np.array(embeddings)
+
+            return embeddings
+
         embeddings = []
         with torch.no_grad():
             for sequence in tqdm(sequences, disable=disable_tqdm):
