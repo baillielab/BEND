@@ -18,7 +18,9 @@ import wandb
 from bend.models.downstream import CustomDataParallel
 import os
 import sys
+from bend.utils.set_seed import set_seed
 
+set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
