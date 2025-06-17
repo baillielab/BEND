@@ -1,5 +1,6 @@
 defaults:
   - datadims: [label_dims, embedding_dims, downstream_downsample]
+  - embedding: embedders
   - hydra: multirun
   - supervised_encoder: [resnet-supervised, basset-supervised]
   - override hydra/launcher: joblib # ability to launch jobs in parallel fashion
@@ -31,13 +32,7 @@ embedder: onehot
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
-hyenadna-tiny-1k:
-  _target_: bend.utils.embedders.HyenaDNAEmbedder
-  model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
-resnetlm:
-  _target_: bend.utils.embedders.ConvNetEmbedder
-  model_path: ${embedders_dir}/convnet/
-mode: memoryless
+mode: batch
 task: cpg_methylation
 output_dir: ${work_dir}/results_onfly/${mode}/${task}/${embedder}/
 model:
