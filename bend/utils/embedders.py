@@ -59,7 +59,7 @@ class BaseEmbedder:
     All embedders should inherit from this class.
     """
 
-    def __init__(self, *args, mode: str = "batch", **kwargs):
+    def __init__(self, *args, **kwargs):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
         Parameters
@@ -69,7 +69,6 @@ class BaseEmbedder:
         **kwargs
             Keyword arguments. Passed to `load_model`.
         """
-        self.mode = mode
         self.load_model(*args, **kwargs)
 
     def load_model(self, *args, **kwargs):
@@ -486,42 +485,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             List of embeddings.
         """
 
-        if self.mode == "batch":
-            with torch.no_grad():
-                output_tokens = self.tokenizer(
-                    sequences, return_tensors="pt", return_token_type_ids=False
-                )
-
-                input_ids = output_tokens["input_ids"].int()
-
-                outputs = (
-                    self.model(input_ids.to(device), output_hidden_states=True)[
-                        "hidden_states"
-                    ][-1]
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
-
-                embeddings = []
-                for idx_emb, embedding in enumerate(outputs):
-                    tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
-
-                    embedding = BaseEmbedder._upsample(
-                        tokens=tokens,
-                        embedding=embedding,
-                        has_special_tokens=True,
-                    )
-
-                    if remove_special_tokens:
-                        embedding = embedding[1:, :]
-
-                    embeddings.append(embedding)
-
-                embeddings = np.array(embeddings)
-
-            return embeddings
-
         cls_tokens = []
         embeddings = []
 
@@ -727,19 +690,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
-        if self.mode == "batch":
-            with torch.no_grad():
-                input_ids = self.tokenizer(
-                    sequences,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
-                input_ids = input_ids.to(device)
-                embeddings = self.model(input_ids=input_ids).last_hidden_state
-                embeddings = embeddings.detach().cpu().numpy()
-
-            return embeddings
 
         embeddings = []
         with torch.no_grad():
@@ -811,20 +761,6 @@ class ConvNetEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
-
-        if self.mode == "batch":
-            with torch.no_grad():
-                input_ids = self.tokenizer(
-                    sequences,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
-                input_ids = input_ids.to(device)
-                embeddings = self.model(input_ids=input_ids).last_hidden_state
-                embeddings = embeddings.detach().cpu().numpy()
-
-            return embeddings
 
         embeddings = []
         with torch.no_grad():
@@ -1134,24 +1070,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         embeddings : List[np.ndarray]
             List of embeddings.
         """
-        if self.mode == "batch":
-            with torch.no_grad():
-                input_ids = self.tokenizer(
-                    sequences,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
-                input_ids = torch.LongTensor(input_ids)
-                input_ids = input_ids.to(device)
-                embeddings = self.model(input_ids=input_ids)
-
-                if remove_special_tokens:
-                    embeddings = embeddings[:, 1:-1, :]
-
-                embeddings = embeddings.detach().cpu().numpy()
-
-            return embeddings
 
         embeddings = []
         with torch.inference_mode():
@@ -1286,51 +1204,6 @@ class DNABert2Embedder(BaseEmbedder):
         # upsample_embedding repeats BPE token embeddings so that each nucleotide has its own embedding.
         # The [CLS] and [SEP] tokens are removed from the output if remove_special_tokens is True.
         # '''
-        if self.mode == "batch":
-            with torch.no_grad():
-                output_tokens = self.tokenizer(
-                    sequences,
-                    return_tensors="pt",
-                    return_token_type_ids=False,
-                    padding="longest",
-                )
-                input_ids = output_tokens["input_ids"]
-                mask = output_tokens["attention_mask"]
-
-                # print(mask.shape)
-
-                outputs = (
-                    self.model(
-                        input_ids=input_ids.to(device),
-                        attention_mask=mask.to(device),
-                        output_hidden_states=True,
-                    )["hidden_states"]
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
-
-                embeddings = []
-                for idx_emb, embedding in enumerate(outputs):
-                    # remove padding
-                    embedding = embedding[mask[idx_emb] == 1, :]
-                    tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
-                    tokens = [token for token in tokens if token != "[PAD]"]
-
-                    embedding = BaseEmbedder._upsample(
-                        tokens=tokens,
-                        embedding=embedding,
-                        has_special_tokens=True,
-                    )
-
-                    if remove_special_tokens:
-                        embedding = embedding[1:-1, :]
-
-                    embeddings.append(embedding)
-
-                embeddings = np.array(embeddings)
-
-            return embeddings
 
         embeddings = []
         with torch.no_grad():

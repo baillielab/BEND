@@ -1,6 +1,6 @@
 defaults:
   - datadims: [label_dims, embedding_dims, downstream_downsample]
-  - embedding: embedders
+  - embedding: batch_embedders
   - hydra: multirun
   - supervised_encoder: [resnet-supervised, basset-supervised]
   - override hydra/launcher: joblib # ability to launch jobs in parallel fashion
@@ -32,9 +32,8 @@ embedder: onehot
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
-mode: batch
 task: cpg_methylation
-output_dir: ${work_dir}/results_onfly/${mode}/${task}/${embedder}/
+output_dir: ${work_dir}/results_onfly/batch/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
   encoder: null

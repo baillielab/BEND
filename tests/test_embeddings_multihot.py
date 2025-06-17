@@ -19,11 +19,14 @@ MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
 ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
-    CFG = compose(config_name="embed")
+    CFG_SEQ = compose(config_name="embed")
+with initialize(version_base=None, config_path="../conf/embedding/"):
+    CFG_BATCH = compose(config_name="batch_embedders")
+    CFG_BATCH["embedders_dir"] = CFG_SEQ["embedders_dir"]
 
 
 def get_gt_embeddings(gt_sequences, embedder):
-    embedder = hydra.utils.instantiate(CFG[embedder], mode="sequential")
+    embedder = hydra.utils.instantiate(CFG_SEQ[embedder])
     sequences_subset = gt_sequences[:N_EMBEDDINGS]
 
     gt_embeddings = []
@@ -38,7 +41,7 @@ def get_gt_embeddings(gt_sequences, embedder):
 
 def get_batch_embeddings(dataset, embedder, task):
 
-    embedder = hydra.utils.instantiate(CFG[embedder], mode="batch")
+    embedder = hydra.utils.instantiate(CFG_BATCH[embedder])
 
     with initialize(version_base=None, config_path="../conf/supervised_tasks/"):
         cfg_task = compose(config_name=task)
