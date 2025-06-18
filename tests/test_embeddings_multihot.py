@@ -50,7 +50,7 @@ def get_gt_embeddings(gt_sequences, embedder):
         enumerate(sequences_subset), desc="Embedding GT sequences"
     ):
         sequences.append(seq)
-        seq_embed = embedder.embed([seq])
+        seq_embed = embedder(seq)
         gt_embeddings.extend(seq_embed)
 
     gt_embeddings = np.array(gt_embeddings).astype(np.float64)
@@ -74,7 +74,7 @@ def get_batch_embeddings(dataset, embedder):
 
     for idx_batch, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
         sequences.extend(seq)
-        batch_embedded = embedder.embed(seq)
+        batch_embedded = embedder(seq)
 
         embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
 

@@ -77,7 +77,7 @@ class BaseEmbedder:
         """Load the model. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(self, sequences: str, *args, **kwargs):
+    def embed(self, sequences: List[str], *args, **kwargs):
         """Embed a sequence. Should be implemented by the inheriting class.
 
         Parameters
@@ -87,7 +87,7 @@ class BaseEmbedder:
         """
         raise NotImplementedError
 
-    def __call__(self, sequence: str, *args, **kwargs):
+    def __call__(self, sequences: List[str], *args, **kwargs):
         """Embed a single sequence. Calls `embed` with the given arguments.
 
         Parameters
@@ -104,7 +104,20 @@ class BaseEmbedder:
         np.ndarray
             The embedding of the sequence.
         """
-        return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
+
+        if self.max_seq_len:
+            embeddings = []
+
+            for s in sequences:
+                chunks = [
+                    s[chunk : chunk + self.max_seq_len]
+                    for chunk in range(0, len(s), self.max_seq_len)
+                ]
+                seq_emb = self.embed(chunks, *args, disable_tqdm=True, **kwargs)
+                embeddings.append(seq_emb)
+            return embeddings
+
+        return self.embed(sequences, *args, **kwargs)
 
     @staticmethod
     def _upsample(
@@ -462,7 +475,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
     def embed(
         self,
-        sequences: List[str],
+        chunks: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
         upsample_embeddings: bool = True,
@@ -487,133 +500,119 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             List of embeddings.
         """
 
-        cls_tokens = []
-        embeddings = []
-
         with torch.no_grad():
-            for n, s in enumerate(tqdm(sequences, disable=disable_tqdm)):
-                # print('sequence', n)
-                s_chunks = [
-                    s[chunk : chunk + self.max_seq_len]
-                    for chunk in range(0, len(s), self.max_seq_len)
-                ]  # split into chunks
-                embedded_seq = []
-                for n_chunk, chunk in enumerate(s_chunks):  # embed each chunk
-                    tokens_ids = (
-                        self.tokenizer(chunk, return_tensors="pt")["input_ids"]
-                        .int()
-                        .to(device)
-                    )
-                    if (
-                        len(tokens_ids[0]) > self.max_tokens
-                    ):  # too long to fit into the model
-                        split = torch.split(tokens_ids, self.max_tokens, dim=-1)
-                        if self.return_logits:
-                            outs = [
-                                self.model(item)["logits"].detach().cpu().numpy()
-                                for item in split
-                            ]
-                        elif self.return_loss:
-                            outs = []
-                            for item in split:
-                                out = self.model(item)["logits"].detach()
-                                out = (
-                                    out[:, 1:, 4:-2] if remove_special_tokens else out
-                                )  # unk, pad, mask,cls , ... actual tokens ... eos, bos
-                                item_subset = (
-                                    item[:, 1:] - 4 if remove_special_tokens else item
-                                )  # remove special tokens
-                                out = torch.nn.functional.cross_entropy(
-                                    out.view(-1, out.shape[-1]),
-                                    item_subset.view(-1).to(torch.long),
-                                    reduction="none",
-                                )
-                                out = out.unsqueeze(0).detach().cpu().numpy()
-                                outs.append(out)
-                        else:
-                            outs = [
-                                self.model(item, output_hidden_states=True)[
-                                    "hidden_states"
-                                ][-1]
-                                .detach()
-                                .cpu()
-                                .numpy()
-                                for item in split
-                            ]
-                        outs = np.concatenate(outs, axis=1)
-                    else:
-                        if self.return_logits:
-                            outs = (
-                                self.model(tokens_ids)["logits"].detach().cpu().numpy()
-                            )
-                        elif self.return_loss:
-                            outs = self.model(tokens_ids)[
-                                "logits"
-                            ].detach()  # NOTE  in V1 only is shape 4105, even though vocab_size is 4107. Correct in V2.
-                            # NOTE order in V1: unk, pad, mask,cls , ... actual tokens ... eos, bos  --> last 2 tokens are not used in the model.
-                            # in V2: unk, pad, mask,cls , eos, bos, ... actual tokens
-                            if self.is_v2:
-                                outs = (
-                                    outs[:, 1:, 6:] if remove_special_tokens else outs
-                                )
-                                tokens_ids_subset = (
-                                    tokens_ids[:, 1:] - 6
-                                    if remove_special_tokens
-                                    else tokens_ids
-                                )
-                            else:
-                                outs = (
-                                    outs[:, 1:, 4:] if remove_special_tokens else outs
-                                )  # unk, pad, mask,cls , ... actual tokens ... ( eos, bos)
-                                tokens_ids_subset = (
-                                    tokens_ids[:, 1:] - 4
-                                    if remove_special_tokens
-                                    else tokens_ids
-                                )  # token 4104 needs to be preseverd
-
-                            outs = torch.nn.functional.cross_entropy(
-                                outs.view(-1, outs.shape[-1]),
-                                tokens_ids_subset.view(-1).to(torch.long),
+            # print('sequence', n)
+            embedded_seq = []
+            for n_chunk, chunk in enumerate(chunks):  # embed each chunk
+                tokens_ids = (
+                    self.tokenizer(chunk, return_tensors="pt")["input_ids"]
+                    .int()
+                    .to(device)
+                )
+                if (
+                    len(tokens_ids[0]) > self.max_tokens
+                ):  # too long to fit into the model
+                    split = torch.split(tokens_ids, self.max_tokens, dim=-1)
+                    if self.return_logits:
+                        outs = [
+                            self.model(item)["logits"].detach().cpu().numpy()
+                            for item in split
+                        ]
+                    elif self.return_loss:
+                        outs = []
+                        for item in split:
+                            out = self.model(item)["logits"].detach()
+                            out = (
+                                out[:, 1:, 4:-2] if remove_special_tokens else out
+                            )  # unk, pad, mask,cls , ... actual tokens ... eos, bos
+                            item_subset = (
+                                item[:, 1:] - 4 if remove_special_tokens else item
+                            )  # remove special tokens
+                            out = torch.nn.functional.cross_entropy(
+                                out.view(-1, out.shape[-1]),
+                                item_subset.view(-1).to(torch.long),
                                 reduction="none",
                             )
-                            outs = outs.unsqueeze(0).detach().cpu().numpy()
+                            out = out.unsqueeze(0).detach().cpu().numpy()
+                            outs.append(out)
+                    else:
+                        outs = [
+                            self.model(item, output_hidden_states=True)[
+                                "hidden_states"
+                            ][-1]
+                            .detach()
+                            .cpu()
+                            .numpy()
+                            for item in split
+                        ]
+                    outs = np.concatenate(outs, axis=1)
+                else:
+                    if self.return_logits:
+                        outs = self.model(tokens_ids)["logits"].detach().cpu().numpy()
+                    elif self.return_loss:
+                        outs = self.model(tokens_ids)[
+                            "logits"
+                        ].detach()  # NOTE  in V1 only is shape 4105, even though vocab_size is 4107. Correct in V2.
+                        # NOTE order in V1: unk, pad, mask,cls , ... actual tokens ... eos, bos  --> last 2 tokens are not used in the model.
+                        # in V2: unk, pad, mask,cls , eos, bos, ... actual tokens
+                        if self.is_v2:
+                            outs = outs[:, 1:, 6:] if remove_special_tokens else outs
+                            tokens_ids_subset = (
+                                tokens_ids[:, 1:] - 6
+                                if remove_special_tokens
+                                else tokens_ids
+                            )
                         else:
                             outs = (
-                                self.model(tokens_ids, output_hidden_states=True)[
-                                    "hidden_states"
-                                ][-1]
-                                .detach()
-                                .cpu()
-                                .numpy()
-                            )
+                                outs[:, 1:, 4:] if remove_special_tokens else outs
+                            )  # unk, pad, mask,cls , ... actual tokens ... ( eos, bos)
+                            tokens_ids_subset = (
+                                tokens_ids[:, 1:] - 4
+                                if remove_special_tokens
+                                else tokens_ids
+                            )  # token 4104 needs to be preseverd
 
-                    if upsample_embeddings and not (
-                        self.return_loss and remove_special_tokens
-                    ):
-                        outs = self._repeat_embedding_vectors(
-                            self.tokenizer.convert_ids_to_tokens(tokens_ids[0]), outs
+                        outs = torch.nn.functional.cross_entropy(
+                            outs.view(-1, outs.shape[-1]),
+                            tokens_ids_subset.view(-1).to(torch.long),
+                            reduction="none",
                         )
-                    elif upsample_embeddings and (
-                        self.return_loss and remove_special_tokens
-                    ):
-                        # special case - we already had to remove special tokens before when computing outs.
-                        outs = self._repeat_embedding_vectors(
-                            self.tokenizer.convert_ids_to_tokens(tokens_ids[0, 1:]),
-                            outs,
-                            has_special_tokens=False,
-                        )
-
-                    if self.return_loss and remove_special_tokens:
-                        # again, cls is already removed.
-                        embedded_seq.append(outs)
+                        outs = outs.unsqueeze(0).detach().cpu().numpy()
                     else:
-                        embedded_seq.append(
-                            outs[:, 1:] if remove_special_tokens else outs
+                        outs = (
+                            self.model(tokens_ids, output_hidden_states=True)[
+                                "hidden_states"
+                            ][-1]
+                            .detach()
+                            .cpu()
+                            .numpy()
                         )
 
-                embeddings.append(np.concatenate(embedded_seq, axis=1))
+                if upsample_embeddings and not (
+                    self.return_loss and remove_special_tokens
+                ):
+                    outs = self._repeat_embedding_vectors(
+                        self.tokenizer.convert_ids_to_tokens(tokens_ids[0]), outs
+                    )
+                elif upsample_embeddings and (
+                    self.return_loss and remove_special_tokens
+                ):
+                    # special case - we already had to remove special tokens before when computing outs.
+                    outs = self._repeat_embedding_vectors(
+                        self.tokenizer.convert_ids_to_tokens(tokens_ids[0, 1:]),
+                        outs,
+                        has_special_tokens=False,
+                    )
 
-        return embeddings
+                if self.return_loss and remove_special_tokens:
+                    # again, cls is already removed.
+                    embedded_seq.append(outs)
+                else:
+                    embedded_seq.append(outs[:, 1:] if remove_special_tokens else outs)
+
+            embeddings = np.concatenate(embedded_seq, axis=1)
+
+            return embeddings
 
     @staticmethod
     def _repeat_embedding_vectors(
@@ -1041,7 +1040,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
     def embed(
         self,
-        sequences: List[str],
+        chunks: List[str],
         disable_tqdm: bool = True,
         remove_special_tokens: bool = True,
         upsample_embeddings: bool = False,
@@ -1066,64 +1065,56 @@ class HyenaDNAEmbedder(BaseEmbedder):
             List of embeddings.
         """
 
-        embeddings = []
         with torch.inference_mode():
-            for s in tqdm(sequences, disable=disable_tqdm):
-                chunks = [
-                    s[chunk : chunk + self.max_seq_len]
-                    for chunk in range(0, len(s), self.max_seq_len)
-                ]  # split into chunks
-                embedded_chunks = []
-                for n_chunk, chunk in enumerate(chunks):
-                    # reference: https://colab.research.google.com/drive/1wyVEQd4R3HYLTUOXEEQmp_I8aNC_aLhL?usp=sharing#scrollTo=-1wq2uwUctPV
-                    #### Single embedding example ####
+            embedded_chunks = []
+            for n_chunk, chunk in enumerate(chunks):
+                # reference: https://colab.research.google.com/drive/1wyVEQd4R3HYLTUOXEEQmp_I8aNC_aLhL?usp=sharing#scrollTo=-1wq2uwUctPV
+                #### Single embedding example ####
 
-                    # create a sample 450k long, prepare
-                    # sequence = 'ACTG' * int(self.max_seq_len/4)
-                    tok_seq = self.tokenizer(
-                        chunk
-                    )  # adds CLS and SEP tokens (0=CLS, 1=EOS)
-                    tok_seq = tok_seq["input_ids"]  # grab ids
+                # create a sample 450k long, prepare
+                # sequence = 'ACTG' * int(self.max_seq_len/4)
+                tok_seq = self.tokenizer(
+                    chunk
+                )  # adds CLS and SEP tokens (0=CLS, 1=EOS)
+                tok_seq = tok_seq["input_ids"]  # grab ids
 
-                    # place on device, convert to tensor
-                    tok_seq = torch.LongTensor(tok_seq).unsqueeze(
-                        0
-                    )  # unsqueeze for batch dim
-                    tok_seq = tok_seq.to(device)
+                # place on device, convert to tensor
+                tok_seq = torch.LongTensor(tok_seq).unsqueeze(
+                    0
+                )  # unsqueeze for batch dim
+                tok_seq = tok_seq.to(device)
 
-                    output = self.model(tok_seq)
+                output = self.model(tok_seq)
 
-                    if self.return_loss and remove_special_tokens:
-                        # vocab:
-                        # {0: '[CLS]', 1: '[SEP]', 2: '[BOS]', 3: '[MASK]', 4: '[PAD]', 5: '[RESERVED]', 6: '[UNK]', 7: 'A', 8: 'C', 9: 'G', 10: 'T', 11: 'N'}
-                        output = output[:, :, 7:12]
-                        shift_logits = output[
-                            ..., :-2, :
-                        ].contiguous()  # remove EOS and last AA
-                        shift_labels = tok_seq[..., 1:-1]  # remove BOS and EOS
-                        shift_labels = shift_labels - 7  # shift to 0-indexed
-                        loss = torch.nn.functional.cross_entropy(
-                            shift_logits.view(-1, shift_logits.size(-1)),
-                            shift_labels.view(-1),
-                            reduction="none",
-                        )
-                        output = loss.unsqueeze(0)  # dim 0 gets lost because of view
+                if self.return_loss and remove_special_tokens:
+                    # vocab:
+                    # {0: '[CLS]', 1: '[SEP]', 2: '[BOS]', 3: '[MASK]', 4: '[PAD]', 5: '[RESERVED]', 6: '[UNK]', 7: 'A', 8: 'C', 9: 'G', 10: 'T', 11: 'N'}
+                    output = output[:, :, 7:12]
+                    shift_logits = output[
+                        ..., :-2, :
+                    ].contiguous()  # remove EOS and last AA
+                    shift_labels = tok_seq[..., 1:-1]  # remove BOS and EOS
+                    shift_labels = shift_labels - 7  # shift to 0-indexed
+                    loss = torch.nn.functional.cross_entropy(
+                        shift_logits.view(-1, shift_logits.size(-1)),
+                        shift_labels.view(-1),
+                        reduction="none",
+                    )
+                    output = loss.unsqueeze(0)  # dim 0 gets lost because of view
 
-                    elif self.return_loss and not remove_special_tokens:
-                        raise ValueError(
-                            "return_loss is incompatible with remove_special_tokens=False. We always remove EOS and BOS tokens to calculate the loss."
-                        )
+                elif self.return_loss and not remove_special_tokens:
+                    raise ValueError(
+                        "return_loss is incompatible with remove_special_tokens=False. We always remove EOS and BOS tokens to calculate the loss."
+                    )
 
-                    elif remove_special_tokens:
-                        output = output[:, 1:-1]
+                elif remove_special_tokens:
+                    output = output[:, 1:-1]
 
-                    embedded_chunks.append(output.detach().cpu().numpy())
+                embedded_chunks.append(output.detach().cpu().numpy())
 
-                embedding = np.concatenate(embedded_chunks, axis=1)
+            embedding = np.concatenate(embedded_chunks, axis=1)
 
-                embeddings.append(embedding)
-
-        return embeddings
+            return embedding
 
 
 class DNABert2Embedder(BaseEmbedder):
@@ -1169,7 +1160,7 @@ class DNABert2Embedder(BaseEmbedder):
 
     def embed(
         self,
-        sequences: List[str],
+        chunks: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
         upsample_embeddings: bool = True,
@@ -1198,117 +1189,108 @@ class DNABert2Embedder(BaseEmbedder):
         # The [CLS] and [SEP] tokens are removed from the output if remove_special_tokens is True.
         # '''
 
-        embeddings = []
         with torch.no_grad():
-            for sequence in tqdm(sequences, disable=disable_tqdm):
 
-                chunks = [
-                    sequence[chunk : chunk + self.max_seq_len]
-                    for chunk in range(0, len(sequence), self.max_seq_len)
-                ]  # split into chunks
+            embedded_chunks = []
+            for n_chunk, chunk in enumerate(chunks):
 
-                embedded_chunks = []
-                for n_chunk, chunk in enumerate(chunks):
+                input_ids = self.tokenizer(
+                    chunk,
+                    return_tensors="pt",
+                    return_attention_mask=False,
+                    return_token_type_ids=False,
+                )["input_ids"]
 
-                    input_ids = self.tokenizer(
-                        chunk,
-                        return_tensors="pt",
-                        return_attention_mask=False,
-                        return_token_type_ids=False,
-                    )["input_ids"]
+                if self.return_logits:
+                    output = (
+                        self.model(input_ids.to(device))["logits"]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                elif self.return_loss:
+                    output = self.model(input_ids.to(device))[
+                        "logits"
+                    ].detach()  # (1, len, 4096)
+                    dim_to_remove = [
+                        1,
+                        2,
+                        3,
+                        4,
+                    ]  # indices for '[CLS]', '[SEP]', '[PAD]', '[MASK]'. We preserve UNK at 0.
+                    mask = torch.ones(
+                        output.shape[2], dtype=bool
+                    )  # create a mask of True values
+                    mask[dim_to_remove] = (
+                        False  # set the dimensions you want to remove to False
+                    )
+                    output = (
+                        output[:, 1:-1, mask] if remove_special_tokens else output
+                    )  # remove CLS and SEP, cut dimensions ['[CLS]', '[SEP]', '[PAD]', '[MASK]', ...
 
-                    if self.return_logits:
-                        output = (
-                            self.model(input_ids.to(device))["logits"]
-                            .detach()
-                            .cpu()
-                            .numpy()
+                    # shift and offset input_ids
+                    greater_than_4 = input_ids > 4
+                    input_ids_shifted = (
+                        input_ids - 4 * greater_than_4
+                    )  # Subtract 4 from the tokens that are greater than 4
+                    input_ids_shifted = (
+                        input_ids_shifted[:, 1:-1]
+                        if remove_special_tokens
+                        else input_ids
+                    )  # remove CLS and SEP, shift to 0-indexed
+                    output = (
+                        torch.nn.functional.cross_entropy(
+                            output.view(-1, output.shape[-1]),
+                            input_ids_shifted.view(-1).to(torch.long).to(device),
+                            reduction="none",
                         )
-                    elif self.return_loss:
-                        output = self.model(input_ids.to(device))[
-                            "logits"
-                        ].detach()  # (1, len, 4096)
-                        dim_to_remove = [
-                            1,
-                            2,
-                            3,
-                            4,
-                        ]  # indices for '[CLS]', '[SEP]', '[PAD]', '[MASK]'. We preserve UNK at 0.
-                        mask = torch.ones(
-                            output.shape[2], dtype=bool
-                        )  # create a mask of True values
-                        mask[dim_to_remove] = (
-                            False  # set the dimensions you want to remove to False
-                        )
-                        output = (
-                            output[:, 1:-1, mask] if remove_special_tokens else output
-                        )  # remove CLS and SEP, cut dimensions ['[CLS]', '[SEP]', '[PAD]', '[MASK]', ...
+                        .cpu()
+                        .unsqueeze(0)
+                        .numpy()
+                    )
+                else:
+                    output = (
+                        self.model(input_ids.to(device), output_hidden_states=True)[
+                            "hidden_states"
+                        ]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
 
-                        # shift and offset input_ids
-                        greater_than_4 = input_ids > 4
-                        input_ids_shifted = (
-                            input_ids - 4 * greater_than_4
-                        )  # Subtract 4 from the tokens that are greater than 4
-                        input_ids_shifted = (
-                            input_ids_shifted[:, 1:-1]
-                            if remove_special_tokens
-                            else input_ids
-                        )  # remove CLS and SEP, shift to 0-indexed
-                        output = (
-                            torch.nn.functional.cross_entropy(
-                                output.view(-1, output.shape[-1]),
-                                input_ids_shifted.view(-1).to(torch.long).to(device),
-                                reduction="none",
-                            )
-                            .cpu()
-                            .unsqueeze(0)
-                            .numpy()
-                        )
+                if upsample_embeddings and not (
+                    self.return_loss and remove_special_tokens
+                ):
+                    output = self._repeat_embedding_vectors(
+                        self.tokenizer.convert_ids_to_tokens(input_ids[0]), output
+                    )
+                elif upsample_embeddings and (
+                    self.return_loss and remove_special_tokens
+                ):
+                    output = self._repeat_embedding_vectors(
+                        self.tokenizer.convert_ids_to_tokens(input_ids[0, 1:-1]),
+                        output,
+                        has_special_tokens=False,
+                    )
+
+                # for intermediate chunks the special tokens need to go.
+                # if we only have 1 chunk, keep them for now.
+                if len(chunks) != 1:
+                    if n_chunk == 0:
+                        output = output[:, :-1]  # no SEP
+                    elif n_chunk == len(chunks) - 1:
+                        output = output[:, 1:]  # no CLS
                     else:
-                        output = (
-                            self.model(input_ids.to(device), output_hidden_states=True)[
-                                "hidden_states"
-                            ]
-                            .detach()
-                            .cpu()
-                            .numpy()
-                        )
+                        output = output[:, 1:-1]  # no CLS and no SEP
 
-                    if upsample_embeddings and not (
-                        self.return_loss and remove_special_tokens
-                    ):
-                        output = self._repeat_embedding_vectors(
-                            self.tokenizer.convert_ids_to_tokens(input_ids[0]), output
-                        )
-                    elif upsample_embeddings and (
-                        self.return_loss and remove_special_tokens
-                    ):
-                        output = self._repeat_embedding_vectors(
-                            self.tokenizer.convert_ids_to_tokens(input_ids[0, 1:-1]),
-                            output,
-                            has_special_tokens=False,
-                        )
+                embedded_chunks.append(output)
 
-                    # for intermediate chunks the special tokens need to go.
-                    # if we only have 1 chunk, keep them for now.
-                    if len(chunks) != 1:
-                        if n_chunk == 0:
-                            output = output[:, :-1]  # no SEP
-                        elif n_chunk == len(chunks) - 1:
-                            output = output[:, 1:]  # no CLS
-                        else:
-                            output = output[:, 1:-1]  # no CLS and no SEP
+            embeddings = np.concatenate(embedded_chunks, axis=1)
 
-                    embedded_chunks.append(output)
+            if remove_special_tokens and not self.return_loss:
+                embeddings = embeddings[:, 1:-1]
 
-                embedding = np.concatenate(embedded_chunks, axis=1)
-
-                if remove_special_tokens and not self.return_loss:
-                    embedding = embedding[:, 1:-1]
-
-                embeddings.append(embedding)
-
-        return embeddings
+            return embeddings
 
     # GATTTATTAGGGGAGATTTTATATATCCCGA
     # ['[CLS]', 'G', 'ATTTATT', 'AGGGG', 'AGATT', 'TTATAT', 'ATCCCG', 'A', '[SEP]']
