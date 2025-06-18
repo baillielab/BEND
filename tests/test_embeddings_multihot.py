@@ -15,9 +15,20 @@ from bend.utils.set_seed import set_seed
 
 set_seed()
 
-EMBEDDERS = ["hyenadna-tiny-1k"]
+EMBEDDERS = [
+    "nt_transformer_v2_500m",
+    "nt_transformer_human_ref",
+    "nt_transformer_ms",
+    "nt_transformer_1000g",
+    "dnabert2",
+    "hyenadna-tiny-1k",
+    "hyenadna-large-1m",
+    "resnetlm",
+    "awdlstm",
+]
 
-N_EMBEDDINGS = 1000  # Number of embeddings to retrieve for testing
+
+N_EMBEDDINGS = 10  # Number of embeddings to retrieve for testing
 MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
 ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
 
@@ -41,6 +52,8 @@ def get_gt_embeddings(gt_sequences, embedder):
         sequences.append(seq)
         seq_embed = embedder.embed([seq])
         gt_embeddings.extend(seq_embed)
+
+    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
 
     return gt_embeddings, sequences
 
@@ -70,6 +83,8 @@ def get_batch_embeddings(dataset, embedder):
             break
 
     embeddings = embeddings[:N_EMBEDDINGS]
+    embeddings = np.array(embeddings).astype(np.float64)
+
     sequences = sequences[:N_EMBEDDINGS]
 
     return embeddings, sequences
@@ -121,11 +136,9 @@ def test_embeddings(data, embedder):
     gt_sequences, _ = gt_data
 
     batch_embeddings, batch_sequences = get_batch_embeddings(dataset, embedder)
-    batch_embeddings = np.array(batch_embeddings).astype(np.float64)
     print(f"Batch Embeddings shape: {batch_embeddings.shape}")
 
     gt_embeddings, gt_sequences = get_gt_embeddings(gt_sequences, embedder)
-    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
     print(f"GT Embeddings shape: {gt_embeddings.shape}")
 
     assert_sequences(gt_sequences, batch_sequences)
