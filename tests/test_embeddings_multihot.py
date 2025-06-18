@@ -39,18 +39,15 @@ def get_gt_embeddings(gt_sequences, embedder):
     return gt_embeddings
 
 
-def get_batch_embeddings(dataset, embedder, task):
+def get_batch_embeddings(dataset, embedder):
 
     embedder = hydra.utils.instantiate(CFG_BATCH[embedder])
 
-    with initialize(version_base=None, config_path="../conf/supervised_tasks/"):
-        cfg_task = compose(config_name=task)
-
     dataloader = DataLoader(
         dataset,
-        batch_size=cfg_task["data"]["batch_size"],
+        batch_size=1,
         shuffle=False,
-        num_workers=cfg_task["data"]["num_workers"],
+        num_workers=0,
     )
 
     embeddings = []
@@ -82,7 +79,7 @@ def test_embeddings(data, embedder):
 
     gt_sequences, _ = gt_data
 
-    batch_embeddings = get_batch_embeddings(dataset, embedder, task)
+    batch_embeddings = get_batch_embeddings(dataset, embedder)
     batch_embeddings = np.array(batch_embeddings).astype(np.float64)
     print(f"Batch Embeddings shape: {batch_embeddings.shape}")
 
