@@ -1,19 +1,21 @@
 defaults:
   - datadims: [label_dims, embedding_dims, downstream_downsample]
-  - embedding: batch_embedders
-  #- hydra : multirun
   - supervised_encoder: [resnet-supervised, basset-supervised]
-  #- override hydra/launcher: joblib # ability to launch jobs in parallel fashion
+  - embedding: batch_embedders
+  - hydra: multirun
+  - override hydra/launcher: joblib # ability to launch jobs in parallel fashion
   - _self_
 hydra:
   searchpath:
     - file://conf
   sweeper:
     params:
-      embedder:
-        gena-lm-bigbird-base-t2t,
+      embedder: gena-lm-bigbird-base-t2t,
         gena-lm-bert-large-t2,
         hyenadna-tiny-1k,
+        hyenadna-small-32k,
+        hyenadna-medium-160k,
+        hyenadna-medium-450k,
         hyenadna-large-1m,
         dnabert6,
         resnetlm,
@@ -24,13 +26,9 @@ hydra:
         onehot,
         awdlstm,
         resnet-supervised,
-        basset-supervised,
         nt_transformer_v2_500m,
         grover
-        #hyenadna-small-32k,
-        #hyenadna-medium-160k,
-        #hyenadna-medium-450k,
-task: histone_modification
+task: gene_finding
 embedder: onehot
 work_dir: ./
 data_dir: ${work_dir}/data/
@@ -38,36 +36,33 @@ embedders_dir: ${work_dir}/pretrained_models/
 output_dir: ${work_dir}/results_onfly/batch/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
-  encoder: null
   input_size: ${datadims.${embedder}}
   output_size: ${datadims.${task}}
   hidden_size: 64
   kernel_size: 3
-  output_downsample_window: 512
 optimizer:
   _target_: torch.optim.AdamW
   lr: 0.003
   weight_decay: 0.01
 data:
   _target_: bend.utils.dataloaders.get_dataloaders
-  annotations_path: ${data_dir}/histone_modification/histone_modification.bed
+  # cross_validation : false
+  annotations_path: ${data_dir}/gene_finding/gene_finding.bed
   reference_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  label_depth: ${datadims.histone_modification}
-  # parent_dir: ./data/
-  # data_dir: ${data.parent_dir}/${task}/${embedder}/
-  # cross_validation: false
-  batch_size: 256
+  hdf5_file: ${data_dir}/gene_finding/gene_finding.hdf5
+  batch_size: 64
   num_workers: 0
   padding_value: -100
-  # shuffle: 200
+  # shuffle: 1000
+  # read_strand: false
 params:
   epochs: 100
   load_checkpoint: false
   mode: train
   gradient_accumulation_steps: 1
-  criterion: bce
-  class_weights: null
-  metric: auroc
+  criterion: cross_entropy
+  class_weights: null #[6.37, 1485.62, 1.52, 1485.62, 6.11, 1438.04, 1.52, 1438.04, 1.0]
+  metric: mcc
   activation: none
 wandb:
   mode: disabled
