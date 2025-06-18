@@ -1,13 +1,7 @@
 from tqdm.auto import tqdm
-import pysam
-import pandas as pd
 import numpy as np
 import pytest
-from bend.utils.datasets import DatasetMultiHot
-import os
-from bend.utils.embedders import HyenaDNAEmbedder, ConvNetEmbedder, AWDLSTMEmbedder
 from hydra import compose, initialize
-from omegaconf import OmegaConf
 import hydra
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr
