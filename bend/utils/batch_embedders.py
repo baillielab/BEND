@@ -410,6 +410,8 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_name,
+        max_seq_len: int,
+        max_tokens_len: int,
         return_logits: bool = False,
         return_loss: bool = False,
         **kwargs,
@@ -443,15 +445,15 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_name, trust_remote_code=True
             )
-            self.max_seq_len = 12282  # "model_max_length": 2048, --> 12,288
-            self.max_tokens = 2048
             self.is_v2 = True
         else:
             self.model = AutoModelForMaskedLM.from_pretrained(model_name)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.max_seq_len = 5994  # "model_max_length": 1000, 6-mer --> 6000
-            self.max_tokens = 1000
             self.is_v2 = False
+
+        self.max_seq_len = max_seq_len  # max_seq_len = token_len * len_single_token (6-mer) - EOS_token_len
+        self.max_tokens = max_tokens_len
+
         self.model.to(device)
         self.model.eval()
 
@@ -945,6 +947,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
+        max_seq_len=int,
         return_logits: bool = False,
         return_loss: bool = False,
         **kwargs,
@@ -978,15 +981,8 @@ class HyenaDNAEmbedder(BaseEmbedder):
         """
 
         checkpoint_path, model_name = os.path.split(model_path)
-        max_lengths = {
-            "hyenadna-tiny-1k-seqlen": 1024,
-            "hyenadna-small-32k-seqlen": 32768,
-            "hyenadna-medium-160k-seqlen": 160000,
-            "hyenadna-medium-450k-seqlen": 450000,
-            "hyenadna-large-1m-seqlen": 1_000_000,
-        }
 
-        self.max_length = max_lengths[model_name]  # auto selects
+        self.max_length = max_seq_len
 
         if return_logits and return_loss:
             raise ValueError("Only one of return_logits and return_loss can be True")
@@ -1140,6 +1136,7 @@ class DNABert2Embedder(BaseEmbedder):
     def load_model(
         self,
         model_name="zhihan1996/DNABERT-2-117M",
+        max_seq_len: int = 10000,
         return_logits: bool = False,
         return_loss: bool = False,
         **kwargs,
@@ -1169,8 +1166,7 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(device)
 
-        # https://github.com/Zhihan1996/DNABERT_2/issues/2
-        self.max_length = 10000  # nucleotides.
+        self.max_length = max_seq_len
 
         self.return_logits = return_logits
         self.return_loss = return_loss
