@@ -11,6 +11,9 @@ from omegaconf import OmegaConf
 import hydra
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr
+from bend.utils.set_seed import set_seed
+
+set_seed()
 
 EMBEDDERS = ["hyenadna-tiny-1k"]
 
