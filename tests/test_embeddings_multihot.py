@@ -105,6 +105,12 @@ def assert_embeddings(gt_embeddings, batch_embeddings):
     Asserts that ground truth embeddings and batch embeddings are similar
     using Pearson correlation and absolute tolerance.
     """
+
+    assert gt_embeddings.shape == batch_embeddings.shape, (
+        f"GT embeddings and batch embeddings shape mismatch: "
+        f"{batch_embeddings.shape} != {gt_embeddings.shape}"
+    )
+
     batch_embeddings = batch_embeddings.flatten()
     gt_embeddings = gt_embeddings.flatten()
 
