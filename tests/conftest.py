@@ -8,7 +8,12 @@ import os
 from hydra import compose, initialize
 
 
-TASKS = ["gene_finding", "cpg_methylation"]
+TASKS = [
+    "gene_finding",
+    "cpg_methylation",
+    "chromatin_accessibility",
+    "histone_modification",
+]
 SPLITS = ["train", "valid", "test"]
 
 with initialize(version_base=None, config_path="../conf/embedding/"):

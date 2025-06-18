@@ -75,7 +75,7 @@ class BaseEmbedder:
         """Load the model. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(self, sequences: str, *args, **kwargs):
+    def embed(self, sequences, *args, **kwargs):
         """Embed a sequence. Should be implemented by the inheriting class.
 
         Parameters
@@ -85,7 +85,7 @@ class BaseEmbedder:
         """
         raise NotImplementedError
 
-    def __call__(self, sequence: str, *args, **kwargs):
+    def __call__(self, sequence, *args, **kwargs):
         """Embed a single sequence. Calls `embed` with the given arguments.
 
         Parameters
@@ -102,7 +102,10 @@ class BaseEmbedder:
         np.ndarray
             The embedding of the sequence.
         """
-        return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
+        if type(sequence) is not list:
+            sequence = [sequence]
+
+        return self.embed(sequence, *args, disable_tqdm=True, **kwargs)[0]
 
 
 class GPNEmbedder(BaseEmbedder):

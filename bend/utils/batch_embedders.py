@@ -105,20 +105,21 @@ class BaseEmbedder:
             The embedding of the sequence.
         """
 
-        if self.max_seq_len:
-            embeddings = []
+        embeddings = []
 
+        if self.max_seq_len:
             for s in sequences:
                 chunks = [
                     s[chunk : chunk + self.max_seq_len]
                     for chunk in range(0, len(s), self.max_seq_len)
                 ]
                 seq_emb = self.embed(chunks, *args, disable_tqdm=True, **kwargs)
-                seq_emb = seq_emb.squeeze()  # (n, 768) -> (768,)
                 embeddings.append(seq_emb)
-            return embeddings
 
-        return self.embed(sequences, *args, **kwargs)
+        else:
+            embeddings = self.embed(sequences, *args, **kwargs)
+
+        return np.array(embeddings).squeeze(axis=1)
 
     @staticmethod
     def _upsample(
@@ -708,7 +709,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
 
                 embeddings.append(embedding.detach().cpu().numpy())
                 # embeddings.append(embedding.detach().cpu().numpy()[:,1:])
-
         return embeddings
 
 
@@ -775,7 +775,6 @@ class ConvNetEmbedder(BaseEmbedder):
                 )["input_ids"]
                 input_ids = input_ids.to(device)
                 embedding = self.model(input_ids=input_ids).last_hidden_state
-                # print(embedding.shape)
                 embeddings.append(embedding.detach().cpu().numpy())
         # print(f"Embeddings shape: {np.array(embeddings).shape}")
         return embeddings
