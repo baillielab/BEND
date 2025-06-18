@@ -76,29 +76,98 @@ class Fasta(pysam.FastaFile):
         return sequence
 
 
-class DatasetMultiHot(Dataset):
+class DatasetAnnotations(Dataset):
     def __init__(
         self,
         annotations_path: str,
         genome_path: str,
-        label_depth: int,
+        label_depth: int = None,
+        hdf5_path: str = None,
         default_label_column_idx: int = DEFAULT_LABEL_COLUMN_IDX,
         default_strand_column_idx: int = DEFAULT_STRAND_COLUMN_IDX,
         split: str = None,
         split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
         flank: int = DEFAULT_FLANK,
     ):
+
+        if hdf5_path is None and label_depth is None:
+            raise ValueError(
+                "Either hdf5_path or label_depth must be provided to initialize DatasetAnnotations."
+            )
+
+        if hdf5_path and label_depth:
+            raise ValueError(
+                "Only one of hdf5_path or label_depth should be provided to initialize DatasetAnnotations."
+            )
+
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
-
-        if split:
-            print(f"Filtering annotations {len(annotations)} for split: {split}")
-            # Get only data belonging to specific split
-            mask = annotations.iloc[:, split_column_idx] == split
-            annotations = annotations[mask]
-            annotations = annotations.reset_index(drop=True)
-            print(f"Filtered annotations to {len(annotations)} for split: {split}")
-
         genome = Fasta(genome_path)
+
+        mask = None
+        if split:
+            annotations, mask = self._filter_annotations(
+                annotations, split, split_column_idx
+            )
+
+        if hdf5_path:
+            self.sequences, self.labels = self._get_data_hdf5(
+                annotations,
+                genome,
+                hdf5_path,
+                flank,
+                mask=mask,
+            )
+
+        if label_depth:
+            self.sequences, self.labels = self._get_data_multi_hot(
+                annotations,
+                genome,
+                label_depth,
+                default_label_column_idx,
+                default_strand_column_idx,
+                flank,
+            )
+
+    def _filter_annotations(self, annotations, split, split_column_idx):
+        print(f"Filtering annotations {len(annotations)} for split: {split}")
+        # Get only data belonging to specific split
+        mask = annotations.iloc[:, split_column_idx] == split
+        annotations = annotations[mask]
+        annotations = annotations.reset_index(drop=True)
+        print(f"Filtered annotations to {len(annotations)} for split: {split}")
+
+        return annotations, mask
+
+    def _get_data_hdf5(self, annotations, genome, hdf5_path, flank, mask=None):
+        labels = h5py.File(hdf5_path, mode="r")["labels"]
+        if mask is not None:
+            labels = labels[mask.to_numpy()]
+
+        sequences = []
+        for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
+
+            # fetch sequence from genome
+            chrom, start, end, strand = (
+                item.iloc[0],
+                int(item.iloc[1]),
+                int(item.iloc[2]),
+                "+",
+            )
+
+            sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
+            sequences.append(sequence)
+
+        return sequences, labels
+
+    def _get_data_multi_hot(
+        self,
+        annotations,
+        genome,
+        label_depth,
+        default_label_column_idx,
+        default_strand_column_idx,
+        flank,
+    ):
 
         label_column_idx = (
             annotations.columns.get_loc("label")
@@ -112,28 +181,8 @@ class DatasetMultiHot(Dataset):
             else default_strand_column_idx
         )
 
-        self.sequences, self.labels = self._get_data(
-            annotations,
-            genome,
-            label_column_idx,
-            strand_column_idx,
-            flank,
-            label_depth,
-        )
-
-    def _get_data(
-        self,
-        annotations,
-        genome,
-        label_column_idx,
-        strand_column_idx,
-        flank,
-        label_depth,
-    ):
-
         sequences = []
         labels = []
-
         for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
 
             # fetch sequence from genome

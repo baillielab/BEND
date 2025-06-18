@@ -1,22 +1,23 @@
 from torch.utils.data import DataLoader
-from bend.utils.datasets import DatasetMultiHot
+from bend.utils.datasets import DatasetAnnotations
 from bend.utils.set_seed import SEED
 import numpy as np
 
 
-def get_cpg_dataloader(
+def get_dataloaders(
     annotations_path,
     reference_path,
     label_depth,
     batch_size=32,
     num_workers=0,
+    splits=["train", "valid", "test"],
     **kwargs
 ):
     dataloaders = []
 
-    for split in ["train", "valid", "test"]:
+    for split in splits:
 
-        dataset = DatasetMultiHot(
+        dataset = DatasetAnnotations(
             annotations_path=annotations_path,
             genome_path=reference_path,
             label_depth=label_depth,

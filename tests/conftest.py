@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 from bend.io.sequtils import data_from_bed
 import pytest
-from bend.utils.datasets import DatasetMultiHot
+from bend.utils.datasets import DatasetAnnotations
 import os
 from hydra import compose, initialize
 
 
-TASKS = ["cpg_methylation", "histone_modification", "chromatin_accessibility"]
+TASKS = ["gene_finding", "cpg_methylation"]
 SPLITS = ["train", "valid", "test"]
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
@@ -28,7 +28,8 @@ def get_gt_data(task, split):
         sequences, labels = data_from_bed(
             CFG[task]["bed"],
             CFG[task]["reference_fasta"],
-            label_depth=CFG[task]["label_depth"],
+            hdf5_file=CFG[task].get("hdf5_file", None),
+            label_depth=CFG[task].get("label_depth", None),
             read_strand=CFG[task]["read_strand"],
             split=split,
             chunk_size=chunk_size,
@@ -48,10 +49,11 @@ def get_gt_data(task, split):
 
 
 def get_dataset(task, split):
-    dataset = DatasetMultiHot(
+    dataset = DatasetAnnotations(
         CFG[task]["bed"],
         CFG[task]["reference_fasta"],
-        label_depth=CFG[task]["label_depth"],
+        hdf5_path=CFG[task].get("hdf5_file", None),
+        label_depth=CFG[task].get("label_depth", None),
         split=split,
     )
 
