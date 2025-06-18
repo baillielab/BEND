@@ -114,6 +114,7 @@ class BaseEmbedder:
                     for chunk in range(0, len(s), self.max_seq_len)
                 ]
                 seq_emb = self.embed(chunks, *args, disable_tqdm=True, **kwargs)
+                seq_emb = seq_emb.squeeze()  # (n, 768) -> (768,)
                 embeddings.append(seq_emb)
             return embeddings
 
