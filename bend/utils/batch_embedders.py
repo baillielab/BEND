@@ -59,7 +59,7 @@ class BaseEmbedder:
     All embedders should inherit from this class.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, max_seq_len, *args, **kwargs):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
         Parameters
@@ -69,6 +69,8 @@ class BaseEmbedder:
         **kwargs
             Keyword arguments. Passed to `load_model`.
         """
+
+        self.max_seq_len = max_seq_len
         self.load_model(*args, **kwargs)
 
     def load_model(self, *args, **kwargs):
@@ -410,7 +412,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_name,
-        max_seq_len: int,
         max_tokens_len: int,
         return_logits: bool = False,
         return_loss: bool = False,
@@ -451,7 +452,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.is_v2 = False
 
-        self.max_seq_len = max_seq_len  # max_seq_len = token_len * len_single_token (6-mer) - EOS_token_len
         self.max_tokens = max_tokens_len
 
         self.model.to(device)
@@ -982,8 +982,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         checkpoint_path, model_name = os.path.split(model_path)
 
-        self.max_length = max_seq_len
-
         if return_logits and return_loss:
             raise ValueError("Only one of return_logits and return_loss can be True")
 
@@ -1035,7 +1033,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
         # create tokenizer - NOTE this adds CLS and SEP tokens when add_special_tokens=False
         self.tokenizer = CharacterTokenizer(
             characters=["A", "C", "G", "T", "N"],  # add DNA characters, N is uncertain
-            model_max_length=self.max_length
+            model_max_length=self.max_seq_len
             + 2,  # to account for special tokens, like EOS
             add_special_tokens=False,  # we handle special tokens elsewhere
             padding_side="left",  # since HyenaDNA is causal, we pad on the left
@@ -1072,8 +1070,8 @@ class HyenaDNAEmbedder(BaseEmbedder):
         with torch.inference_mode():
             for s in tqdm(sequences, disable=disable_tqdm):
                 chunks = [
-                    s[chunk : chunk + self.max_length]
-                    for chunk in range(0, len(s), self.max_length)
+                    s[chunk : chunk + self.max_seq_len]
+                    for chunk in range(0, len(s), self.max_seq_len)
                 ]  # split into chunks
                 embedded_chunks = []
                 for n_chunk, chunk in enumerate(chunks):
@@ -1081,7 +1079,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
                     #### Single embedding example ####
 
                     # create a sample 450k long, prepare
-                    # sequence = 'ACTG' * int(self.max_length/4)
+                    # sequence = 'ACTG' * int(self.max_seq_len/4)
                     tok_seq = self.tokenizer(
                         chunk
                     )  # adds CLS and SEP tokens (0=CLS, 1=EOS)
@@ -1166,8 +1164,6 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(device)
 
-        self.max_length = max_seq_len
-
         self.return_logits = return_logits
         self.return_loss = return_loss
 
@@ -1207,8 +1203,8 @@ class DNABert2Embedder(BaseEmbedder):
             for sequence in tqdm(sequences, disable=disable_tqdm):
 
                 chunks = [
-                    sequence[chunk : chunk + self.max_length]
-                    for chunk in range(0, len(sequence), self.max_length)
+                    sequence[chunk : chunk + self.max_seq_len]
+                    for chunk in range(0, len(sequence), self.max_seq_len)
                 ]  # split into chunks
 
                 embedded_chunks = []
