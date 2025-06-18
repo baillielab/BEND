@@ -104,32 +104,6 @@ class BaseEmbedder:
         """
         return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
 
-    @staticmethod
-    def _upsample(
-        tokens: Iterable[str],
-        embedding: np.ndarray,
-        has_special_tokens: bool = True,
-    ):
-        """
-        Upsample the embeddings to match the length of the input sequences.
-        This is done by repeating the embedding vectors for each letter in the token.
-        """
-        new_embeddings = []
-        for idx, token in enumerate(tokens):
-            token_embedding = embedding[idx]  # (1, 768)
-
-            if token == "[UNK]" or (
-                has_special_tokens and (idx == 0 or idx == len(tokens) - 1)
-            ):
-                new_embeddings.append(token_embedding)  # (1, 768)
-                continue
-
-            new_embeddings.extend([token_embedding] * len(token))
-
-        new_embeddings = np.array(new_embeddings)  # (n, 768)
-
-        return new_embeddings
-
 
 class GPNEmbedder(BaseEmbedder):
     """Embed using the GPN model https://www.biorxiv.org/content/10.1101/2022.08.22.504706v1"""
