@@ -33,13 +33,16 @@ def get_gt_embeddings(gt_sequences, embedder):
     sequences_subset = gt_sequences[:N_EMBEDDINGS]
 
     gt_embeddings = []
+    sequences = []
+
     for idx_sample, seq in tqdm(
         enumerate(sequences_subset), desc="Embedding GT sequences"
     ):
-        seq_embed = embedder(seq)
+        sequences.append(seq)
+        seq_embed = embedder.embed([seq])
         gt_embeddings.extend(seq_embed)
 
-    return gt_embeddings
+    return gt_embeddings, sequences
 
 
 def get_batch_embeddings(dataset, embedder):
@@ -54,7 +57,10 @@ def get_batch_embeddings(dataset, embedder):
     )
 
     embeddings = []
+    sequences = []
+
     for idx_batch, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
+        sequences.extend(seq)
         batch_embedded = embedder.embed(seq)
 
         embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
@@ -64,8 +70,40 @@ def get_batch_embeddings(dataset, embedder):
             break
 
     embeddings = embeddings[:N_EMBEDDINGS]
+    sequences = sequences[:N_EMBEDDINGS]
 
-    return embeddings
+    return embeddings, sequences
+
+
+def assert_sequences(gt_sequences, batch_sequences):
+    """Asserts that ground truth sequences and batch sequences are equal."""
+    assert len(gt_sequences) == len(batch_sequences), (
+        f"GT sequences and batch sequences length mismatch: "
+        f"{len(batch_sequences)} != {len(gt_sequences)}"
+    )
+    for b_seq, gt_seq in zip(batch_sequences, gt_sequences):
+        assert b_seq == gt_seq, f"Sequence mismatch: {b_seq} != {gt_seq}"
+
+
+def assert_embeddings(gt_embeddings, batch_embeddings):
+    """
+    Asserts that ground truth embeddings and batch embeddings are similar
+    using Pearson correlation and absolute tolerance.
+    """
+    batch_embeddings = batch_embeddings.flatten()
+    gt_embeddings = gt_embeddings.flatten()
+
+    pearson_corr = pearsonr(batch_embeddings, gt_embeddings)[0]
+
+    print(f"Pearson correlation: {pearson_corr}")
+
+    assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
+
+    max_diff = np.max(np.abs(gt_embeddings - batch_embeddings))
+    print(f"Max difference: {max_diff}")
+    assert np.allclose(
+        gt_embeddings, batch_embeddings, atol=ABS_TOL
+    ), f"Max difference too high: {max_diff}"
 
 
 @pytest.mark.parametrize(
@@ -82,26 +120,14 @@ def test_embeddings(data, embedder):
 
     gt_sequences, _ = gt_data
 
-    batch_embeddings = get_batch_embeddings(dataset, embedder)
+    batch_embeddings, batch_sequences = get_batch_embeddings(dataset, embedder)
     batch_embeddings = np.array(batch_embeddings).astype(np.float64)
     print(f"Batch Embeddings shape: {batch_embeddings.shape}")
 
-    gt_embeddings = get_gt_embeddings(gt_sequences, embedder)
+    gt_embeddings, gt_sequences = get_gt_embeddings(gt_sequences, embedder)
     gt_embeddings = np.array(gt_embeddings).astype(np.float64)
     print(f"GT Embeddings shape: {gt_embeddings.shape}")
 
-    assert (
-        gt_embeddings.shape == batch_embeddings.shape
-    ), f"Shape mismatch: {gt_embeddings.shape} != {batch_embeddings.shape}"
+    assert_sequences(gt_sequences, batch_sequences)
 
-    batch_embeddings = batch_embeddings.flatten()
-    gt_embeddings = gt_embeddings.flatten()
-
-    pearson_corr = pearsonr(batch_embeddings, gt_embeddings)[0]
-
-    print(f"Pearson correlation: {pearson_corr}")
-
-    assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
-    assert np.allclose(
-        gt_embeddings, batch_embeddings, atol=ABS_TOL
-    ), f"Max difference too high: {np.max(np.abs(gt_embeddings - batch_embeddings))}"
+    assert_embeddings(gt_embeddings, batch_embeddings)
