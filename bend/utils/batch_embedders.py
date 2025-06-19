@@ -681,7 +681,7 @@ class DNABert2Embedder(BaseEmbedder):
 
             embeddings = np.concatenate(embedded_chunks, axis=1)
 
-            if remove_special_tokens and not self.return_loss:
+            if remove_special_tokens:
                 embeddings = embeddings[:, 1:-1]
 
             return embeddings
