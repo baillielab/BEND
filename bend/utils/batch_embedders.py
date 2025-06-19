@@ -121,6 +121,29 @@ class BaseEmbedder:
 
         return np.array(embeddings).squeeze(axis=1)
 
+    def tokenize(self, sequences):
+        """
+        Tokenize the sequences using the provided tokenizer.
+        Returns a list of tokenized sequences.
+        """
+
+        if not hasattr(self, "tokenizer"):
+            raise ValueError(
+                "Embedder does not have a tokenizer. Please load the model first."
+            )
+
+        output = self.tokenizer(
+            sequences,
+            return_tensors="pt",
+            return_token_type_ids=False,
+            padding="longest",
+        )
+
+        input_ids = output["input_ids"]
+        attention_mask = output["attention_mask"]
+
+        return input_ids, attention_mask
+
     @staticmethod
     def _upsample(
         tokens: Iterable[str],
@@ -228,15 +251,13 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             # print('sequence', n)
             embedded_seq = []
             for n_chunk, chunk in enumerate(chunks):  # embed each chunk
-                tokens_ids = (
-                    self.tokenizer(chunk, return_tensors="pt")["input_ids"]
-                    .int()
-                    .to(device)
-                )
+                input_ids, attention_mask = self.tokenize(chunk)
+                input_ids = input_ids.int().to(device)
+
                 if (
-                    len(tokens_ids[0]) > self.max_tokens
+                    len(input_ids[0]) > self.max_tokens
                 ):  # too long to fit into the model
-                    split = torch.split(tokens_ids, self.max_tokens, dim=-1)
+                    split = torch.split(input_ids, self.max_tokens, dim=-1)
 
                     outs = [
                         self.model(item, output_hidden_states=True)["hidden_states"][-1]
@@ -249,7 +270,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 else:
 
                     outs = (
-                        self.model(tokens_ids, output_hidden_states=True)[
+                        self.model(input_ids, output_hidden_states=True)[
                             "hidden_states"
                         ][-1]
                         .detach()
@@ -258,7 +279,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                     )
 
                 outs = self._repeat_embedding_vectors(
-                    self.tokenizer.convert_ids_to_tokens(tokens_ids[0]), outs
+                    self.tokenizer.convert_ids_to_tokens(input_ids[0]), outs
                 )
 
                 embedded_seq.append(outs[:, 1:] if remove_special_tokens else outs)
@@ -349,12 +370,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
 
-                input_ids = self.tokenizer(
-                    s,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
+                input_ids, attention_mask = self.tokenize(s)
                 input_ids = input_ids.to(device)
                 embedding = self.model(input_ids=input_ids).last_hidden_state
 
@@ -418,12 +434,7 @@ class ConvNetEmbedder(BaseEmbedder):
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
-                input_ids = self.tokenizer(
-                    s,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
+                input_ids, attention_mask = self.tokenize(s)
                 input_ids = input_ids.to(device)
                 embedding = self.model(input_ids=input_ids).last_hidden_state
                 embeddings.append(embedding.detach().cpu().numpy())
@@ -549,22 +560,12 @@ class HyenaDNAEmbedder(BaseEmbedder):
             embedded_chunks = []
             for n_chunk, chunk in enumerate(chunks):
                 # reference: https://colab.research.google.com/drive/1wyVEQd4R3HYLTUOXEEQmp_I8aNC_aLhL?usp=sharing#scrollTo=-1wq2uwUctPV
-                #### Single embedding example ####
 
-                # create a sample 450k long, prepare
-                # sequence = 'ACTG' * int(self.max_seq_len/4)
-                tok_seq = self.tokenizer(
-                    chunk
-                )  # adds CLS and SEP tokens (0=CLS, 1=EOS)
-                tok_seq = tok_seq["input_ids"]  # grab ids
+                input_ids, attention_mask = self.tokenize(chunk)
 
                 # place on device, convert to tensor
-                tok_seq = torch.LongTensor(tok_seq).unsqueeze(
-                    0
-                )  # unsqueeze for batch dim
-                tok_seq = tok_seq.to(device)
-
-                output = self.model(tok_seq)
+                input_ids = torch.LongTensor(input_ids).to(device)
+                output = self.model(input_ids)
 
                 if remove_special_tokens:
                     output = output[:, 1:-1]
@@ -647,12 +648,7 @@ class DNABert2Embedder(BaseEmbedder):
             embedded_chunks = []
             for n_chunk, chunk in enumerate(chunks):
 
-                input_ids = self.tokenizer(
-                    chunk,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
+                input_ids, attention_mask = self.tokenize(chunk)
 
                 output = (
                     self.model(input_ids.to(device), output_hidden_states=True)[
