@@ -59,7 +59,13 @@ class BaseEmbedder:
     All embedders should inherit from this class.
     """
 
-    def __init__(self, max_seq_len, *args, **kwargs):
+    def __init__(
+        self,
+        max_seq_len,
+        upsample_embeddings=False,
+        *args,
+        **kwargs,
+    ):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
         Parameters
@@ -69,7 +75,7 @@ class BaseEmbedder:
         **kwargs
             Keyword arguments. Passed to `load_model`.
         """
-
+        self.upsample_embeddings = upsample_embeddings
         self.max_seq_len = max_seq_len
         self.load_model(*args, **kwargs)
 
@@ -85,6 +91,9 @@ class BaseEmbedder:
         sequences : str
             The sequences to embed.
         """
+        raise NotImplementedError
+
+    def remove_special_tokens(self, embedding):
         raise NotImplementedError
 
     def __call__(self, sequences: List[str], *args, **kwargs):
@@ -107,19 +116,57 @@ class BaseEmbedder:
 
         embeddings = []
 
+        print("MAX SEQ LEN", self.max_seq_len)
+
         if self.max_seq_len:
             for s in sequences:
                 chunks = [
                     s[chunk : chunk + self.max_seq_len]
                     for chunk in range(0, len(s), self.max_seq_len)
                 ]
-                seq_emb = self.embed(chunks, *args, disable_tqdm=True, **kwargs)
-                embeddings.append(seq_emb)
+                print(
+                    f"Embedding {len(chunks)} chunks of length {[len(c) for c in chunks]}"
+                )
+
+                input_ids, attention_mask = self.tokenize(chunks)
+
+                print(f"Input IDs shape: {input_ids.shape}")
+
+                chunks_emb = self.embed(
+                    input_ids, attention_mask, *args, disable_tqdm=True, **kwargs
+                )
+                print(f"Chunks embedding shape: {chunks_emb.shape}")
+
+                embeddings.append(
+                    self.concatenate_chunks(chunks_emb, attention_mask, input_ids)
+                )
 
         else:
             embeddings = self.embed(sequences, *args, **kwargs)
 
-        return np.array(embeddings).squeeze(axis=1)
+        return embeddings
+
+    def concatenate_chunks(self, chunks: List, attention_mask, input_ids):
+        embedding = []
+        for idx_chunk, chunk in enumerate(chunks):
+
+            # remove padding
+            chunk = chunk[attention_mask[idx_chunk].bool()]
+            token_ids = input_ids[idx_chunk][attention_mask[idx_chunk].bool()]
+
+            chunk = self.remove_special_tokens(chunk)
+            token_ids = self.remove_special_tokens(token_ids)
+
+            print(f"Chunk {idx_chunk} shape: {chunk.shape}")
+            if self.upsample_embeddings:
+                tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+                print(f"Non-PAD Tokens for chunk {idx_chunk}: {len(tokens)}")
+                chunk = BaseEmbedder._upsample(tokens=tokens, embedding=chunk)
+
+            embedding.append(chunk)
+
+        embedding = np.concatenate(embedding, axis=0)
+        return embedding
 
     def tokenize(self, sequences):
         """
@@ -148,7 +195,6 @@ class BaseEmbedder:
     def _upsample(
         tokens: Iterable[str],
         embedding: np.ndarray,
-        has_special_tokens: bool = True,
     ):
         """
         Upsample the embeddings to match the length of the input sequences.
@@ -158,9 +204,7 @@ class BaseEmbedder:
         for idx, token in enumerate(tokens):
             token_embedding = embedding[idx]  # (1, 768)
 
-            if token == "[UNK]" or (
-                has_special_tokens and (idx == 0 or idx == len(tokens) - 1)
-            ):
+            if token == "[UNK]":
                 new_embeddings.append(token_embedding)  # (1, 768)
                 continue
 
@@ -216,16 +260,16 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             self.is_v2 = False
 
         self.max_tokens = max_tokens_len
+        self.upsample_embeddings = True
 
         self.model.to(device)
         self.model.eval()
 
     def embed(
         self,
-        chunks: List[str],
+        input_ids,
+        attention_mask,
         disable_tqdm: bool = False,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
     ):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
@@ -248,68 +292,24 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         """
 
         with torch.no_grad():
-            # print('sequence', n)
-            embedded_seq = []
-            for n_chunk, chunk in enumerate(chunks):  # embed each chunk
-                input_ids, attention_mask = self.tokenize(chunk)
-                input_ids = input_ids.int().to(device)
+            input_ids = input_ids.int().to(device)
+            attention_mask = attention_mask.to(device)
 
-                if (
-                    len(input_ids[0]) > self.max_tokens
-                ):  # too long to fit into the model
-                    split = torch.split(input_ids, self.max_tokens, dim=-1)
+            outs = (
+                self.model(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                )["hidden_states"][-1]
+                .detach()
+                .cpu()
+                .numpy()
+            )
 
-                    outs = [
-                        self.model(item, output_hidden_states=True)["hidden_states"][-1]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                        for item in split
-                    ]
-                    outs = np.concatenate(outs, axis=1)
-                else:
+            return outs
 
-                    outs = (
-                        self.model(input_ids, output_hidden_states=True)[
-                            "hidden_states"
-                        ][-1]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-
-                outs = self._repeat_embedding_vectors(
-                    self.tokenizer.convert_ids_to_tokens(input_ids[0]), outs
-                )
-
-                embedded_seq.append(outs[:, 1:] if remove_special_tokens else outs)
-
-            embeddings = np.concatenate(embedded_seq, axis=1)
-
-            return embeddings
-
-    @staticmethod
-    def _repeat_embedding_vectors(
-        tokens: Iterable[str], embeddings: np.ndarray, has_special_tokens: bool = True
-    ):
-        """
-        Nucleotide transformer uses 6-mer embedding, but single-embedding for remaining nucleotides.
-        """
-        assert (
-            len(tokens) == embeddings.shape[1]
-        ), "Number of tokens and embeddings must match."
-        new_embeddings = []
-        for idx, token in enumerate(tokens):
-
-            if has_special_tokens and idx == 0:
-                new_embeddings.append(embeddings[:, [idx]])  # (1, hidden_dim)
-                continue
-            token_embedding = embeddings[:, [idx]]  # (1, hidden_dim)
-            new_embeddings.extend([token_embedding] * len(token))
-
-        # list of (1,1, 768) arrays
-        new_embeddings = np.concatenate(new_embeddings, axis=1)
-        return new_embeddings
+    def remove_special_tokens(self, embedding):
+        return embedding[1:]
 
 
 class AWDLSTMEmbedder(BaseEmbedder):
@@ -345,7 +345,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
         self,
         sequences: List[str],
         disable_tqdm: bool = False,
-        upsample_embeddings: bool = False,
     ):
         """
         Embed sequences using the AWD-LSTM baseline LM trained in BEND.
@@ -369,14 +368,13 @@ class AWDLSTMEmbedder(BaseEmbedder):
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
-
-                input_ids, attention_mask = self.tokenize(s)
+                input_ids, _ = self.tokenize(s)
                 input_ids = input_ids.to(device)
                 embedding = self.model(input_ids=input_ids).last_hidden_state
 
                 embeddings.append(embedding.detach().cpu().numpy())
                 # embeddings.append(embedding.detach().cpu().numpy()[:,1:])
-        return embeddings
+        return np.array(embeddings).squeeze(axis=1)
 
 
 class ConvNetEmbedder(BaseEmbedder):
@@ -410,7 +408,6 @@ class ConvNetEmbedder(BaseEmbedder):
         self,
         sequences: List[str],
         disable_tqdm: bool = False,
-        upsample_embeddings: bool = False,
     ):
         """
         Embed sequences using the GPN-inspired ConvNet baseline LM trained in BEND.
@@ -434,12 +431,12 @@ class ConvNetEmbedder(BaseEmbedder):
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
-                input_ids, attention_mask = self.tokenize(s)
+                input_ids, _ = self.tokenize(s)
                 input_ids = input_ids.to(device)
                 embedding = self.model(input_ids=input_ids).last_hidden_state
                 embeddings.append(embedding.detach().cpu().numpy())
         # print(f"Embeddings shape: {np.array(embeddings).shape}")
-        return embeddings
+        return np.array(embeddings).squeeze(axis=1)
 
 
 class HyenaDNAEmbedder(BaseEmbedder):
@@ -531,10 +528,9 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
     def embed(
         self,
-        chunks: List[str],
+        input_ids,
+        attention_mask,
         disable_tqdm: bool = True,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = False,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
@@ -557,24 +553,22 @@ class HyenaDNAEmbedder(BaseEmbedder):
         """
 
         with torch.inference_mode():
-            embedded_chunks = []
-            for n_chunk, chunk in enumerate(chunks):
-                # reference: https://colab.research.google.com/drive/1wyVEQd4R3HYLTUOXEEQmp_I8aNC_aLhL?usp=sharing#scrollTo=-1wq2uwUctPV
 
-                input_ids, attention_mask = self.tokenize(chunk)
+            # place on device, convert to tensor
+            input_ids = torch.LongTensor(input_ids).to(device)
+            attention_mask = torch.LongTensor(attention_mask).to(device)
 
-                # place on device, convert to tensor
-                input_ids = torch.LongTensor(input_ids).to(device)
-                output = self.model(input_ids)
+            output = (
+                self.model(input_ids, position_ids=attention_mask)
+                .detach()
+                .cpu()
+                .numpy()
+            )
 
-                if remove_special_tokens:
-                    output = output[:, 1:-1]
+            return output
 
-                embedded_chunks.append(output.detach().cpu().numpy())
-
-            embedding = np.concatenate(embedded_chunks, axis=1)
-
-            return embedding
+    def remove_special_tokens(self, embedding):
+        return embedding[1:-1]
 
 
 class DNABert2Embedder(BaseEmbedder):
@@ -612,12 +606,13 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(device)
 
+        self.upsample_embeddings = True
+
     def embed(
         self,
-        chunks: List[str],
+        input_ids,
+        attention_mask,
         disable_tqdm: bool = False,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
@@ -644,72 +639,24 @@ class DNABert2Embedder(BaseEmbedder):
         # '''
 
         with torch.no_grad():
+            input_ids = input_ids.to(device)
+            attention_mask = attention_mask.to(device)
 
-            embedded_chunks = []
-            for n_chunk, chunk in enumerate(chunks):
+            output = (
+                self.model(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                )["hidden_states"]
+                .detach()
+                .cpu()
+                .numpy()
+            )
 
-                input_ids, attention_mask = self.tokenize(chunk)
+            return output
 
-                output = (
-                    self.model(input_ids.to(device), output_hidden_states=True)[
-                        "hidden_states"
-                    ]
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
-
-                output = self._repeat_embedding_vectors(
-                    self.tokenizer.convert_ids_to_tokens(input_ids[0]), output
-                )
-
-                # for intermediate chunks the special tokens need to go.
-                # if we only have 1 chunk, keep them for now.
-                if len(chunks) != 1:
-                    if n_chunk == 0:
-                        output = output[:, :-1]  # no SEP
-                    elif n_chunk == len(chunks) - 1:
-                        output = output[:, 1:]  # no CLS
-                    else:
-                        output = output[:, 1:-1]  # no CLS and no SEP
-
-                embedded_chunks.append(output)
-
-            embeddings = np.concatenate(embedded_chunks, axis=1)
-
-            if remove_special_tokens:
-                embeddings = embeddings[:, 1:-1]
-
-            return embeddings
-
-    # GATTTATTAGGGGAGATTTTATATATCCCGA
-    # ['[CLS]', 'G', 'ATTTATT', 'AGGGG', 'AGATT', 'TTATAT', 'ATCCCG', 'A', '[SEP]']
-    @staticmethod
-    def _repeat_embedding_vectors(
-        tokens: Iterable[str], embeddings: np.ndarray, has_special_tokens: bool = True
-    ):
-        """
-        Byte-pair encoding merges a variable number of letters into one token.
-        We need to repeat each token's embedding vector for each letter in the token.
-        """
-        assert (
-            len(tokens) == embeddings.shape[1]
-        ), "Number of tokens and embeddings must match."
-        new_embeddings = []
-        for idx, token in enumerate(tokens):
-
-            if has_special_tokens and (idx == 0 or idx == len(tokens) - 1):
-                new_embeddings.append(embeddings[:, [idx]])  # (1, 768)
-                continue
-            token_embedding = embeddings[:, [idx]]  # (1, 768)
-            if token == "[UNK]":
-                new_embeddings.extend([token_embedding])
-            else:
-                new_embeddings.extend([token_embedding] * len(token))
-
-        # list of (1,1, 768) arrays
-        new_embeddings = np.concatenate(new_embeddings, axis=1)
-        return new_embeddings
+    def remove_special_tokens(self, embedding):
+        return embedding[1:-1]
 
 
 class CaduceusEmbedder(BaseEmbedder):
