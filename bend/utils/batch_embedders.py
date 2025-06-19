@@ -365,16 +365,15 @@ class AWDLSTMEmbedder(BaseEmbedder):
             List of embeddings.
         """
 
-        embeddings = []
         with torch.no_grad():
-            for s in tqdm(sequences, disable=disable_tqdm):
-                input_ids, _ = self.tokenize(s)
-                input_ids = input_ids.to(device)
-                embedding = self.model(input_ids=input_ids).last_hidden_state
 
-                embeddings.append(embedding.detach().cpu().numpy())
-                # embeddings.append(embedding.detach().cpu().numpy()[:,1:])
-        return np.array(embeddings).squeeze(axis=1)
+            input_ids, _ = self.tokenize(sequences)
+            input_ids = input_ids.to(device)
+            embeddings = self.model(input_ids=input_ids).last_hidden_state
+
+            embeddings = embeddings.detach().cpu().numpy()
+
+        return embeddings
 
 
 class ConvNetEmbedder(BaseEmbedder):
@@ -428,15 +427,15 @@ class ConvNetEmbedder(BaseEmbedder):
             List of embeddings.
         """
 
-        embeddings = []
         with torch.no_grad():
-            for s in tqdm(sequences, disable=disable_tqdm):
-                input_ids, _ = self.tokenize(s)
-                input_ids = input_ids.to(device)
-                embedding = self.model(input_ids=input_ids).last_hidden_state
-                embeddings.append(embedding.detach().cpu().numpy())
-        # print(f"Embeddings shape: {np.array(embeddings).shape}")
-        return np.array(embeddings).squeeze(axis=1)
+
+            input_ids, _ = self.tokenize(sequences)
+            input_ids = input_ids.to(device)
+            embeddings = self.model(input_ids=input_ids).last_hidden_state
+
+            embeddings = embeddings.detach().cpu().numpy()
+
+        return embeddings
 
 
 class HyenaDNAEmbedder(BaseEmbedder):
