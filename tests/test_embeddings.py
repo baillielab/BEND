@@ -28,8 +28,8 @@ ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values ->
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
     CFG_SEQ = compose(config_name="embed")
-with initialize(version_base=None, config_path="../conf/embedding/"):
-    CFG_BATCH = compose(config_name="batch_embedders")
+with initialize(version_base=None, config_path="../config_memoryless/embedders_batch/"):
+    CFG_BATCH = compose(config_name="embedders")
     CFG_BATCH["embedders_dir"] = CFG_SEQ["embedders_dir"]
 
 
@@ -44,7 +44,7 @@ def get_gt_embeddings(gt_sequences, embedder):
         enumerate(sequences_subset), desc="Embedding GT sequences"
     ):
         sequences.append(seq)
-        seq_embed = embedder(seq)
+        seq_embed = embedder(seq, upsample_embeddings=True)
         gt_embeddings.extend(seq_embed)
 
     gt_embeddings = np.array(gt_embeddings).astype(np.float64)

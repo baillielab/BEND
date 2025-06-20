@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from bend.io.sequtils import data_from_bed
 import pytest
-from bend.utils.datasets import DatasetAnnotations
+from bend.memoryless.datasets import DatasetAnnotations
 import os
 from hydra import compose, initialize
 

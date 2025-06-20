@@ -6,7 +6,7 @@ import bend.io.sequtils as sequtils
 import pandas as pd
 import numpy as np
 import sys
-from bend.utils.set_seed import set_seed
+from bend.utils.set_seed import set_seed, SEED
 
 set_seed()
 
@@ -23,6 +23,15 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
     print("Embedding data for", cfg.task)
+
+    if "shuffled_" in cfg.task and not os.path.exists(cfg[cfg.task].bed):
+        not_shuffled_bed = cfg[cfg.task].bed.replace("shuffled_", "")
+        df = pd.read_csv(not_shuffled_bed, sep="\t", low_memory=False)
+        df = df.sample(frac=1, random_state=SEED)
+        df.to_csv(cfg[cfg.task].bed, sep="\t", index=False)
+
+        print(f"Shuffled {not_shuffled_bed} and saved to {cfg[cfg.task].bed}")
+
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:
         splits = sequtils.get_splits(cfg[cfg.task].bed)
@@ -33,7 +42,7 @@ def run_experiment(cfg: DictConfig) -> None:
     embedder = hydra.utils.instantiate(cfg[cfg.model])
     for split in splits:
         print(f"Embedding split: {split}")
-        output_dir = f"{cfg.data_dir}/{cfg.task}/{cfg.model}/"
+        output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
 
         os.makedirs(output_dir, exist_ok=True)
 

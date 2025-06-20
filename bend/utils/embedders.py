@@ -47,7 +47,10 @@ logging.set_verbosity_error()
 # TODO graceful auto downloading solution for everything that is hosted in a nice way
 # https://github.com/huggingface/transformers/blob/main/src/transformers/utils/hub.py
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ##
 ## GPN https://www.biorxiv.org/content/10.1101/2022.08.22.504706v1
@@ -75,7 +78,7 @@ class BaseEmbedder:
         """Load the model. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(self, sequences, *args, **kwargs):
+    def embed(self, sequences: str, *args, **kwargs):
         """Embed a sequence. Should be implemented by the inheriting class.
 
         Parameters
@@ -102,7 +105,7 @@ class BaseEmbedder:
         np.ndarray
             The embedding of the sequence.
         """
-        if type(sequence) is not list:
+        if isinstance(sequence, str):
             sequence = [sequence]
 
         return self.embed(sequence, *args, disable_tqdm=True, **kwargs)[0]
@@ -440,7 +443,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         sequences: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
+        upsample_embeddings: bool = False,
     ):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
@@ -461,7 +464,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
-
         cls_tokens = []
         embeddings = []
 
@@ -667,7 +669,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
-
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
@@ -738,7 +739,6 @@ class ConvNetEmbedder(BaseEmbedder):
         List[np.ndarray]
             List of embeddings.
         """
-
         embeddings = []
         with torch.no_grad():
             for s in tqdm(sequences, disable=disable_tqdm):
@@ -952,7 +952,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
 
         """
-
         checkpoint_path, model_name = os.path.split(model_path)
         max_lengths = {
             "hyenadna-tiny-1k-seqlen": 1024,
@@ -1024,7 +1023,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = True,
+        disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
         upsample_embeddings: bool = False,
     ):
@@ -1156,7 +1155,7 @@ class DNABert2Embedder(BaseEmbedder):
         sequences: List[str],
         disable_tqdm: bool = False,
         remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
+        upsample_embeddings: bool = False,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
@@ -1181,7 +1180,6 @@ class DNABert2Embedder(BaseEmbedder):
         # upsample_embedding repeats BPE token embeddings so that each nucleotide has its own embedding.
         # The [CLS] and [SEP] tokens are removed from the output if remove_special_tokens is True.
         # '''
-
         embeddings = []
         with torch.no_grad():
             for sequence in tqdm(sequences, disable=disable_tqdm):
@@ -1252,11 +1250,12 @@ class DNABert2Embedder(BaseEmbedder):
                         output = (
                             self.model(input_ids.to(device), output_hidden_states=True)[
                                 "hidden_states"
-                            ]
+                            ][-1]
                             .detach()
                             .cpu()
                             .numpy()
                         )
+                        output = np.expand_dims(output, axis=0)
 
                     if upsample_embeddings and not (
                         self.return_loss and remove_special_tokens

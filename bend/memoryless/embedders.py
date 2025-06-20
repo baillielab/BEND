@@ -47,11 +47,10 @@ logging.set_verbosity_error()
 # TODO graceful auto downloading solution for everything that is hosted in a nice way
 # https://github.com/huggingface/transformers/blob/main/src/transformers/utils/hub.py
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-##
-## GPN https://www.biorxiv.org/content/10.1101/2022.08.22.504706v1
-##
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class BaseEmbedder:

@@ -12,7 +12,7 @@ import os
 import glob
 from typing import List, Tuple, Union
 import webdataset as wds
-from bend.utils.set_seed import SEED
+from bend.utils.set_seed import seed_worker
 import numpy as np
 
 
@@ -109,12 +109,22 @@ def return_dataloader(
     # '''Load data to dataloader from a list of paths or a single path'''
     if isinstance(data, str):
         data = [data]
-    dataset = wds.WebDataset(data)
+
+    # shardShuffle is not explicitly set in the original code, which would lead to not be shuffled as the default value is None.
+    # However, this raises a warning asking to be set explicitly to False, True or a number.
+    # To avoid the warning and keep the original behavior, we set it to False.
+
+    dataset = wds.WebDataset(data, shardshuffle=False)
+
     if shuffle is not None:
-        dataset = dataset.shuffle(shuffle)
+        dataset = dataset.shuffle(
+            shuffle
+        )  # Use in-memory shuffle buffer - here 'shuffle' is the buffer size
+
     dataset = (
         dataset.decode()
     )  # iterator over samples - each sample is dict with keys "input.npy" and "output.npy"
+
     dataset = dataset.to_tuple("input.npy", "output.npy")
     dataset = dataset.map_tuple(
         torch.from_numpy, torch.from_numpy
@@ -129,11 +139,18 @@ def return_dataloader(
         partial(collate_fn_pad_to_longest, padding_value=padding_value)
     )
 
+    # number of workers has to be equal or less than the number of shards in the dataset, otherwise it will raise an error
+    if num_workers > len(data):
+        print(
+            f"Number of workers ({num_workers}) is greater than the number of shards ({len(data)}). Setting num_workers to {len(data)}."
+        )
+        num_workers = len(data)
+
     dataloader = wds.WebLoader(
         dataset,
         num_workers=num_workers,
         batch_size=None,
-        worker_init_fn=lambda _: np.random.seed(SEED),
+        worker_init_fn=seed_worker,
     )
 
     return dataloader

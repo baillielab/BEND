@@ -7,8 +7,8 @@ Train a model on a downstream task.
 import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
 import torch
-from bend.utils.task_trainer import (
-    BaseTrainer,
+from bend.memoryless.task_trainer import (
+    MemoryLessTrainer,
     MSELoss,
     BCEWithLogitsLoss,
     PoissonLoss,
@@ -26,7 +26,7 @@ os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 # load config
 @hydra.main(
-    config_path=f"../conf/supervised_tasks/", config_name=None, version_base=None
+    config_path=f"../config_memoryless/supervised_tasks/", config_name=None, version_base=None
 )  #
 def run_experiment(cfg: DictConfig) -> None:
     """
@@ -49,11 +49,11 @@ def run_experiment(cfg: DictConfig) -> None:
         cfg, f"{cfg.output_dir}/config.yaml"
     )  # save the config to the experiment dir
     # set device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.backends.mps.is_available():
         device = torch.device("mps")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)
-
     # instantiate model
     # initialization for supervised models
     if cfg.embedder == "resnet-supervised":
@@ -71,9 +71,9 @@ def run_experiment(cfg: DictConfig) -> None:
 
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = CustomDataParallel(model)
-    # print(model)
-
-    # print(torch.cuda.current_device())
+    print(model)
+    print(f"embedders_{cfg.mode}")
+    embedder = hydra.utils.instantiate(cfg[f"embedders_{cfg.mode}"][cfg.embedder])
 
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
@@ -109,7 +109,8 @@ def run_experiment(cfg: DictConfig) -> None:
         cfg.data
     )  # instantiate dataloaders
     # instantiate trainer
-    trainer = BaseTrainer(
+    trainer = MemoryLessTrainer(
+        embedder=embedder,
         model=model,
         optimizer=optimizer,
         criterion=criterion,

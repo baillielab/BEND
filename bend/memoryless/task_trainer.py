@@ -187,7 +187,7 @@ class MSELoss(nn.Module):
         return criterion(pred.permute(0, 2, 1), target)
 
 
-class BaseTrainer:
+class MemoryLessTrainer:
     """'Performs training and validation steps for a given model and dataset.
     We use hydra to configure the trainer. The configuration is passed to the
     trainer as an OmegaConf object.
@@ -195,6 +195,7 @@ class BaseTrainer:
 
     def __init__(
         self,
+        embedder,
         model,
         optimizer,
         criterion,
@@ -224,6 +225,7 @@ class BaseTrainer:
             Number of gradient accumulation steps. The default is 1.
         """
 
+        self.embedder = embedder
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
@@ -235,7 +237,7 @@ class BaseTrainer:
         )  # create the output dir for the model
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.scaler = torch.amp.GradScaler(
-            "cuda", enabled=True
+            "cuda", enabled=True if device == torch.device("cuda") else False
         )  # init scaler for mixed precision training
 
     def _create_output_dir(self, path):
@@ -424,6 +426,18 @@ class BaseTrainer:
             raise ValueError(f"Checkpoint {checkpoint_path} does not exist")
         return checkpoint_path
 
+    def _embed_data(self, data):
+        print(f"Embedding data with shape: {len(data)}")
+        data_embed = self.embedder(data)  
+        # print(f"Data embed shape: {len(data_embed)}")
+        data_embed = np.array(data_embed)  # convert to numpy matrix
+        data_embed = data_embed.squeeze()
+        # print(f"Data embed shape after np.array: {data_embed.shape}")
+        data_embed = torch.from_numpy(data_embed)
+        # print(f"Data embed shape after torch.from_numpy: {data_embed.shape}")
+
+        return data_embed
+
     def train_epoch(self, train_loader):  # one epoch
         """
         Performs one epoch of training.
@@ -449,8 +463,13 @@ class BaseTrainer:
         #                            on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/fullwds')) as prof:
 
         for idx, batch in tqdm(enumerate(train_loader)):
+            data, labels = batch
+
+            data_embed = self._embed_data(data)
+
             # with torch.profiler.record_function('h2d copy'):
-            train_loss += self.train_step(batch, idx=idx)
+            train_loss += self.train_step((data_embed, labels), idx=idx)
+
             # prof.step()
 
         # print(prof.key_averages().table(sort_by="self_cpu_time_total"))
@@ -499,7 +518,6 @@ class BaseTrainer:
             )
 
         for epoch in range(1 + start_epoch, epochs + 1):
-            print(f"Epoch {epoch}/{epochs}")
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
@@ -543,15 +561,9 @@ class BaseTrainer:
                 activation=self.config.params.activation,
             )
 
-            if self.device == torch.device("mps"):
-                target = target.to(
-                    self.device, non_blocking=True, dtype=torch.float32
-                ).long()
-            else:
-                target = target.to(self.device, non_blocking=True).long()
-
-            loss = self.criterion(output, target)
-
+            loss = self.criterion(
+                output, target.to(self.device, non_blocking=True).long()
+            )
             loss = loss / self.gradient_accumulation_steps
             # Accumulates scaled gradients.
             self.scaler.scale(loss).backward()
@@ -586,15 +598,13 @@ class BaseTrainer:
         targets_all = []
         with torch.no_grad():
             for idx, (data, target) in enumerate(data_loader):
-                output = self.model(
-                    data.to(self.device), activation=self.config.params.activation
-                )
 
-                if self.device == torch.device("mps"):
-                    target = target.to(self.device, dtype=torch.float32).long()
-                else:
-                    target = target.to(self.device).long()
-                loss += self.criterion(output, target).item()
+                data_embed = self._embed_data(data)
+
+                output = self.model(
+                    data_embed.to(self.device), activation=self.config.params.activation
+                )
+                loss += self.criterion(output, target.to(self.device).long()).item()
 
                 if self.config.params.criterion == "bce":
                     outputs.append(self.model.sigmoid(output).detach().cpu())
