@@ -1,134 +1,139 @@
 defaults:
-  - datadims : [label_dims,embedding_dims,seq_lengths, downstream_downsample]
+  - datadims: [label_dims, embedding_dims, seq_lengths, downstream_downsample]
   #- hydra : multirun
   #- override hydra/launcher: joblib # ability to launch jobs in parallel fashion
   - _self_
-hydra : 
-  mode : MULTIRUN
+hydra:
+  mode: MULTIRUN
   searchpath:
-    - file://conf 
+    - file://conf
   sweeper:
     params:
       model:
-            gena-lm-bigbird-base-t2t,
-            gena-lm-bert-large-t2,
-            hyenadna-tiny-1k,
-            hyenadna-large-1m,
-            dnabert6,
-            resnetlm,
-            nt_transformer_ms,
-            nt_transformer_human_ref,
-            nt_transformer_1000g,
-            dnabert2,
-            onehot, 
-            awdlstm,
-            nt_transformer_v2_500m,
-            grover
-            #hyenadna-small-32k,
-            #hyenadna-medium-160k,
-            #hyenadna-medium-450k,
-      task: 
-            gene_finding,
-            enhancer_annotation,
-            histone_modification,
-            chromatin_accessibility,
-            cpg_methylation
-            
-chunk_size : 50000
-chunk : null # can be given as a list of chunks to embed 
-data_dir : ./data/
-embedders_dir : ./pretrained_models/
-splits : null
-model : nt_transformer_1000g
-task : gene_finding
-# model instatiators 
+        gena-lm-bigbird-base-t2t,
+        gena-lm-bert-large-t2,
+        hyenadna-tiny-1k,
+        hyenadna-large-1m,
+        dnabert6,
+        resnetlm,
+        nt_transformer_ms,
+        nt_transformer_human_ref,
+        nt_transformer_1000g,
+        dnabert2,
+        onehot,
+        awdlstm,
+        nt_transformer_v2_500m,
+        grover
+        hyenadna-small-32k,
+        hyenadna-medium-160k,
+        hyenadna-medium-450k,
+      task: gene_finding,
+        enhancer_annotation,
+        histone_modification,
+        chromatin_accessibility,
+        cpg_methylation
+
+chunk_size: 50000
+chunk: null # can be given as a list of chunks to embed
+data_dir: ./data/
+output_dir: ${data_dir}
+embedders_dir: ./pretrained_models/
+splits: null
+model: nt_transformer_1000g
+task: gene_finding
+# model instatiators
 dnabert2:
-  _target_ : bend.utils.embedders.DNABert2Embedder
-  model_name : zhihan1996/DNABERT-2-117M
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.DNABert2Embedder
+  model_name: zhihan1996/DNABERT-2-117M
+  upsample_embeddings: true
 dnabert6:
-  _target_ : bend.utils.embedders.DNABertEmbedder
-  model_path : ${embedders_dir}/dnabert6
-  kmer : 6
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.DNABertEmbedder
+  model_path: ${embedders_dir}/dnabert6
+  kmer: 6
+  upsample_embeddings: true
 gena-lm-bigbird-base-t2t:
-  _target_ : bend.utils.embedders.GENALMEmbedder
-  model_name : AIRI-Institute/gena-lm-bigbird-base-t2t
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.GENALMEmbedder
+  model_name: AIRI-Institute/gena-lm-bigbird-base-t2t
+  upsample_embeddings: true
 gena-lm-bert-large-t2:
-  _target_ : bend.utils.embedders.GENALMEmbedder
-  model_name : AIRI-Institute/gena-lm-bert-large-t2t 
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.GENALMEmbedder
+  model_name: AIRI-Institute/gena-lm-bert-large-t2t
+  upsample_embeddings: true
 hyenadna-large-1m:
-  _target_ : bend.utils.embedders.HyenaDNAEmbedder
-  model_path : ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
 hyenadna-tiny-1k:
-  _target_ : bend.utils.embedders.HyenaDNAEmbedder
-  model_path : ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
 hyenadna-small-32k:
-  _target_ : bend.utils.embedders.HyenaDNAEmbedder
-  model_path : ${embedders_dir}/hyenadna/hyenadna-small-32k-seqlen
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-small-32k-seqlen
 hyenadna-medium-160k:
-  _target_ : bend.utils.embedders.HyenaDNAEmbedder
-  model_path : ${embedders_dir}/hyenadna/hyenadna-medium-160k-seqlen
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-medium-160k-seqlen
 hyenadna-medium-450k:
-  _target_ : bend.utils.embedders.HyenaDNAEmbedder
-  model_path : ${embedders_dir}/hyenadna/hyenadna-medium-450k-seqlen
-resnetlm : 
-  _target_ : bend.utils.embedders.ConvNetEmbedder
-  model_path : ${embedders_dir}/convnet/
-awdlstm : 
-  _target_ : bend.utils.embedders.AWDLSTMEmbedder
-  model_path : ${embedders_dir}/awd_lstm/
-nt_transformer_ms :
-  _target_ : bend.utils.embedders.NucleotideTransformerEmbedder
-  model_name : InstaDeepAI/nucleotide-transformer-2.5b-multi-species
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.HyenaDNAEmbedder
+  model_path: ${embedders_dir}/hyenadna/hyenadna-medium-450k-seqlen
+resnetlm:
+  _target_: bend.utils.embedders.ConvNetEmbedder
+  model_path: ${embedders_dir}/convnet/
+awdlstm:
+  _target_: bend.utils.embedders.AWDLSTMEmbedder
+  model_path: ${embedders_dir}/awd_lstm/
+nt_transformer_ms:
+  _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+  model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
+  upsample_embeddings: true
 nt_transformer_human_ref:
-  _target_ : bend.utils.embedders.NucleotideTransformerEmbedder
-  model_name : InstaDeepAI/nucleotide-transformer-500m-human-ref
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+  model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
+  upsample_embeddings: true
 nt_transformer_1000g:
-  _target_ : bend.utils.embedders.NucleotideTransformerEmbedder
-  model_name : InstaDeepAI/nucleotide-transformer-2.5b-1000g
-  upsample_embeddings : true
+  _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+  model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
+  upsample_embeddings: true
 onehot:
-  _target_ : bend.utils.embedders.OneHotEmbedder
+  _target_: bend.utils.embedders.OneHotEmbedder
 nt_transformer_v2_500m:
-  _target_ : bend.utils.embedders.NucleotideTransformerEmbedder
+  _target_: bend.utils.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
   upsample_embeddings: true
 grover:
-  _target_ : bend.utils.embedders.GROVEREmbedder
+  _target_: bend.utils.embedders.GROVEREmbedder
   model_name: ${embedders_dir}/grover/
   upsample_embeddings: true
 # data configurations for each task
 gene_finding:
-  reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  hdf5_file : ${data_dir}/gene_finding/gene_finding.hdf5
-  bed : ${data_dir}/gene_finding/gene_finding.bed 
-  read_strand : false
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  hdf5_file: ${data_dir}/gene_finding/gene_finding.hdf5
+  bed: ${data_dir}/gene_finding/gene_finding.bed
+  read_strand: false
 enhancer_annotation:
-  reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  hdf5_file : ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
-  bed : ${data_dir}/enhancer_annotation/enhancer_annotation.bed
-  read_strand : false
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  hdf5_file: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
+  bed: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
+  read_strand: false
 histone_modification:
-  bed : ${data_dir}/histone_modification/histone_modification.bed
-  reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  read_strand : true
-  hdf5_file : null
-  label_depth : ${datadims.histone_modification}
+  bed: ${data_dir}/histone_modification/histone_modification.bed
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  read_strand: true
+  hdf5_file: null
+  label_depth: ${datadims.histone_modification}
 chromatin_accessibility:
-  bed : ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
-  reference_fasta : ${data_dir}/genomes/GRCh37.no-chr.fa
-  read_strand : true
-  hdf5_file : null
-  label_depth : ${datadims.chromatin_accessibility}
+  bed: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
+  reference_fasta: ${data_dir}/genomes/GRCh37.no-chr.fa
+  read_strand: true
+  hdf5_file: null
+  label_depth: ${datadims.chromatin_accessibility}
 cpg_methylation:
-  bed : ${data_dir}/cpg_methylation/cpg_methylation.bed
-  reference_fasta : ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  read_strand : true
-  hdf5_file : null
-  label_depth : ${datadims.cpg_methylation}
-
+  bed: ${data_dir}/cpg_methylation/cpg_methylation.bed
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  read_strand: true
+  hdf5_file: null
+  label_depth: ${datadims.cpg_methylation}
+shuffled_cpg_methylation:
+  bed: ${data_dir}/cpg_methylation/shuffled_cpg_methylation.bed
+  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  read_strand: true
+  hdf5_file: null
+  label_depth: ${datadims.cpg_methylation}
