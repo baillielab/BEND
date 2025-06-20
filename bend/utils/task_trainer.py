@@ -543,9 +543,15 @@ class BaseTrainer:
                 activation=self.config.params.activation,
             )
 
-            loss = self.criterion(
-                output, target.to(self.device, non_blocking=True).long()
-            )
+            if self.device == torch.device("mps"):
+                target = target.to(
+                    self.device, non_blocking=True, dtype=torch.float32
+                ).long()
+            else:
+                target = target.to(self.device, non_blocking=True).long()
+
+            loss = self.criterion(output, target)
+
             loss = loss / self.gradient_accumulation_steps
             # Accumulates scaled gradients.
             self.scaler.scale(loss).backward()
@@ -583,7 +589,12 @@ class BaseTrainer:
                 output = self.model(
                     data.to(self.device), activation=self.config.params.activation
                 )
-                loss += self.criterion(output, target.to(self.device).long()).item()
+
+                if self.device == torch.device("mps"):
+                    target = target.to(self.device, dtype=torch.float32).long()
+                else:
+                    target = target.to(self.device).long()
+                loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":
                     outputs.append(self.model.sigmoid(output).detach().cpu())
