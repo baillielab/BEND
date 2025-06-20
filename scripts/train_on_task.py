@@ -49,9 +49,11 @@ def run_experiment(cfg: DictConfig) -> None:
         cfg, f"{cfg.output_dir}/config.yaml"
     )  # save the config to the experiment dir
     # set device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if torch.backends.mps.is_available():
         device = torch.device("mps")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)
 
     # instantiate model
