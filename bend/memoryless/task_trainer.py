@@ -427,8 +427,8 @@ class MemoryLessTrainer:
         return checkpoint_path
 
     def _embed_data(self, data):
-        print(f"Embedding data with shape: {len(data)}")
-        data_embed = self.embedder(data)  
+        # print(f"Embedding data with shape: {len(data)}")
+        data_embed = self.embedder(data)
         # print(f"Data embed shape: {len(data_embed)}")
         data_embed = np.array(data_embed)  # convert to numpy matrix
         data_embed = data_embed.squeeze()
