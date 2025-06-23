@@ -288,6 +288,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 self.model(
                     input_ids,
                     attention_mask=attention_mask,
+                    encoder_attention_mask=attention_mask,
                     output_hidden_states=True,
                 )["hidden_states"][-1]
                 .detach()
