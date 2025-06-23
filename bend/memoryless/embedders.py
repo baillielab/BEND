@@ -512,7 +512,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             model_max_length=self.max_seq_len
             + 2,  # to account for special tokens, like EOS
             add_special_tokens=False,  # we handle special tokens elsewhere
-            padding_side="left",  # since HyenaDNA is causal, we pad on the left
+            padding_side="right",
         )
 
     def embed(
