@@ -105,10 +105,8 @@ class BaseEmbedder:
         np.ndarray
             The embedding of the sequence.
         """
-        if isinstance(sequence, str):
-            sequence = [sequence]
 
-        return self.embed(sequence, *args, disable_tqdm=True, **kwargs)[0]
+        return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
 
 
 class GPNEmbedder(BaseEmbedder):
