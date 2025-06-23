@@ -545,10 +545,9 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
             # place on device, convert to tensor
             input_ids = torch.LongTensor(input_ids).to(device)
-            attention_mask = torch.LongTensor(attention_mask).to(device)
 
             output = (
-                self.model(input_ids, position_ids=attention_mask)
+                self.model(input_ids)
                 .detach()
                 .cpu()
                 .numpy()
