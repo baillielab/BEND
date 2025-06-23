@@ -151,16 +151,12 @@ class BaseEmbedder:
 
             # remove padding
             chunk = chunk[attention_mask[idx_chunk].bool()]
-            token_ids = input_ids[idx_chunk][attention_mask[idx_chunk].bool()]
 
             chunk = self.remove_special_tokens(chunk)
-            token_ids = self.remove_special_tokens(token_ids)
 
             print(f"Chunk {idx_chunk} shape: {chunk.shape}")
             if self.upsample_embeddings:
-                tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
-                print(f"Non-PAD Tokens for chunk {idx_chunk}: {len(tokens)}")
-                chunk = BaseEmbedder._upsample(tokens=tokens, embedding=chunk)
+                chunk = self._upsample(input_ids[idx_chunk], embedding=chunk)
 
             embedding.append(chunk)
 
@@ -190,28 +186,22 @@ class BaseEmbedder:
 
         return input_ids, attention_mask
 
-    @staticmethod
     def _upsample(
-        tokens: Iterable[str],
+        self,
+        token_ids: torch.Tensor,
         embedding: np.ndarray,
     ):
         """
         Upsample the embeddings to match the length of the input sequences.
         This is done by repeating the embedding vectors for each letter in the token.
         """
-        new_embeddings = []
-        for idx, token in enumerate(tokens):
-            token_embedding = embedding[idx]  # (1, 768)
 
-            if token == "[UNK]":
-                new_embeddings.append(token_embedding)  # (1, 768)
-                continue
+        tokens = self.tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
+        repetitions = [len(token) if token != "[UNK]" else 1 for token in tokens]
 
-            new_embeddings.extend([token_embedding] * len(token))
+        upsampled_embedding = np.repeat(embedding, repetitions, axis=0)
+        return upsampled_embedding
 
-        new_embeddings = np.array(new_embeddings)  # (n, 768)
-
-        return new_embeddings
 
 
 # https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full
