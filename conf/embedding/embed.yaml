@@ -24,9 +24,9 @@ hydra:
         awdlstm,
         nt_transformer_v2_500m,
         grover
-        #hyenadna-small-32k,
-        #hyenadna-medium-160k,
-        #hyenadna-medium-450k,
+        hyenadna-small-32k,
+        hyenadna-medium-160k,
+        hyenadna-medium-450k,
       task: gene_finding,
         enhancer_annotation,
         histone_modification,

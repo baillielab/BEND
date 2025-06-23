@@ -20,3 +20,13 @@ def set_seed(seed: int = SEED):
         torch.backends.cudnn.benchmark = False
 
     print(f"Random seed set to {seed}.")
+
+
+def seed_worker(worker_id: int):
+    """
+    Set the random seed for each worker in a DataLoader.
+    As found in: https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+    """
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)

@@ -12,7 +12,7 @@ import os
 import glob
 from typing import List, Tuple, Union
 import webdataset as wds
-from bend.utils.set_seed import SEED
+from bend.utils.set_seed import seed_worker
 import numpy as np
 
 
@@ -150,7 +150,7 @@ def return_dataloader(
         dataset,
         num_workers=num_workers,
         batch_size=None,
-        worker_init_fn=lambda _: np.random.seed(SEED),
+        worker_init_fn=seed_worker,
     )
 
     return dataloader
