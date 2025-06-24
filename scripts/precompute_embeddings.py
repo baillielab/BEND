@@ -24,13 +24,18 @@ def run_experiment(cfg: DictConfig) -> None:
     """
     print("Embedding data for", cfg.task)
 
-    if "shuffled_" in cfg.task and not os.path.exists(cfg[cfg.task].bed):
-        not_shuffled_bed = cfg[cfg.task].bed.replace("shuffled_", "")
-        df = pd.read_csv(not_shuffled_bed, sep="\t", low_memory=False)
+    if cfg.shuffle:
+        default_bed = cfg[cfg.task].bed
+        df = pd.read_csv(default_bed, sep="\t", low_memory=False)
         df = df.sample(frac=1, random_state=SEED)
-        df.to_csv(cfg[cfg.task].bed, sep="\t", index=False)
 
-        print(f"Shuffled {not_shuffled_bed} and saved to {cfg[cfg.task].bed}")
+        shuffled_bed = default_bed.replace(".bed", "_shuffled.bed")
+        # replace path in config
+        cfg[cfg.task].bed = shuffled_bed
+        # save the shuffled bed file
+        df.to_csv(shuffled_bed, sep="\t", index=False)
+
+        print(f"Shuffled {default_bed} and saved to {shuffled_bed}")
 
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:

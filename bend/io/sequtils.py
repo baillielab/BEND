@@ -127,6 +127,7 @@ def embed_from_bed(
     flank=0,
 ):
     fasta = Fasta(reference_fasta)
+    print(f"==== Reading bed file: {bed}")
     f = pd.read_csv(bed, header="infer", sep="\t", low_memory=False)
     # open hdf5 file
     hdf5_file = h5py.File(hdf5_file, mode="r")["labels"] if hdf5_file else None
