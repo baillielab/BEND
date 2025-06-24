@@ -6,6 +6,7 @@ import hydra
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr
 from bend.utils.set_seed import set_seed
+import torch
 
 set_seed()
 
@@ -22,9 +23,11 @@ EMBEDDERS = [
 ]
 
 
-N_EMBEDDINGS = 1  # Number of embeddings to retrieve for testing
+N_EMBEDDINGS = 10  # Number of embeddings to retrieve for testing
 MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
 ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
+
+PADDING_VALUE = -100
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
     CFG_SEQ = compose(config_name="embed")
@@ -46,6 +49,14 @@ def get_gt_embeddings(gt_sequences, embedder):
         sequences.append(seq)
         seq_embed = embedder(seq, upsample_embeddings=True)
         gt_embeddings.extend(seq_embed)
+
+    gt_torch_embeddings = []
+    for i, emb in enumerate(gt_embeddings):
+        gt_torch_embeddings.append(torch.tensor(emb, dtype=torch.float64))
+    
+    gt_embeddings = torch.nn.utils.rnn.pad_sequence(
+        gt_torch_embeddings, padding_value=PADDING_VALUE, batch_first=True
+    )
 
     gt_embeddings = np.array(gt_embeddings).astype(np.float64)
 
@@ -77,6 +88,9 @@ def get_batch_embeddings(dataset, embedder):
             break
 
     embeddings = embeddings[:N_EMBEDDINGS]
+    embeddings = torch.nn.utils.rnn.pad_sequence(
+        embeddings, padding_value=PADDING_VALUE, batch_first=True
+    )
     embeddings = np.array(embeddings).astype(np.float64)
 
     sequences = sequences[:N_EMBEDDINGS]
