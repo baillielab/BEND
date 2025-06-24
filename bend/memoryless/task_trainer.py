@@ -430,11 +430,15 @@ class MemoryLessTrainer:
         # print(f"Embedding data with shape: {len(data)}")
         data_embed = self.embedder(data)
         # print(f"Data embed shape: {len(data_embed)}")
-        data_embed = np.array(data_embed)  # convert to numpy matrix
-        data_embed = data_embed.squeeze()
-        # print(f"Data embed shape after np.array: {data_embed.shape}")
-        data_embed = torch.from_numpy(data_embed)
-        # print(f"Data embed shape after torch.from_numpy: {data_embed.shape}")
+        
+        if self.config.mode != 'batch':
+            data_embed = [torch.tensor(emb) for emb in data_embed]
+        
+        data_embed = torch.nn.utils.rnn.pad_sequence(
+            data_embed, padding_value=self.config.data.padding_value, batch_first=True
+        )
+
+        print(f"Data embed shape: {data_embed.shape}")
 
         return data_embed
 

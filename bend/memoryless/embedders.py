@@ -115,7 +115,7 @@ class BaseEmbedder:
 
         embeddings = []
 
-        print("MAX SEQ LEN", self.max_seq_len)
+        # print("MAX SEQ LEN", self.max_seq_len)
 
         if self.max_seq_len:
             for s in sequences:
@@ -123,18 +123,18 @@ class BaseEmbedder:
                     s[chunk : chunk + self.max_seq_len]
                     for chunk in range(0, len(s), self.max_seq_len)
                 ]
-                print(
-                    f"Embedding {len(chunks)} chunks of length {[len(c) for c in chunks]}"
-                )
+                # print(
+                #     f"Embedding {len(chunks)} chunks of length {[len(c) for c in chunks]}"
+                # )
 
                 input_ids, attention_mask = self.tokenize(chunks)
 
-                print(f"Input IDs shape: {input_ids.shape}")
+                # print(f"Input IDs shape: {input_ids.shape}")
 
                 chunks_emb = self.embed(
                     input_ids, attention_mask=attention_mask, *args, disable_tqdm=True, **kwargs
                 )
-                print(f"Chunks embedding shape: {chunks_emb.shape}")
+                # print(f"Chunks embedding shape: {chunks_emb.shape}")
 
                 embeddings.append(
                     self.concatenate_chunks(chunks_emb, attention_mask, input_ids)
@@ -145,12 +145,12 @@ class BaseEmbedder:
 
         return embeddings
 
-    def concatenate_chunks(self, chunks: List, attention_mask, input_ids):
+    def concatenate_chunks(self, chunked_embeddings: torch.Tensor, attention_mask: torch.Tensor, input_ids: torch.Tensor):
         
-        n_chunks = chunks.shape[0]
-        n_tokens = chunks.shape[1]
+        n_chunks = chunked_embeddings.shape[0]
+        n_tokens = chunked_embeddings.shape[1]
 
-        embedding = chunks.reshape(n_chunks * n_tokens, -1)
+        embedding = chunked_embeddings.reshape(n_chunks * n_tokens, -1)
         flatten_attention_mask = attention_mask.flatten()
         flatten_input_ids = input_ids.flatten()
 
@@ -194,7 +194,7 @@ class BaseEmbedder:
     def _upsample(
         self,
         token_ids: torch.Tensor,
-        embedding: np.ndarray,
+        embedding: torch.Tensor,
     ):
         """
         Upsample the embeddings to match the length of the input sequences.
@@ -202,9 +202,9 @@ class BaseEmbedder:
         """
 
         tokens = self.tokenizer.convert_ids_to_tokens(token_ids.flatten(), skip_special_tokens=True)
-        repetitions = [len(token) if token != "[UNK]" else 1 for token in tokens]
+        repetitions = torch.tensor([len(token) if token != "[UNK]" else 1 for token in tokens])
         
-        upsampled_embedding = np.repeat(embedding, repetitions, axis=0)
+        upsampled_embedding = torch.repeat_interleave(embedding, repetitions, dim=0)
         return upsampled_embedding
 
 
@@ -298,7 +298,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 )["hidden_states"][-1]
                 .detach()
                 .cpu()
-                .numpy()
             )
 
             return outs
@@ -362,7 +361,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
             input_ids = input_ids.to(device)
             embeddings = self.model(input_ids=input_ids).last_hidden_state
 
-            embeddings = embeddings.detach().cpu().numpy()
+            embeddings = embeddings.detach().cpu()
 
         return embeddings
 
@@ -424,7 +423,7 @@ class ConvNetEmbedder(BaseEmbedder):
             input_ids = input_ids.to(device)
             embeddings = self.model(input_ids=input_ids).last_hidden_state
 
-            embeddings = embeddings.detach().cpu().numpy()
+            embeddings = embeddings.detach().cpu()
 
         return embeddings
 
@@ -551,7 +550,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
                 self.model(input_ids)
                 .detach()
                 .cpu()
-                .numpy()
             )
 
             return output
@@ -636,7 +634,6 @@ class DNABert2Embedder(BaseEmbedder):
                 )["hidden_states"]
                 .detach()
                 .cpu()
-                .numpy()
             )
 
             return output
