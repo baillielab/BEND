@@ -132,7 +132,7 @@ class BaseEmbedder:
                 print(f"Input IDs shape: {input_ids.shape}")
 
                 chunks_emb = self.embed(
-                    input_ids, attention_mask, *args, disable_tqdm=True, **kwargs
+                    input_ids, attention_mask=attention_mask, *args, disable_tqdm=True, **kwargs
                 )
                 print(f"Chunks embedding shape: {chunks_emb.shape}")
 
@@ -146,21 +146,25 @@ class BaseEmbedder:
         return embeddings
 
     def concatenate_chunks(self, chunks: List, attention_mask, input_ids):
-        embedding = []
-        for idx_chunk, chunk in enumerate(chunks):
+        
+        n_chunks = chunks.shape[0]
+        n_tokens = chunks.shape[1]
 
-            # remove padding
-            chunk = chunk[attention_mask[idx_chunk].bool()]
+        embedding = chunks.reshape(n_chunks * n_tokens, -1)
+        flatten_attention_mask = attention_mask.flatten()
+        flatten_input_ids = input_ids.flatten()
 
-            chunk = self.remove_special_tokens(chunk)
+        # remove padding
+        embedding = embedding[flatten_attention_mask.bool()]
+        flatten_input_ids = flatten_input_ids[flatten_attention_mask.bool()]
 
-            print(f"Chunk {idx_chunk} shape: {chunk.shape}")
-
-            embedding.append(chunk)
-        embedding = np.concatenate(embedding, axis=0)
+        # remove special tokens
+        mask = torch.tensor(self.tokenizer.get_special_tokens_mask(flatten_input_ids, already_has_special_tokens=True))
+        embedding = embedding[~mask.bool()]
+        flatten_input_ids = flatten_input_ids[~mask.bool()]
 
         if self.upsample_embeddings:
-            embedding = self._upsample(input_ids, embedding)
+            embedding = self._upsample(flatten_input_ids, embedding)
 
         return embedding
 
@@ -298,10 +302,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             )
 
             return outs
-
-    def remove_special_tokens(self, embedding):
-        return embedding[1:]
-
 
 class AWDLSTMEmbedder(BaseEmbedder):
     """
@@ -556,9 +556,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
             return output
 
-    def remove_special_tokens(self, embedding):
-        return embedding[1:-1]
-
 
 class DNABert2Embedder(BaseEmbedder):
     """
@@ -643,9 +640,6 @@ class DNABert2Embedder(BaseEmbedder):
             )
 
             return output
-
-    def remove_special_tokens(self, embedding):
-        return embedding[1:-1]
 
 
 class CaduceusEmbedder(BaseEmbedder):
