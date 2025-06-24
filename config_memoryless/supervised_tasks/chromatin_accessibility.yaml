@@ -1,20 +1,18 @@
 defaults:
   - datadims: [label_dims, embedding_dims, downstream_downsample]
   - embedders_batch: embedders
-  - embedders_seq: embedders
   - supervised_encoder: [resnet-supervised, basset-supervised]
   - _self_
 hydra :
   searchpath:
     - file://config_memoryless
-    
+
 task: chromatin_accessibility
 embedder: onehot
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
-mode: batch
-output_dir: ${work_dir}/results_onfly/${mode}/${task}/${embedder}/
+output_dir: ${work_dir}/results/batch_onfly/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
   encoder: null

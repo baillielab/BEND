@@ -72,8 +72,8 @@ def run_experiment(cfg: DictConfig) -> None:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = CustomDataParallel(model)
     print(model)
-    print(f"embedders_{cfg.mode}")
-    embedder = hydra.utils.instantiate(cfg[f"embedders_{cfg.mode}"][cfg.embedder])
+
+    embedder = hydra.utils.instantiate(cfg[f"embedders_batch"][cfg.embedder])
 
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
