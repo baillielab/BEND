@@ -40,8 +40,18 @@ def run_experiment(cfg: DictConfig) -> None:
     """
     wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     # mkdir output_dir
+
+    task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+
+    # create output directory
+    cfg.output_dir = os.path.join(cfg.output_dir, task_dir, cfg.embedder)
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
+
+    # create data directory
+    cfg.data.data_dir = os.path.join(cfg.data.data_dir, task_dir, cfg.embedder)
+    print("data_dir", cfg.data.data_dir)
+
     # init wandb
     run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
