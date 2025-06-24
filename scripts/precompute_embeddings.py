@@ -47,9 +47,11 @@ def run_experiment(cfg: DictConfig) -> None:
     embedder = hydra.utils.instantiate(cfg[cfg.model])
     for split in splits:
         print(f"Embedding split: {split}")
-        output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
 
-        os.makedirs(output_dir, exist_ok=True)
+        task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+        cfg.output_dir = os.path.join(cfg.output_dir, task_dir, cfg.model)
+
+        os.makedirs(cfg.output_dir, exist_ok=True)
 
         # embed in chunks
         # get length of bed file and divide by chunk size, if a spcific chunk is not set
@@ -70,7 +72,7 @@ def run_experiment(cfg: DictConfig) -> None:
             sequtils.embed_from_bed(
                 **cfg[cfg.task],
                 embedder=embedder,
-                output_path=f"{output_dir}/{split}_{chunk}.tar.gz",
+                output_path=f"{cfg.output_dir}/{split}_{chunk}.tar.gz",
                 split=split,
                 chunk=chunk,
                 chunk_size=cfg.chunk_size,
