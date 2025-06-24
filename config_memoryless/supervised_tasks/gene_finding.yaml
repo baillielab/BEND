@@ -4,7 +4,10 @@ defaults:
   - embedders_seq: embedders
   - supervised_encoder: [resnet-supervised, basset-supervised]
   - _self_
-
+hydra :
+  searchpath:
+    - file://config_memoryless
+    
 task: gene_finding
 embedder: onehot
 work_dir: ./

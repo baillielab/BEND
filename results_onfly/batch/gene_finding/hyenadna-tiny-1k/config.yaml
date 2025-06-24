@@ -1,0 +1,207 @@
+datadims:
+  gene_finding: 9
+  enhancer_annotation: 1
+  variant_effects: 2
+  histone_modification: 18
+  chromatin_accessibility: 125
+  cpg_methylation: 7
+  onehot: 5
+  resnet-supervised: 256
+  basset-supervised: 5
+  gpn: 512
+  nt_transformer_2B5_1000G: 2560
+  nt_transformer_ms: 2560
+  nt_transformer_1000g: 2560
+  nt_transformer_human_ref: 1280
+  convnet: 256
+  resnetlm: 256
+  dnabert6: 768
+  awdlstm: 64
+  dnabert2: 768
+  gena-lm-bigbird-base-t2t: 768
+  gena-lm-bert-large-t2: 1024
+  hyenadna-large-1m: 256
+  hyenadna-tiny-1k: 128
+  hyenadna-small-32k: 256
+  hyenadna-medium-160k: 256
+  hyenadna-medium-450k: 256
+  nt_transformer_v2_500m: 1024
+  grover: 768
+  output_downsample_window:
+    enhancer_annotation: 128
+    gene_finding: null
+    histone_modification: 512
+    chromatin_accessibility: 512
+    cpg_methylation: 512
+embedders_batch:
+  embedders_dir: ${embedders_dir}
+  dnabert2:
+    _target_: bend.memoryless.embedders.DNABert2Embedder
+    model_name: zhihan1996/DNABERT-2-117M
+    upsample_embeddings: true
+    max_seq_len: 10000
+  hyenadna-large-1m:
+    _target_: bend.memoryless.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
+    max_seq_len: 1000000
+  hyenadna-tiny-1k:
+    _target_: bend.memoryless.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
+    max_seq_len: 1024
+  hyenadna-small-32k:
+    _target_: bend.memoryless.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-small-32k-seqlen
+    max_seq_len: 32768
+  hyenadna-medium-160k:
+    _target_: bend.memoryless.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-medium-160k-seqlen
+    max_seq_len: 160000
+  hyenadna-medium-450k:
+    _target_: bend.memoryless.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-medium-450k-seqlen
+    max_seq_len: 450000
+  resnetlm:
+    _target_: bend.memoryless.embedders.ConvNetEmbedder
+    model_path: ${embedders_dir}/convnet/
+    max_seq_len: null
+  awdlstm:
+    _target_: bend.memoryless.embedders.AWDLSTMEmbedder
+    model_path: ${embedders_dir}/awd_lstm/
+    max_seq_len: null
+  nt_transformer_ms:
+    _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
+    upsample_embeddings: true
+    max_seq_len: 5994
+    max_tokens_len: 1000
+  nt_transformer_human_ref:
+    _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
+    upsample_embeddings: true
+    max_seq_len: 5994
+    max_tokens_len: 1000
+  nt_transformer_1000g:
+    _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
+    upsample_embeddings: true
+    max_seq_len: 5994
+    max_tokens_len: 1000
+  nt_transformer_v2_500m:
+    _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
+    upsample_embeddings: true
+    max_seq_len: 12282
+    max_tokens_len: 2048
+embedders_seq:
+  chunk_size: 50000
+  chunk: null
+  data_dir: ./data/
+  embedders_dir: ./pretrained_models/
+  splits: null
+  model: nt_transformer_1000g
+  task: gene_finding
+  dnabert2:
+    _target_: bend.utils.embedders.DNABert2Embedder
+    model_name: zhihan1996/DNABERT-2-117M
+    upsample_embeddings: true
+  dnabert6:
+    _target_: bend.utils.embedders.DNABertEmbedder
+    model_path: ${embedders_dir}/dnabert6
+    kmer: 6
+    upsample_embeddings: true
+  gena-lm-bigbird-base-t2t:
+    _target_: bend.utils.embedders.GENALMEmbedder
+    model_name: AIRI-Institute/gena-lm-bigbird-base-t2t
+    upsample_embeddings: true
+  gena-lm-bert-large-t2:
+    _target_: bend.utils.embedders.GENALMEmbedder
+    model_name: AIRI-Institute/gena-lm-bert-large-t2t
+    upsample_embeddings: true
+  hyenadna-large-1m:
+    _target_: bend.utils.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
+  hyenadna-tiny-1k:
+    _target_: bend.utils.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
+  hyenadna-small-32k:
+    _target_: bend.utils.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-small-32k-seqlen
+  hyenadna-medium-160k:
+    _target_: bend.utils.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-medium-160k-seqlen
+  hyenadna-medium-450k:
+    _target_: bend.utils.embedders.HyenaDNAEmbedder
+    model_path: ${embedders_dir}/hyenadna/hyenadna-medium-450k-seqlen
+  resnetlm:
+    _target_: bend.utils.embedders.ConvNetEmbedder
+    model_path: ${embedders_dir}/convnet/
+  awdlstm:
+    _target_: bend.utils.embedders.AWDLSTMEmbedder
+    model_path: ${embedders_dir}/awd_lstm/
+  nt_transformer_ms:
+    _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
+    upsample_embeddings: true
+  nt_transformer_human_ref:
+    _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
+    upsample_embeddings: true
+  nt_transformer_1000g:
+    _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
+    upsample_embeddings: true
+  onehot:
+    _target_: bend.utils.embedders.OneHotEmbedder
+  nt_transformer_v2_500m:
+    _target_: bend.utils.embedders.NucleotideTransformerEmbedder
+    model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
+    upsample_embeddings: true
+  grover:
+    _target_: bend.utils.embedders.GROVEREmbedder
+    model_name: ${embedders_dir}/grover/
+    upsample_embeddings: true
+supervised_encoder:
+  resnet-supervised:
+    _target_: bend.models.downstream.ConvNetForSupervised
+    n_layers: 30
+    vocab_size: 5
+    hidden_size: 256
+  basset-supervised:
+    _target_: bend.models.basset.Basset
+    input_len: 512
+task: gene_finding
+embedder: hyenadna-tiny-1k
+work_dir: ./
+data_dir: ${work_dir}/data/
+embedders_dir: ${work_dir}/pretrained_models/
+mode: batch
+output_dir: ${work_dir}/results_onfly/${mode}/${task}/${embedder}/
+model:
+  _target_: bend.models.downstream.CNN
+  input_size: ${datadims.${embedder}}
+  output_size: ${datadims.${task}}
+  hidden_size: 64
+  kernel_size: 3
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.003
+  weight_decay: 0.01
+data:
+  _target_: bend.memoryless.dataloaders.get_dataloaders
+  annotations_path: ${data_dir}/gene_finding/gene_finding.bed
+  reference_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  hdf5_file: ${data_dir}/gene_finding/gene_finding.hdf5
+  batch_size: 64
+  num_workers: 0
+  padding_value: -100
+params:
+  epochs: 100
+  load_checkpoint: false
+  mode: train
+  gradient_accumulation_steps: 1
+  criterion: cross_entropy
+  class_weights: null
+  metric: mcc
+  activation: none
+wandb:
+  mode: disabled
