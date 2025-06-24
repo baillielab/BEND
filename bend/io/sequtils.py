@@ -203,6 +203,87 @@ def embed_from_bed(
     sink.close()
 
 
+def data_from_bed(
+    bed,
+    reference_fasta,
+    # embedder,
+    # output_path,
+    hdf5_file=None,
+    chunk_size=None,
+    chunk: int = None,
+    upsample_embeddings=False,
+    read_strand=False,
+    label_column_idx=6,
+    label_depth=None,
+    split=None,
+    flank=0,
+):
+    fasta = Fasta(reference_fasta)
+    f = pd.read_csv(bed, header="infer", sep="\t", low_memory=False)
+    # open hdf5 file
+    hdf5_file = h5py.File(hdf5_file, mode="r")["labels"] if hdf5_file else None
+    if split:
+        mask = f.iloc[:, -1] == split
+        f = f[mask]
+        if hdf5_file is not None:
+            hdf5_file = hdf5_file[mask.to_numpy()]  # mask the labels
+
+    label_column_idx = (
+        f.columns.get_loc("label") if "label" in f.columns else label_column_idx
+    )
+    strand_column_idx = f.columns.get_loc("strand") if "strand" in f.columns else 3
+
+    if chunk is not None:
+        # check if chunk is valid
+        if chunk * chunk_size > len(f):
+            raise ValueError(
+                f"Requested chunk {chunk}, but chunk ids range from 0-{int(len(f) / chunk_size)}"
+            )
+        f = f[chunk * chunk_size : (chunk + 1) * chunk_size].reset_index(drop=True)
+
+    buffer_inputs = []
+    buffer_labels = []
+    start_offset = chunk * chunk_size
+    buffer_size = 5000
+
+    sequences = []
+    targets = []
+
+    for n, line in tqdm(f.iterrows(), total=len(f), desc="Loading sequences"):
+        # get bed row
+        if read_strand:
+            chrom, start, end, strand = (
+                line.iloc[0],
+                int(line.iloc[1]),
+                int(line.iloc[2]),
+                line.iloc[strand_column_idx],
+            )
+        else:
+            chrom, start, end, strand = (
+                line.iloc[0],
+                int(line.iloc[1]),
+                int(line.iloc[2]),
+                "+",
+            )
+        if hdf5_file is not None:
+            labels = hdf5_file[n + start_offset]
+        else:
+            labels = line.iloc[label_column_idx]
+            labels = (
+                list(map(int, labels.split(","))) if isinstance(labels, str) else []
+            )  # if no label for sample
+            labels = multi_hot(labels, label_depth)
+        # get sequence
+        sequence = fasta.fetch(
+            chrom, start, end, strand=strand, flank=flank
+        )  # categorical labels
+
+        sequences.append(sequence)
+        targets.append(labels)
+
+    return sequences, targets
+
+
 def get_splits(bed):
     # header = 'infer' if has_header(bed) else None
     f = pd.read_csv(bed, header="infer", sep="\t", low_memory=False)

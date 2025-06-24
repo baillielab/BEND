@@ -1,0 +1,46 @@
+defaults:
+  - datadims: [label_dims, embedding_dims, downstream_downsample]
+  - embedders_batch: embedders
+  - supervised_encoder: [resnet-supervised, basset-supervised]
+  - _self_
+hydra :
+  searchpath:
+    - file://config_memoryless
+
+task: cpg_methylation
+embedder: onehot
+work_dir: ./
+data_dir: ${work_dir}/data/
+embedders_dir: ${work_dir}/pretrained_models/
+output_dir: ${work_dir}/results/batch_onfly/${task}/${embedder}/
+model:
+  _target_: bend.models.downstream.CNN
+  encoder: null
+  input_size: ${datadims.${embedder}}
+  output_size: ${datadims.${task}}
+  hidden_size: 64
+  kernel_size: 3
+  output_downsample_window: 512
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.003
+  weight_decay: 0.01
+data:
+  _target_: bend.memoryless.dataloaders.get_dataloaders
+  annotations_path: ${data_dir}/cpg_methylation/cpg_methylation.bed
+  reference_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  label_depth: ${datadims.cpg_methylation}
+  batch_size: 256
+  num_workers: 0
+  padding_value: -100
+params:
+  epochs: 100
+  load_checkpoint: false
+  mode: train
+  gradient_accumulation_steps: 1
+  criterion: bce
+  class_weights: null
+  metric: auroc
+  activation: none
+wandb:
+  mode: disabled
