@@ -155,12 +155,13 @@ class BaseEmbedder:
             chunk = self.remove_special_tokens(chunk)
 
             print(f"Chunk {idx_chunk} shape: {chunk.shape}")
-            if self.upsample_embeddings:
-                chunk = self._upsample(input_ids[idx_chunk], embedding=chunk)
 
             embedding.append(chunk)
-
         embedding = np.concatenate(embedding, axis=0)
+
+        if self.upsample_embeddings:
+            embedding = self._upsample(input_ids, embedding)
+
         return embedding
 
     def tokenize(self, sequences):
@@ -196,9 +197,9 @@ class BaseEmbedder:
         This is done by repeating the embedding vectors for each letter in the token.
         """
 
-        tokens = self.tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
+        tokens = self.tokenizer.convert_ids_to_tokens(token_ids.flatten(), skip_special_tokens=True)
         repetitions = [len(token) if token != "[UNK]" else 1 for token in tokens]
-
+        
         upsampled_embedding = np.repeat(embedding, repetitions, axis=0)
         return upsampled_embedding
 
