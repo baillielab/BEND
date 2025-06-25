@@ -12,8 +12,7 @@ TASKS = [
     "cpg_methylation",
     "histone_modification",
 ]
-# SPLITS = ["train", "valid", "test"]
-SPLITS = ["test"]
+SPLITS = ["train", "valid", "test"]
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
     CFG = compose(config_name="embed")

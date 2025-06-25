@@ -12,12 +12,12 @@ set_seed()
 
 EMBEDDERS = [
     "dnabert2",
-    # "hyenadna-tiny-1k",
-    # "resnetlm",
+    "hyenadna-tiny-1k",
+    "resnetlm",
 ]
 
 
-N_EMBEDDINGS = 10  # Number of embeddings to retrieve for testing
+N_EMBEDDINGS = 100  # Number of embeddings to retrieve for testing
 MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
 ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
 
