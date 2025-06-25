@@ -12,6 +12,7 @@ results_variant_effects/
 results/
 pretrained_models/
 test_notebooks/
+shards_*
 .DS_store
 
 # Git

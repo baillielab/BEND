@@ -11,6 +11,7 @@ nohup.out
 results_variant_effects/
 results/
 test_notebooks/
+shards_*
 .DS_store
 
 # Byte-compiled / optimized / DLL files
