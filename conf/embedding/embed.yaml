@@ -34,9 +34,10 @@ hydra:
 
 chunk_size: 50000
 chunk: null # can be given as a list of chunks to embed
-data_dir: ./data/
+work_dir: ./
+embedders_dir: ${work_dir}/pretrained_models/
+data_dir: ${work_dir}/data/
 output_dir: ${data_dir} # Specify only the root output directory, script will generate the full path
-embedders_dir: ./pretrained_models/
 splits: null
 shuffle: false
 model: nt_transformer_1000g

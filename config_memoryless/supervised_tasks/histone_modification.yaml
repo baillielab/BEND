@@ -3,16 +3,16 @@ defaults:
   - embedders_batch: embedders
   - supervised_encoder: [resnet-supervised, basset-supervised]
   - _self_
-hydra :
+hydra:
   searchpath:
     - file://config_memoryless
-    
+
 task: histone_modification
 embedder: onehot
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
-output_dir: ${work_dir}/results/batch_onfly/${task}/${embedder}/
+output_dir: ${work_dir}/shuffle_experiment/memoryless/${task}/${embedder}/
 model:
   _target_: bend.models.downstream.CNN
   encoder: null
