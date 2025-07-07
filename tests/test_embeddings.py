@@ -17,7 +17,9 @@ EMBEDDERS = [
     "nt_transformer_human_ref",
     "nt_transformer_1000g",
     "hyenadna-tiny-1k",
+    "hyenadna-large-1k",
     "resnetlm",
+    "awdlstm",
 ]
 
 
