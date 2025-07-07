@@ -97,7 +97,7 @@ class BaseEmbedder:
         np.ndarray
             The embedding of the sequence.
         """
-        return self.embed([sequence], *args, disable_tqdm=True, **kwargs)[0]
+        return self.embed(sequence, *args, disable_tqdm=True, **kwargs)
 
     @staticmethod
     def _upsample(
