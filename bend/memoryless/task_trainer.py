@@ -22,6 +22,7 @@ from typing import Union, List
 import numpy as np
 import glob
 import pandas as pd
+import time
 
 
 class CrossEntropyLoss(nn.Module):
@@ -295,18 +296,19 @@ class MemoryLessTrainer:
         )
         return
 
-    def _log_loss(self, epoch, train_loss, val_loss, val_metric):
+    def _log_loss(self, epoch, train_loss, val_loss, val_metric, training_time):
         df = pd.read_csv(f"{self.config.output_dir}/losses.csv")
         df = pd.concat(
             [
                 df,
                 pd.DataFrame(
-                    [[epoch, train_loss, val_loss, val_metric]],
+                    [[epoch, train_loss, val_loss, val_metric, training_time]],
                     columns=[
                         "Epoch",
                         "train_loss",
                         "val_loss",
                         f"val_{self.config.params.metric}",
+                        "training_time",
                     ],
                 ),
             ],
@@ -514,20 +516,28 @@ class MemoryLessTrainer:
             )
 
         for epoch in range(1 + start_epoch, epochs + 1):
+
+            start_time_epoch = time.time()
+
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
             # test_loss, test_metric = self.test(test_loader, overwrite=False)
             # print('TEST:', test_loss, test_metric, checkpoint = epoch)
+
             # save epoch in output dir
             self._save_checkpoint(epoch, train_loss, val_loss, val_metric)
             # log losses to csv
-            self._log_loss(epoch, train_loss, val_loss, val_metric)
+            self._log_loss(
+                epoch, train_loss, val_loss, val_metric, time.time() - start_time_epoch
+            )
             # log to wandb
             self._log_wandb(epoch, train_loss, val_loss, val_metric)
+
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )
+
         return
 
     def train_step(self, batch, idx=0):
