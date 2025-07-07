@@ -99,31 +99,26 @@ class BaseEmbedder:
         """
         return self.embed(sequence, *args, disable_tqdm=True, **kwargs)
 
-    @staticmethod
     def _upsample(
-        tokens: Iterable[str],
+        self,
+        token_ids: torch.Tensor,
         embedding: np.ndarray,
-        has_special_tokens: bool = True,
     ):
         """
         Upsample the embeddings to match the length of the input sequences.
         This is done by repeating the embedding vectors for each letter in the token.
         """
-        new_embeddings = []
-        for idx, token in enumerate(tokens):
-            token_embedding = embedding[idx]  # (1, 768)
 
-            if token == "[UNK]" or (
-                has_special_tokens and (idx == 0 or idx == len(tokens) - 1)
-            ):
-                new_embeddings.append(token_embedding)  # (1, 768)
-                continue
+        tokens = self.tokenizer.convert_ids_to_tokens(
+            token_ids.flatten(), skip_special_tokens=True
+        )
+        repetitions = [len(token) if token != "[UNK]" else 1 for token in tokens]
 
-            new_embeddings.extend([token_embedding] * len(token))
+        upsampled_embedding = torch.repeat_interleave(
+            embedding, torch.tensor(repetitions), dim=0
+        )
 
-        new_embeddings = np.array(new_embeddings)  # (n, 768)
-
-        return new_embeddings
+        return upsampled_embedding
 
 
 # https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full
@@ -223,21 +218,21 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 ][-1]
                 .detach()
                 .cpu()
-                .numpy()
             )
 
             embeddings = []
             for idx_emb, embedding in enumerate(outputs):
-                tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
 
-                embedding = BaseEmbedder._upsample(
-                    tokens=tokens,
-                    embedding=embedding,
-                    has_special_tokens=True,
-                )
+                token_ids = input_ids[idx_emb]
 
                 if remove_special_tokens:
                     embedding = embedding[1:, :]
+                    token_ids = token_ids[1:]
+
+                embedding = self._upsample(
+                    token_ids,
+                    embedding,
+                )
 
                 embeddings.append(embedding)
 
@@ -622,21 +617,20 @@ class DNABert2Embedder(BaseEmbedder):
                 )["hidden_states"]
                 .detach()
                 .cpu()
-                .numpy()
             )
 
             embeddings = []
             for idx_emb, embedding in enumerate(outputs):
-                tokens = self.tokenizer.convert_ids_to_tokens(input_ids[idx_emb])
-
-                embedding = BaseEmbedder._upsample(
-                    tokens=tokens,
-                    embedding=embedding,
-                    has_special_tokens=True,
-                )
+                token_ids = input_ids[idx_emb]
 
                 if remove_special_tokens:
                     embedding = embedding[1:-1, :]
+                    token_ids = token_ids[1:-1]
+
+                embedding = self._upsample(
+                    token_ids,
+                    embedding,
+                )
 
                 embeddings.append(embedding)
 
