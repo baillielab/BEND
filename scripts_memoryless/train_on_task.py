@@ -26,7 +26,9 @@ os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 # load config
 @hydra.main(
-    config_path=f"../config_memoryless/supervised_tasks/", config_name=None, version_base=None
+    config_path=f"../config_memoryless/supervised_tasks/",
+    config_name=None,
+    version_base=None,
 )  #
 def run_experiment(cfg: DictConfig) -> None:
     """
@@ -38,12 +40,12 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    # wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     # mkdir output_dir
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
     # init wandb
-    run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
+    # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
     OmegaConf.save(
         cfg, f"{cfg.output_dir}/config.yaml"

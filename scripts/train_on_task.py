@@ -38,7 +38,7 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    # wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     # mkdir output_dir
 
     task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
@@ -53,7 +53,7 @@ def run_experiment(cfg: DictConfig) -> None:
     print("data_dir", cfg.data.data_dir)
 
     # init wandb
-    run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
+    # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
     OmegaConf.save(
         cfg, f"{cfg.output_dir}/config.yaml"
