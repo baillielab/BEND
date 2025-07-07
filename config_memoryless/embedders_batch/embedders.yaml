@@ -3,29 +3,32 @@ embedders_dir: ${embedders_dir} # used in tests
 dnabert2:
   _target_: bend.memoryless.embedders.DNABert2Embedder
   model_name: zhihan1996/DNABERT-2-117M
+  remove_special_tokens: true
   upsample_embeddings: true
-  max_seq_len: 10000 # https://github.com/Zhihan1996/DNABERT_2/issues/2
 hyenadna-tiny-1k:
   _target_: bend.memoryless.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
-  max_seq_len: 1024
+  remove_special_tokens: true
 resnetlm:
   _target_: bend.memoryless.embedders.ConvNetEmbedder
   model_path: ${embedders_dir}/convnet/
-  max_seq_len: null
 nt_transformer_ms:
   _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
+  remove_special_tokens: true
   upsample_embeddings: true
 nt_transformer_human_ref:
   _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
+  remove_special_tokens: true
   upsample_embeddings: true
 nt_transformer_1000g:
   _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
+  remove_special_tokens: true
   upsample_embeddings: true
 nt_transformer_v2_500m:
   _target_: bend.memoryless.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
+  remove_special_tokens: true
   upsample_embeddings: true

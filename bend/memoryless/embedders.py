@@ -70,23 +70,32 @@ class BaseEmbedder:
         """Load the model. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(self, sequences: str, *args, **kwargs):
-        """Embed a sequence. Should be implemented by the inheriting class.
+    def embed(self, sequences: List[str], *args, **kwargs):
+        """Embed a list of sequences. Should be implemented by the inheriting class.
 
         Parameters
         ----------
-        sequences : str
+        sequences : List[str]
             The sequences to embed.
+        *args
+            Positional arguments. Passed to the model's embedding method.
+        **kwargs
+            Keyword arguments. Passed to the model's embedding method.
+
+        Returns
+        -------
+        torch.Tensor
+            The embeddings of the sequences.
         """
         raise NotImplementedError
 
-    def __call__(self, sequence: str, *args, **kwargs):
-        """Embed a single sequence. Calls `embed` with the given arguments.
+    def __call__(self, sequence: List[str], *args, **kwargs):
+        """Embed a list of sequences. Calls `embed` with the given arguments.
 
         Parameters
         ----------
-        sequence : str
-            The sequence to embed.
+        sequence : List[str]
+            The sequences to embed.
         *args
             Positional arguments. Passed to `embed`.
         **kwargs
@@ -94,25 +103,46 @@ class BaseEmbedder:
 
         Returns
         -------
-        np.ndarray
-            The embedding of the sequence.
+        torch.Tensor
+            The embeddings of the sequences.
         """
-        return self.embed(sequence, *args, disable_tqdm=True, **kwargs)
+        return self.embed(sequence, *args, **kwargs)
 
     def _upsample(
         self,
         token_ids: torch.Tensor,
-        embedding: np.ndarray,
+        embedding: torch.Tensor,
     ):
         """
-        Upsample the embeddings to match the length of the input sequences.
-        This is done by repeating the embedding vectors for each letter in the token.
+        Upsample the embedding to match the length of the input sequence.
+        This is done by repeating the embedding for each token in the input sequence.
+
+        The token IDs and the embedding are expected to not contain any special tokens
+        (e.g., [CLS], [SEP]) and to be aligned.
+
+        Parameters
+        ----------
+        token_ids : torch.Tensor
+            The token IDs of the input sequence.
+        embedding : torch.Tensor
+            The embedding of the input sequence.
+
+        Returns
+        -------
+        torch.Tensor
+            The upsampled embedding.
         """
 
         tokens = self.tokenizer.convert_ids_to_tokens(
             token_ids.flatten(), skip_special_tokens=True
         )
-        repetitions = [len(token) if token != "[UNK]" else 1 for token in tokens]
+
+        repetitions = []
+        for token in tokens:
+            if token in ["[UNK]", "[CLS]", "[SEP]"]:
+                repetitions.append(1)
+            else:
+                repetitions.append(len(token))
 
         upsampled_embedding = torch.repeat_interleave(
             embedding, torch.tensor(repetitions), dim=0
@@ -130,8 +160,8 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_name,
-        return_logits: bool = False,
-        return_loss: bool = False,
+        remove_special_tokens: bool = True,
+        upsample_embeddings: bool = True,
         **kwargs,
     ):
         """
@@ -144,16 +174,11 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             When providing a name, the model will be loaded from the HuggingFace model hub.
             Alternatively, you can provide a path to a local model directory. We check whether the model_name
             contains 'v2' to determine whether we need to follow the V2 model API or not.
-        return_logits : bool, optional
-            Whether to return the logits. Note that we do not apply any masking. Defaults to False.
-        return_loss : bool, optional
-            Whether to return the loss. Note that we do not apply any masking. ``remove_special_tokens`` also ignores these dimensions when
-            computing the loss.
-            Defaults to False.
+        remove_special_tokens : bool, optional
+            Whether to remove the CLS token from the embeddings. Defaults to True.
+        upsample_embeddings : bool, optional
+            Whether to upsample the embeddings to the length of the input sequence. Defaults to False.
         """
-
-        if return_logits and return_loss:
-            raise ValueError("Only one of return_logits and return_loss can be True.")
 
         # Get pretrained model
         if "v2" in model_name:
@@ -175,15 +200,12 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         self.model.to(device)
         self.model.eval()
 
-        self.return_logits = return_logits
-        self.return_loss = return_loss
+        self.upsample_embeddings = upsample_embeddings
+        self.remove_special_tokens = remove_special_tokens
 
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = False,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
     ):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
@@ -192,17 +214,11 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        disable_tqdm : bool, optional
-            Whether to disable the tqdm progress bar. Defaults to False.
-        remove_special_tokens : bool, optional
-             Whether to remove the special tokens from the embeddings. Defaults to True.
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to the length of the input sequence. Defaults to False.
 
         Returns
         -------
-        List[np.ndarray]
-            List of embeddings.
+        torch.Tensor
+            The embeddings of the sequences.
         """
 
         with torch.no_grad():
@@ -212,7 +228,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
             input_ids = output_tokens["input_ids"].int()
 
-            outputs = (
+            embeddings = (
                 self.model(input_ids.to(device), output_hidden_states=True)[
                     "hidden_states"
                 ][-1]
@@ -220,23 +236,24 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 .cpu()
             )
 
-            embeddings = []
-            for idx_emb, embedding in enumerate(outputs):
+            if self.remove_special_tokens:
+                embeddings = embeddings[:, 1:, :]
+                input_ids = input_ids[:, 1:]
 
-                token_ids = input_ids[idx_emb]
+            if self.upsample_embeddings:
+                list_embeddings = []
+                for idx_emb, emb in enumerate(embeddings):
 
-                if remove_special_tokens:
-                    embedding = embedding[1:, :]
-                    token_ids = token_ids[1:]
+                    token_ids = input_ids[idx_emb]
 
-                embedding = self._upsample(
-                    token_ids,
-                    embedding,
-                )
+                    emb = self._upsample(
+                        token_ids,
+                        emb,
+                    )
 
-                embeddings.append(embedding)
+                    list_embeddings.append(emb)
 
-            embeddings = torch.stack(embeddings, dim=0)
+                embeddings = torch.stack(list_embeddings, dim=0)
 
         return embeddings
 
@@ -273,8 +290,6 @@ class AWDLSTMEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = False,
-        upsample_embeddings: bool = False,
     ):
         """
         Embed sequences using the AWD-LSTM baseline LM trained in BEND.
@@ -283,16 +298,11 @@ class AWDLSTMEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        disable_tqdm : bool, optional
-            Whether to disable the tqdm progress bar. Defaults to False.
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to the length of the input sequence. Defaults to False.
-            Only provided for compatibility with other embedders. GPN embeddings are already the same length as the input sequence.
 
         Returns
         -------
-        List[np.ndarray]
-            List of embeddings.
+        torch.Tensor
+            The embeddings of the sequences.
         """
 
         with torch.no_grad():
@@ -339,8 +349,6 @@ class ConvNetEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = False,
-        upsample_embeddings: bool = False,
     ):
         """
         Embed sequences using the GPN-inspired ConvNet baseline LM trained in BEND.
@@ -349,16 +357,11 @@ class ConvNetEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        disable_tqdm : bool, optional
-            Whether to disable the tqdm progress bar. Defaults to False.
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to the length of the input sequence. Defaults to False.
-            Only provided for compatibility with other embedders. GPN embeddings are already the same length as the input sequence.
 
         Returns
         -------
-        List[np.ndarray]
-            List of embeddings.
+        torch.Tensor
+            The embeddings of the sequences.
         """
 
         with torch.no_grad():
@@ -381,8 +384,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
-        return_logits: bool = False,
-        return_loss: bool = False,
+        remove_special_tokens: bool = True,
         **kwargs,
     ):
         # '''Load the model from the checkpoint path
@@ -403,14 +405,8 @@ class HyenaDNAEmbedder(BaseEmbedder):
             If the path does not exist, the model will be downloaded from HuggingFace. Rather than just downloading the model,
             HyenaDNA's `from_pretrained` method relies on cloning the HuggingFace-hosted repository, and using git lfs to download the model.
             This requires git lfs to be installed on your system, and will fail if it is not.
-        return_logits : bool, optional
-            If True, returns logits instead of embeddings. Defaults to False.
-        return_loss : bool, optional
-            If True, returns the unreduced next token prediction loss. Incompatible with return_logits. We trim special tokens from the
-            output so that the loss is only computed on the ACTGN vocabulary.
-              Defaults to False.
-
-
+        remove_special_tokens : bool, optional
+            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True.
         """
 
         checkpoint_path, model_name = os.path.split(model_path)
@@ -424,12 +420,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         self.max_length = max_lengths[model_name]  # auto selects
 
-        if return_logits and return_loss:
-            raise ValueError("Only one of return_logits and return_loss can be True")
-
-        self.return_logits = return_logits
-        self.return_loss = return_loss
-
         # all these settings are copied directly from huggingface.py
 
         # data settings:
@@ -440,8 +430,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         # we need these for the decoder head, if using
         use_head = False
         n_classes = 2  # not used for embeddings only
-
-        use_lm_head = return_logits or return_loss  # the head we added back in.
 
         # you can override with your own backbone config here if you want,
         # otherwise we'll load the HF one in None
@@ -456,7 +444,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             config=backbone_cfg,
             device=device,
             use_head=use_head,
-            use_lm_head=use_lm_head,
+            use_lm_head=False,  # we don't use the LM head for embeddings
             n_classes=n_classes,
         )
         model.eval()
@@ -481,31 +469,22 @@ class HyenaDNAEmbedder(BaseEmbedder):
             padding_side="left",  # since HyenaDNA is causal, we pad on the left
         )
 
+        self.remove_special_tokens = remove_special_tokens
+
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = True,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = False,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
         ----------
         sequences : List[str]
             List of sequences to embed.
-        disable_tqdm : bool, optional
-            Whether to disable the tqdm progress bar. Defaults to False.
-        remove_special_tokens : bool, optional
-            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True. Cannot be set to False if
-            the return_loss option of the embedder is True (autoregression forces us to discard the BOS token position either way).
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to match the length of the input sequences. Defaults to False.
-            Only provided for compatibility with other embedders. HyenaDNA embeddings are already the same length as the input sequence.
+
         Returns
         -------
-
-        embeddings : List[np.ndarray]
-            List of embeddings.
+        torch.Tensor
+            The embeddings of the sequences.
         """
 
         with torch.no_grad():
@@ -519,7 +498,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             input_ids = input_ids.to(device)
             embeddings = self.model(input_ids=input_ids)
 
-            if remove_special_tokens:
+            if self.remove_special_tokens:
                 embeddings = embeddings[:, 1:-1, :]
 
             embeddings = embeddings.detach()
@@ -535,12 +514,13 @@ class DNABert2Embedder(BaseEmbedder):
     def load_model(
         self,
         model_name="zhihan1996/DNABERT-2-117M",
-        return_logits: bool = False,
-        return_loss: bool = False,
+        remove_special_tokens: bool = True,
+        upsample_embeddings: bool = True,
         **kwargs,
     ):
         """
         Load the DNABERT2 model.
+        Note that this model uses byte pair encoding (BPE) and upsample_embedding=True repeats BPE token embeddings so that each nucleotide has its own embedding.
 
         Parameters
         ----------
@@ -548,12 +528,10 @@ class DNABert2Embedder(BaseEmbedder):
             The name of the model to load. Defaults to "zhihan1996/DNABERT-2-117M".
             When providing a name, the model will be loaded from the HuggingFace model hub.
             Alternatively, you can provide a path to a local model directory.
-        return_logits : bool, optional
-            If True, returns logits instead of embeddings. Defaults to False.
-        return_loss : bool, optional
-            If True, returns the unreduced next token prediction loss. Incompatible with return_logits. If ``remove_special_tokens`` is True,
-            the loss is only computed on the BPE vocabulary without the special tokens.
-            Defaults to False.
+        upsample_embeddings : bool, optional
+            Whether to upsample the embeddings to the length of the input sequence. Defaults to True.
+        remove_special_tokens : bool, optional
+            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True.
         """
 
         # keep the source in this repo to avoid using flash attn.
@@ -567,15 +545,12 @@ class DNABert2Embedder(BaseEmbedder):
         # https://github.com/Zhihan1996/DNABERT_2/issues/2
         self.max_length = 10000  # nucleotides.
 
-        self.return_logits = return_logits
-        self.return_loss = return_loss
+        self.upsample_embeddings = upsample_embeddings
+        self.remove_special_tokens = remove_special_tokens
 
     def embed(
         self,
         sequences: List[str],
-        disable_tqdm: bool = False,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
@@ -583,23 +558,12 @@ class DNABert2Embedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        disable_tqdm : bool, optional
-            Whether to disable the tqdm progress bar. Defaults to False.
-        remove_special_tokens : bool, optional
-            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True.
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to match the length of the input sequences. Defaults to False.
 
         Returns
         -------
         embeddings : List[np.ndarray]
             List of embeddings.
         """
-        # '''
-        # Note that this model uses byte pair encoding.
-        # upsample_embedding repeats BPE token embeddings so that each nucleotide has its own embedding.
-        # The [CLS] and [SEP] tokens are removed from the output if remove_special_tokens is True.
-        # '''
 
         with torch.no_grad():
             output_tokens = self.tokenizer(
@@ -610,7 +574,7 @@ class DNABert2Embedder(BaseEmbedder):
             )
             input_ids = output_tokens["input_ids"]
 
-            outputs = (
+            embeddings = (
                 self.model(
                     input_ids=input_ids.to(device),
                     output_hidden_states=True,
@@ -619,22 +583,23 @@ class DNABert2Embedder(BaseEmbedder):
                 .cpu()
             )
 
-            embeddings = []
-            for idx_emb, embedding in enumerate(outputs):
-                token_ids = input_ids[idx_emb]
+            if self.remove_special_tokens:
+                embeddings = embeddings[:, 1:-1, :]
+                input_ids = input_ids[:, 1:-1]
 
-                if remove_special_tokens:
-                    embedding = embedding[1:-1, :]
-                    token_ids = token_ids[1:-1]
+            if self.upsample_embeddings:
+                list_embeddings = []
+                for idx_emb, emb in enumerate(embeddings):
+                    token_ids = input_ids[idx_emb]
 
-                embedding = self._upsample(
-                    token_ids,
-                    embedding,
-                )
+                    emb = self._upsample(
+                        token_ids,
+                        emb,
+                    )
 
-                embeddings.append(embedding)
+                    list_embeddings.append(emb)
 
-            embeddings = torch.stack(embeddings, dim=0)
+                embeddings = torch.stack(list_embeddings, dim=0)
 
         return embeddings
 
