@@ -117,8 +117,7 @@ class BaseEmbedder:
         Upsample the embedding to match the length of the input sequence.
         This is done by repeating the embedding for each token in the input sequence.
 
-        The token IDs and the embedding are expected to not contain any special tokens
-        (e.g., [CLS], [SEP]) and to be aligned.
+        The token IDs and the embedding are expected to be aligned.
 
         Parameters
         ----------
@@ -133,9 +132,7 @@ class BaseEmbedder:
             The upsampled embedding.
         """
 
-        tokens = self.tokenizer.convert_ids_to_tokens(
-            token_ids.flatten(), skip_special_tokens=True
-        )
+        tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
 
         repetitions = []
         for token in tokens:
@@ -222,38 +219,44 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         """
 
         with torch.no_grad():
-            output_tokens = self.tokenizer(
-                sequences, return_tensors="pt", return_token_type_ids=False
+            output = self.tokenizer(
+                sequences,
+                return_tensors="pt",
+                return_token_type_ids=False,
+                padding="longest",
             )
 
-            input_ids = output_tokens["input_ids"].int()
+            input_ids = output["input_ids"].int()
+            attention_mask = output["attention_mask"]
 
             embeddings = (
-                self.model(input_ids.to(device), output_hidden_states=True)[
-                    "hidden_states"
-                ][-1]
+                self.model(
+                    input_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                    output_hidden_states=True,
+                )["hidden_states"][-1]
                 .detach()
                 .cpu()
             )
 
-            if self.remove_special_tokens:
-                embeddings = embeddings[:, 1:, :]
-                input_ids = input_ids[:, 1:]
+            list_embeddings = []
+            for emb, token_ids, mask in zip(embeddings, input_ids, attention_mask):
 
-            if self.upsample_embeddings:
-                list_embeddings = []
-                for idx_emb, emb in enumerate(embeddings):
+                emb = emb[mask.bool(), :]
+                token_ids = token_ids[mask.bool()]
 
-                    token_ids = input_ids[idx_emb]
+                if self.remove_special_tokens:
+                    emb = emb[1:, :]
+                    token_ids = token_ids[1:]
 
-                    emb = self._upsample(
-                        token_ids,
-                        emb,
-                    )
+                emb = self._upsample(
+                    token_ids,
+                    emb,
+                )
 
-                    list_embeddings.append(emb)
+                list_embeddings.append(emb)
 
-                embeddings = torch.stack(list_embeddings, dim=0)
+            embeddings = torch.stack(list_embeddings, dim=0)
 
         return embeddings
 
@@ -566,40 +569,44 @@ class DNABert2Embedder(BaseEmbedder):
         """
 
         with torch.no_grad():
-            output_tokens = self.tokenizer(
+            output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
                 return_token_type_ids=False,
                 padding="longest",
             )
-            input_ids = output_tokens["input_ids"]
+
+            input_ids = output["input_ids"]
+            attention_mask = output["attention_mask"]
 
             embeddings = (
                 self.model(
                     input_ids=input_ids.to(device),
+                    attention_mask=attention_mask.to(device),
                     output_hidden_states=True,
                 )["hidden_states"]
                 .detach()
                 .cpu()
             )
 
-            if self.remove_special_tokens:
-                embeddings = embeddings[:, 1:-1, :]
-                input_ids = input_ids[:, 1:-1]
+            list_embeddings = []
+            for emb, token_ids, mask in zip(embeddings, input_ids, attention_mask):
 
-            if self.upsample_embeddings:
-                list_embeddings = []
-                for idx_emb, emb in enumerate(embeddings):
-                    token_ids = input_ids[idx_emb]
+                emb = emb[mask.bool(), :]
+                token_ids = token_ids[mask.bool()]
 
-                    emb = self._upsample(
-                        token_ids,
-                        emb,
-                    )
+                if self.remove_special_tokens:
+                    emb = emb[1:-1, :]
+                    token_ids = token_ids[1:-1]
 
-                    list_embeddings.append(emb)
+                emb = self._upsample(
+                    token_ids,
+                    emb,
+                )
 
-                embeddings = torch.stack(list_embeddings, dim=0)
+                list_embeddings.append(emb)
+
+            embeddings = torch.stack(list_embeddings, dim=0)
 
         return embeddings
 
