@@ -49,7 +49,7 @@ data:
   data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
   cross_validation: false
   batch_size: 256
-  num_workers: 0
+  num_workers: 1
   padding_value: -100
   shuffle: 200
 params:
