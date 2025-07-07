@@ -236,7 +236,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
                 embeddings.append(embedding)
 
-            embeddings = np.array(embeddings)
+            embeddings = torch.stack(embeddings, dim=0)
 
         return embeddings
 
@@ -304,7 +304,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
             )["input_ids"]
             input_ids = input_ids.to(device)
             embeddings = self.model(input_ids=input_ids).last_hidden_state
-            embeddings = embeddings.detach().cpu().numpy()
+            embeddings = embeddings.detach()
 
         return embeddings
 
@@ -370,7 +370,7 @@ class ConvNetEmbedder(BaseEmbedder):
             )["input_ids"]
             input_ids = input_ids.to(device)
             embeddings = self.model(input_ids=input_ids).last_hidden_state
-            embeddings = embeddings.detach().cpu().numpy()
+            embeddings = embeddings.detach()
 
         return embeddings
 
@@ -522,7 +522,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             if remove_special_tokens:
                 embeddings = embeddings[:, 1:-1, :]
 
-            embeddings = embeddings.detach().cpu().numpy()
+            embeddings = embeddings.detach()
 
         return embeddings
 
@@ -634,7 +634,7 @@ class DNABert2Embedder(BaseEmbedder):
 
                 embeddings.append(embedding)
 
-            embeddings = np.array(embeddings)
+            embeddings = torch.stack(embeddings, dim=0)
 
         return embeddings
 

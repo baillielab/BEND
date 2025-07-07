@@ -429,13 +429,8 @@ class MemoryLessTrainer:
     def _embed_data(self, data):
         # print(f"Embedding data with shape: {len(data)}")
         data_embed = self.embedder(data)
-        # print(f"Data embed shape: {len(data_embed)}")
-        
-        data_embed = torch.nn.utils.rnn.pad_sequence(
-            data_embed, padding_value=self.config.data.padding_value, batch_first=True
-        )
 
-        # print(f"Data embed shape: {data_embed.shape}")
+        # print(f"Data embed shape: {len(data_embed)}")
 
         return data_embed
 

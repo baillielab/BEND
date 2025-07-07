@@ -66,6 +66,7 @@ def get_batch_embeddings(dataset, embedder):
     for idx_batch, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
         sequences.extend(seq)
         batch_embedded = embedder(seq)
+        batch_embedded = batch_embedded.cpu().numpy()
 
         embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
 
