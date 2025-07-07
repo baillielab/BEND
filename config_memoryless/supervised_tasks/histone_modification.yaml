@@ -31,7 +31,7 @@ data:
   reference_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   label_depth: ${datadims.histone_modification}
   batch_size: 256
-  num_workers: 0
+  num_workers: 32
   padding_value: -100
 params:
   epochs: 100
