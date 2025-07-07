@@ -258,6 +258,7 @@ class BaseTrainer:
                     "train_loss",
                     "val_loss",
                     f"val_{self.config.params.metric}",
+                    "training_time",
                 ]
             ).to_csv(f"{path}/losses.csv", index=False)
 
