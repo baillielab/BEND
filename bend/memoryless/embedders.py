@@ -52,6 +52,8 @@ if torch.backends.mps.is_available():
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+PADDING_VALUE = -100
+
 
 class BaseEmbedder:
     """Base class for embedders.
@@ -118,35 +120,71 @@ class BaseEmbedder:
         # print("MAX SEQ LEN", self.max_seq_len)
 
         if self.max_seq_len:
-            for s in sequences:
-                chunks = [
-                    s[chunk : chunk + self.max_seq_len]
-                    for chunk in range(0, len(s), self.max_seq_len)
-                ]
-                # print(
-                #     f"Embedding {len(chunks)} chunks of length {[len(c) for c in chunks]}"
-                # )
+            chunks, sequence_ids = self.get_chunks(sequences, self.max_seq_len)
 
-                input_ids, attention_mask = self.tokenize(chunks)
+            # print(
+            #     f"Embedding {len(chunks)} chunks of length {[len(c) for c in chunks]}"
+            # )
 
-                # print(f"Input IDs shape: {input_ids.shape}")
+            input_ids, attention_mask = self.tokenize(chunks)
 
-                chunks_emb = self.embed(
-                    input_ids, attention_mask=attention_mask, *args, disable_tqdm=True, **kwargs
-                )
-                # print(f"Chunks embedding shape: {chunks_emb.shape}")
+            # print(f"Input IDs shape: {input_ids.shape}")
+
+            chunks_emb = self.embed(
+                input_ids,
+                attention_mask=attention_mask,
+                *args,
+                disable_tqdm=True,
+                **kwargs,
+            )
+
+            input_ids = input_ids.detach().cpu()
+            attention_mask = attention_mask.detach().cpu()
+            chunks_emb = chunks_emb.detach().cpu()
+
+            for id in np.unique(sequence_ids):
+                seq_mask = np.array(sequence_ids) == id
+
+                seq_input_ids = input_ids[seq_mask]
+                seq_attention_mask = attention_mask[seq_mask]
+                seq_embed = chunks_emb[seq_mask]
 
                 embeddings.append(
-                    self.concatenate_chunks(chunks_emb, attention_mask, input_ids)
+                    self.process_chunks(seq_embed, seq_attention_mask, seq_input_ids)
                 )
+
+            embeddings = torch.nn.utils.rnn.pad_sequence(
+                embeddings, padding_value=PADDING_VALUE, batch_first=True
+            )  # Pad to highest sequence in batch
+            # print(f"Embedding shape: {embeddings.shape}")
 
         else:
             embeddings = self.embed(sequences, *args, **kwargs)
 
         return embeddings
 
-    def concatenate_chunks(self, chunked_embeddings: torch.Tensor, attention_mask: torch.Tensor, input_ids: torch.Tensor):
-        
+    def get_chunks(self, sequences: List[str], max_length):
+        seq_chunks = []
+        seq_ids = []
+
+        for idx, seq in enumerate(sequences):
+            chunks = [
+                seq[chunk : chunk + max_length]
+                for chunk in range(0, len(seq), max_length)
+            ]
+
+            seq_chunks.extend(chunks)
+            seq_ids.extend([idx] * len(chunks))
+
+        return seq_chunks, seq_ids
+
+    def process_chunks(
+        self,
+        chunked_embeddings: torch.Tensor,
+        attention_mask: torch.Tensor,
+        input_ids: torch.Tensor,
+    ):
+
         n_chunks = chunked_embeddings.shape[0]
         n_tokens = chunked_embeddings.shape[1]
 
@@ -159,7 +197,11 @@ class BaseEmbedder:
         flatten_input_ids = flatten_input_ids[flatten_attention_mask.bool()]
 
         # remove special tokens
-        mask = torch.tensor(self.tokenizer.get_special_tokens_mask(flatten_input_ids, already_has_special_tokens=True))
+        mask = torch.tensor(
+            self.tokenizer.get_special_tokens_mask(
+                flatten_input_ids, already_has_special_tokens=True
+            )
+        )
         embedding = embedding[~mask.bool()]
         flatten_input_ids = flatten_input_ids[~mask.bool()]
 
@@ -201,12 +243,15 @@ class BaseEmbedder:
         This is done by repeating the embedding vectors for each letter in the token.
         """
 
-        tokens = self.tokenizer.convert_ids_to_tokens(token_ids.flatten(), skip_special_tokens=True)
-        repetitions = torch.tensor([len(token) if token != "[UNK]" else 1 for token in tokens])
-        
+        tokens = self.tokenizer.convert_ids_to_tokens(
+            token_ids.flatten(), skip_special_tokens=True
+        )
+        repetitions = torch.tensor(
+            [len(token) if token != "[UNK]" else 1 for token in tokens]
+        )
+
         upsampled_embedding = torch.repeat_interleave(embedding, repetitions, dim=0)
         return upsampled_embedding
-
 
 
 # https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full
@@ -301,6 +346,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             )
 
             return outs
+
 
 class AWDLSTMEmbedder(BaseEmbedder):
     """
@@ -512,7 +558,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             model_max_length=self.max_seq_len
             + 2,  # to account for special tokens, like EOS
             add_special_tokens=False,  # we handle special tokens elsewhere
-            padding_side="right",
+            padding_side="left",
         )
 
     def embed(
@@ -546,11 +592,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             # place on device, convert to tensor
             input_ids = torch.LongTensor(input_ids).to(device)
 
-            output = (
-                self.model(input_ids)
-                .detach()
-                .cpu()
-            )
+            output = self.model(input_ids).detach().cpu()
 
             return output
 

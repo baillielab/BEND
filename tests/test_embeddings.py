@@ -53,7 +53,7 @@ def get_gt_embeddings(gt_sequences, embedder):
     gt_torch_embeddings = []
     for i, emb in enumerate(gt_embeddings):
         gt_torch_embeddings.append(torch.tensor(emb, dtype=torch.float64))
-    
+
     gt_embeddings = torch.nn.utils.rnn.pad_sequence(
         gt_torch_embeddings, padding_value=PADDING_VALUE, batch_first=True
     )
@@ -61,6 +61,15 @@ def get_gt_embeddings(gt_sequences, embedder):
     gt_embeddings = np.array(gt_embeddings).astype(np.float64)
 
     return gt_embeddings, sequences
+
+
+def dynamic_collate_fn(batch):
+    """
+    Custom collate function to handle variable-length sequences.
+    """
+    sequences, labels = zip(*batch)
+
+    return sequences, labels
 
 
 def get_batch_embeddings(dataset, embedder):
@@ -72,6 +81,7 @@ def get_batch_embeddings(dataset, embedder):
         batch_size=1,
         shuffle=False,
         num_workers=0,
+        collate_fn=dynamic_collate_fn,
     )
 
     embeddings = []
@@ -88,9 +98,11 @@ def get_batch_embeddings(dataset, embedder):
             break
 
     embeddings = embeddings[:N_EMBEDDINGS]
+
     embeddings = torch.nn.utils.rnn.pad_sequence(
         embeddings, padding_value=PADDING_VALUE, batch_first=True
-    )
+    )  # Pad to highest sequence across batches
+
     embeddings = np.array(embeddings).astype(np.float64)
 
     sequences = sequences[:N_EMBEDDINGS]
