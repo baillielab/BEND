@@ -2,6 +2,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 
+DATA_DIR = "../../data/"
+
 
 def plot_chr_in_splits(annotations, chromosomes):
     sns.set_theme(style="white")
