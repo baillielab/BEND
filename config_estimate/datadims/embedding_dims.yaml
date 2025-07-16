@@ -1,0 +1,22 @@
+onehot: 5
+resnet-supervised : 256
+basset-supervised : 5
+gpn: 512
+nt_transformer_2B5_1000G: 2560
+nt_transformer_ms: 2560
+nt_transformer_1000g: 2560
+nt_transformer_human_ref: 1280
+convnet: 256
+resnetlm : 256
+dnabert6: 768
+awdlstm: 64
+dnabert2 : 768
+gena-lm-bigbird-base-t2t : 768
+gena-lm-bert-large-t2 : 1024
+hyenadna-large-1m : 256
+hyenadna-tiny-1k : 128
+hyenadna-small-32k : 256
+hyenadna-medium-160k : 256
+hyenadna-medium-450k : 256
+nt_transformer_v2_500m: 1024
+grover: 768

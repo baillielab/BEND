@@ -8,25 +8,33 @@ import hydra
 from omegaconf import DictConfig, OmegaConf, open_dict
 import torch
 from bend.utils.task_trainer import (
-    BaseTrainer,
     MSELoss,
     BCEWithLogitsLoss,
     PoissonLoss,
     CrossEntropyLoss,
 )
+from bend.estimate.task_trainer import EstimateTrainer
 import wandb
 from bend.models.downstream import CustomDataParallel
 import os
 import sys
 from bend.utils.set_seed import set_seed
+import time
+import pandas as pd
+import shutil
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
+CSV_FILE_NAME = "dowstream_model_stats.csv"
+
+
 # load config
 @hydra.main(
-    config_path=f"../conf/supervised_tasks/", config_name=None, version_base=None
+    config_path=f"../config_estimate/supervised_tasks/",
+    config_name=None,
+    version_base=None,
 )  #
 def run_experiment(cfg: DictConfig) -> None:
     """
@@ -39,15 +47,11 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    epochs = 1
+    epochs = 2
     print(f"Override epochs to {epochs}")
 
-    os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
+    os.makedirs(cfg.output_dir, exist_ok=True)
     print("output_dir", cfg.output_dir)
-
-    OmegaConf.save(
-        cfg, f"{cfg.output_dir}/config.yaml"
-    )  # save the config to the experiment dir
 
     if torch.backends.mps.is_available():
         device = torch.device("mps")
@@ -106,11 +110,9 @@ def run_experiment(cfg: DictConfig) -> None:
     # init dataloaders
     if "supervised" in cfg.embedder:
         cfg.data.data_dir = cfg.data.data_dir.replace(cfg.embedder, "onehot")
-    train_loader, val_loader, test_loader = hydra.utils.instantiate(
-        cfg.data
-    )  # instantiate dataloaders
+    train_loader = hydra.utils.instantiate(cfg.data)  # instantiate dataloaders
     # instantiate trainer
-    trainer = BaseTrainer(
+    trainer = EstimateTrainer(
         model=model,
         optimizer=optimizer,
         criterion=criterion,
@@ -123,14 +125,13 @@ def run_experiment(cfg: DictConfig) -> None:
         # train
         trainer.train(
             train_loader,
-            val_loader,
-            test_loader,
+            None,
+            None,
             epochs,
-            cfg.params.load_checkpoint,
+            False,  # do not load checkpoints
         )
 
-    # test
-    trainer.test(test_loader, overwrite=False)
+    shutil.rmtree(cfg.data.data_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
