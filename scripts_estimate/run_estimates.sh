@@ -2,7 +2,6 @@
 
 for model in hyenadna-tiny-1k \
             hyenadna-large-1m \
-            dnabert6 \
             resnetlm \
             nt_transformer_ms \
             nt_transformer_human_ref \
