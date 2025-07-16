@@ -38,16 +38,17 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-
-    epochs = 1
-    print(f"Override epochs to {epochs}")
-
+    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    # mkdir output_dir
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
+    # init wandb
+    run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
     OmegaConf.save(
         cfg, f"{cfg.output_dir}/config.yaml"
     )  # save the config to the experiment dir
+    # set device
 
     if torch.backends.mps.is_available():
         device = torch.device("mps")
@@ -125,7 +126,7 @@ def run_experiment(cfg: DictConfig) -> None:
             train_loader,
             val_loader,
             test_loader,
-            epochs,
+            cfg.params.epochs,
             cfg.params.load_checkpoint,
         )
 
