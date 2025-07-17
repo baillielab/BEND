@@ -170,6 +170,8 @@ class EstimateTrainer(BaseTrainer):
             start_time = time.time()
             train_loss = self.train_epoch(train_loader)
 
+            print(torch.cuda.memory_summary(device=self.device, abbreviated=True))
+
             self._log_stats(epoch, start_time)
         return
 
