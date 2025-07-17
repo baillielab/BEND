@@ -55,11 +55,6 @@ def run_experiment(cfg: DictConfig) -> None:
     # init wandb
     # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
-    OmegaConf.save(
-        cfg, f"{cfg.output_dir}/config.yaml"
-    )  # save the config to the experiment dir
-    # set device
-
     if torch.backends.mps.is_available():
         device = torch.device("mps")
     else:
@@ -129,6 +124,8 @@ def run_experiment(cfg: DictConfig) -> None:
         config=cfg,
         overwrite_dir=True,
     )
+
+    OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
     if cfg.params.mode == "train":
         # train
