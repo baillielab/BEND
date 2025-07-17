@@ -47,7 +47,7 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    epochs = 2
+    epochs = 1
     print(f"Override epochs to {epochs}")
 
     os.makedirs(cfg.output_dir, exist_ok=True)
