@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import sys
 from bend.utils.set_seed import set_seed, SEED
+import h5py
 
 set_seed()
 
@@ -25,17 +26,12 @@ def run_experiment(cfg: DictConfig) -> None:
     print("Embedding data for", cfg.task)
 
     if cfg.shuffle:
-        default_bed = cfg[cfg.task].bed
-        df = pd.read_csv(default_bed, sep="\t", low_memory=False)
-        df = df.sample(frac=1, random_state=SEED)
+        cfg[cfg.task].bed = cfg[cfg.task].bed.replace(".bed", "_shuffled.bed")
 
-        shuffled_bed = default_bed.replace(".bed", "_shuffled.bed")
-        # replace path in config
-        cfg[cfg.task].bed = shuffled_bed
-        # save the shuffled bed file
-        df.to_csv(shuffled_bed, sep="\t", index=False)
-
-        print(f"Shuffled {default_bed} and saved to {shuffled_bed}")
+        if cfg[cfg.task].hdf5_file is not None:
+            cfg[cfg.task].hdf5_file = cfg[cfg.task].hdf5_file.replace(
+                ".hdf5", "_shuffled.hdf5"
+            )
 
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:
