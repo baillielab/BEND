@@ -45,6 +45,11 @@ def run_experiment(cfg: DictConfig) -> None:
 
     # create output directory
     cfg.output_dir = os.path.join(cfg.output_dir, task_dir, cfg.embedder)
+    if cfg.data.cross_validation:
+        cfg.output_dir = os.path.join(
+            cfg.output_dir, f"split_{cfg.data.cross_validation}"
+        )
+
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
