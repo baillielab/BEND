@@ -54,9 +54,12 @@ def run_experiment(cfg: DictConfig) -> None:
         df = pd.read_csv(cfg[cfg.task].bed, sep="\t", low_memory=False)
         df = df[df.iloc[:, -1] == split] if split is not None else df
         possible_chunks = list(range(int(len(df) / cfg.chunk_size) + 1))
-        if cfg.chunk is None:
+
+        is_chunk_none = cfg.chunk is None
+        if is_chunk_none:
             cfg.chunk = possible_chunks
         cfg.chunk = [cfg.chunk] if isinstance(cfg.chunk, int) else cfg.chunk
+
         # embed in chunks
         for n, chunk in enumerate(cfg.chunk):
             if chunk not in possible_chunks:
@@ -78,6 +81,10 @@ def run_experiment(cfg: DictConfig) -> None:
                     else False
                 ),
             )
+
+        # if chunk was not provided, set it to None so that the next split does not use this split's chunk
+        if is_chunk_none:
+            cfg.chunk = None
 
 
 if __name__ == "__main__":
