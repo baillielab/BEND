@@ -9,8 +9,7 @@ hydra:
     - file://conf
   sweeper:
     params:
-      model:
-        gena-lm-bigbird-base-t2t,
+      model: gena-lm-bigbird-base-t2t,
         gena-lm-bert-large-t2,
         hyenadna-tiny-1k,
         hyenadna-large-1m,
@@ -26,7 +25,7 @@ hydra:
         grover
         hyenadna-small-32k,
         hyenadna-medium-160k,
-        hyenadna-medium-450k,
+        hyenadna-medium-450k
       task: gene_finding,
         enhancer_annotation,
         histone_modification,

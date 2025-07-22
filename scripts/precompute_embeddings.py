@@ -7,8 +7,47 @@ import pandas as pd
 import numpy as np
 import sys
 from bend.utils.set_seed import set_seed, SEED
+import time
 
 set_seed()
+
+
+def record_embedding_time(cfg, start_time: float):
+    """
+    Record the time taken for embedding in a CSV file.
+    Parameters
+    ----------
+    start_time : float
+        The start time of the embedding process.
+    """
+
+    end_time = time.time()
+    print(f"Embedding completed in {end_time - start_time:.2f} seconds")
+
+    file_path = os.path.join(cfg.output_dir, "embedding_times.csv")
+
+    if os.path.exists(file_path):
+        data = pd.read_csv(file_path)
+        data = data._append(
+            {
+                "task": cfg.task,
+                "model": cfg.model,
+                "time": end_time - start_time,
+                "n_samples": cfg.chunk_size,
+            },
+            ignore_index=True,
+        )
+        data.to_csv(file_path, index=False)
+    else:
+        os.makedirs(cfg.output_dir, exist_ok=True)
+        pd.DataFrame(
+            {
+                "task": [cfg.task],
+                "model": [cfg.model],
+                "time": [end_time - start_time],
+                "n_samples": cfg.chunk_size,
+            }
+        ).to_csv(file_path, index=False)
 
 
 # load config
@@ -40,6 +79,9 @@ def run_experiment(cfg: DictConfig) -> None:
     print("Embedding with", cfg.model)
     # instatiante model
     embedder = hydra.utils.instantiate(cfg[cfg.model])
+
+    start_time = time.time()
+
     for split in splits:
         print(f"Embedding split: {split}")
         output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
@@ -75,6 +117,8 @@ def run_experiment(cfg: DictConfig) -> None:
                     else False
                 ),
             )
+
+    record_embedding_time(cfg, start_time)
 
 
 if __name__ == "__main__":
