@@ -1,3 +1,4 @@
+import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -6,15 +7,84 @@ import numpy as np
 DATA_DIR = "../../data/"
 
 
-def plot_chr_in_splits(annotations, chromosomes):
-    sns.set_theme(style="white")
+def load_annotations(task):
+    """
+    Load the annotations for a given task from a .bed file.
+    Parameters
+    ----------
+    task : str
+        The name of the task for which to load annotations.
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the annotations.
+    """
 
+    bed_file = os.path.join(DATA_DIR, task, f"{task}.bed")
+    annotations = pd.read_csv(bed_file, sep="\t", low_memory=False)
+
+    annotations["chromosome"] = annotations["chromosome"].str.replace("chr", "")
+
+    chromosomes = [f"{idx}" for idx in range(1, 23)] + ["X", "Y"]
     annotations["chromosome"] = pd.Categorical(
         annotations["chromosome"], categories=chromosomes, ordered=True
     )
 
+    return annotations
+
+
+def plot_chr_in_splits(annotations):
+
+    sns.set_theme(style="white")
+
     sns.histplot(annotations, x="chromosome", hue="split", multiple="stack")
     ticks = plt.xticks(rotation=45)
+
+
+def plot_seq_overlap(annotations):
+    """
+    Plot the sequence overlap in the annotations DataFrame.
+    Parameters
+    ----------
+    annotations : pd.DataFrame
+        The DataFrame containing the annotations with 'chromosome', 'start', and 'end' columns.
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the overlaps with 'chromosome', 'length', and 'pct_overlap' columns.
+    """
+
+    if not all(col in annotations.columns for col in ["chromosome", "start", "end"]):
+        raise ValueError(
+            "Annotations DataFrame must contain 'chromosome', 'start', and 'end' columns."
+        )
+
+    annotations = annotations.sort_values(by=["chromosome", "start"])
+    annotations["length"] = annotations["end"] - annotations["start"]
+
+    annotations["overlap"] = (
+        annotations["start"]
+        .groupby(annotations["chromosome"], observed=True)
+        .shift(-1, fill_value=pd.NA)
+        - annotations["end"]
+    )
+
+    overlap = annotations[["chromosome", "length", "overlap"]].dropna()
+    overlap = overlap[overlap["overlap"] < 0]
+    overlap["overlap"] = overlap["overlap"].abs()
+
+    overlap["pct_overlap"] = overlap["overlap"] / overlap["length"] * 100
+
+    n_overlaps = overlap["pct_overlap"].describe()["count"]
+    print(f"Number of annotations with overlaps: {n_overlaps}")
+    n_samples = len(annotations)
+    print(f"Total number of samples: {n_samples}")
+    pct_overlaps = n_overlaps / n_samples * 100
+    print(f"Percentage of annotations with overlaps: {pct_overlaps:.2f}%")
+
+    sns.boxplot(x=overlap["chromosome"], y=overlap["pct_overlap"])
+
+    return overlap
 
 
 def multi_hot(labels, num_labels):
