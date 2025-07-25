@@ -7,12 +7,15 @@ with the variant nucleotide at the variant position.
 
 import argparse
 import time
+
+import hydra
 from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
 import os
 import pandas as pd
 from sklearn.metrics import roc_auc_score
+import yaml
 
 
 def main():
@@ -27,18 +30,19 @@ def main():
     )
     parser.add_argument(
         "--model",
-        choices=["nt", "awdlstm", "resnetlm", "hyenadna", "dnabert2"],
         type=str,
         help="Model architecture for computing embeddings",
     )
-    parser.add_argument(
-        "--version", required=True, type=str, help="Name of the model version"
+
+    cfg = yaml.safe_load(
+        open(
+            os.path.join(
+                parser.parse_args().work_dir, "conf", "embedding", "embed.yaml"
+            )
+        )
     )
 
     args = parser.parse_args()
-
-    embedding_idx = 256
-    extra_context = extra_context_left = extra_context_right = 256
 
     experiment_name = f"variant_effects_{args.type}"
 
@@ -52,48 +56,26 @@ def main():
     output_dir = os.path.join(args.work_dir, "results", experiment_name)
     os.makedirs(output_dir, exist_ok=True)
 
+    if "model_path" in cfg[args.model].keys():
+        cfg[args.model]["model_path"] = cfg[args.model]["model_path"].replace(
+            "${embedders_dir}", os.path.join(args.work_dir, cfg["embedders_dir"])
+        )
+    print("Loading embedder", args.model)
+
+    embedder = hydra.utils.instantiate(cfg[args.model])
     kwargs = {"disable_tqdm": True}
+    embedding_idx = 256
+    extra_context = extra_context_left = extra_context_right = 256
 
-    print("Loading embedder")
-    match args.model:
-        case "awdlstm":
-            embedding_idx = 511
-            extra_context = 512
-            # autogressive model. No use for right context.
-            extra_context_left = extra_context
-            extra_context_right = 0
+    if "awdlstm" in args.model or "hyenadna" in args.model:
+        embedding_idx = 511
+        extra_context = 512
+        # autogressive model. No use for right context.
+        extra_context_left = extra_context
+        extra_context_right = 0
 
-            embedder_dir = os.path.join(args.work_dir, "pretrained_models", "awd_lstm")
-            embedder = embedders.AWDLSTMEmbedder(embedder_dir)
-
-        case "resnetlm":
-            embedder_dir = os.path.join(args.work_dir, "pretrained_models", "convnet")
-            embedder = embedders.ConvNetEmbedder(embedder_dir)
-
-        case "nt":
-            kwargs["upsample_embeddings"] = True  # each nucleotide has an embedding
-            embedder_dir = os.path.join("InstaDeepAI", args.version)
-            embedder = embedders.NucleotideTransformerEmbedder(embedder_dir)
-
-        case "hyenadna":
-            embedding_idx = 511
-            extra_context = 512
-            # autogressive model. No use for right context.
-            extra_context_left = extra_context
-            extra_context_right = 0
-
-            embedder_dir = os.path.join(
-                args.work_dir, "pretrained_models", "LongSafari", args.version
-            )
-            embedder = embedders.HyenaDNAEmbedder(embedder_dir)
-
-        case "dnabert2":
-            kwargs["upsample_embeddings"] = True  # each nucleotide has an embedding
-            embedder_dir = "zhihan1996/DNABERT-2-117M"
-            embedder = embedders.DNABert2Embedder(embedder_dir)
-
-        case _:
-            raise ValueError("Model not supported")
+    if "nt" in args.model or "dnabert2" in args.model:
+        kwargs["upsample_embeddings"] = True  # each nucleotide has an embedding
 
     print("Loading genome data")
     genome_annotation = Annotation(annotation_path, reference_genome=reference_path)
@@ -105,8 +87,6 @@ def main():
     genome_annotation.annotation["distance"] = 0.0
 
     start = time.time()
-
-    print(f"Computing embeddings for {args.version}")
 
     # iterate over the genome annotation
     for index, row in tqdm(genome_annotation.annotation.iterrows()):
@@ -133,28 +113,46 @@ def main():
         d = spatial.distance.cosine(embedding_alt, embedding_wt)
         genome_annotation.annotation.loc[index, "distance"] = d
 
-    end = time.time()
-    print(f"Finished computing embeddings in {end - start:.2f} seconds")
+    running_time = time.time() - start
+    print(f"Finished computing embeddings in {running_time:.2f} seconds")
 
     roc_auc = roc_auc_score(
         genome_annotation.annotation["label"], genome_annotation.annotation["distance"]
     )
-    print(f"ROC AUC: {roc_auc} for {args.version}")
+    print(f"ROC AUC: {roc_auc} for {args.model}")
 
-    print(f"Saving cosine distances for {args.version}")
+    print(f"Saving cosine distances...")
     genome_annotation.annotation.to_csv(
-        output_dir + f"/{args.version}_distances.csv", index=False
+        output_dir + f"/distances_{args.model}.csv", index=False
     )
 
     # save the results
-    pd.DataFrame(
-        {
-            "model": [args.model],
-            "version": [args.version],
-            "roc_auc": [roc_auc],
-            "running_time": [end - start],
-        }
-    ).to_csv(args.out_file.replace(".csv", "_rocauc.csv"), index=False)
+    path_results_df = os.path.join(output_dir, "results_rocauc.csv")
+    if os.path.exists(path_results_df):
+        results_df = pd.read_csv(path_results_df)
+    else:
+        results_df = pd.DataFrame(
+            {
+                "model": [],
+                "roc_auc": [],
+                "running_time": [],
+            }
+        )
+    results_df = pd.concat(
+        [
+            results_df,
+            pd.DataFrame(
+                {
+                    "model": [args.model],
+                    "roc_auc": [roc_auc],
+                    "running_time": [running_time],
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    results_df.to_csv(path_results_df, index=False)
 
 
 if __name__ == "__main__":
