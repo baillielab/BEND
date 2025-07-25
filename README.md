@@ -148,12 +148,14 @@ If desired, the config files can be modified to change parameters, output/input 
 For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored. Embeddings are generated and directly evaluated using
 
 ```bash
-python3 scripts/predict_variant_effects.py {variant_file_name}.bed {output_file_name}.csv {model_type} {path_to_checkpoint} {path_to_reference_genome_fasta} --embedding_idx {position_of_embedding}
+python3 scripts/predict_variant_effects.py --work_dir {path_to_BEND_directory} --type {expression/disease} --model {embedder}
 ```
 
-There are two variant effect prediction tasks available for `{variant_file_name}`: Variants with expression effect (eQTLs) in `variant_effects_expression.bed` and disease-causing variants in `variant_effects_disease.bed`.
+There are two types of variant effect prediction tasks available:
+- __expression__: Variants with expression effect (eQTLs) in `variant_effects_expression.bed`
+- __disease__: disease-causing variants in `variant_effects_disease.bed`.
 
-A notebook with an example of how to run the script and evaluate the results can be found in [examples/unsupervised_variant_effects.ipynb](examples/unsupervised_variant_effects.ipynb). To run all models, you can use the script [scripts/run_variant_effects.sh](scripts/run_variant_effects.sh).
+To run all models on both variant effects expression and disease, you can use the script [scripts/run_variant_effects.sh](scripts/run_variant_effects.sh).
 
 ------------
 ## Extending BEND
@@ -161,6 +163,15 @@ A notebook with an example of how to run the script and evaluate the results can
 ### Adding a new embedder
 
 All embedders are defined in [bend/utils/embedders.py](bend/utils/embedders.py) and inherit `BaseEmbedder`. A new embedder needs to implement `load_model`, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed`, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
+
+In addition, [conf/embedding/embed.yaml](conf/embedding/embed.yaml) needs to be updated as follows:
+
+```
+$new_embedder_name
+    target: bend.utils.embedders.$new_embedder_class
+    model_name: $path_to_the_pretrained_embedder_weights_and_tokeniser_config_files
+    upsample_embeddings: true/false
+```
 
 ### Adding a new task
 As the first step, the data for a new task needs to be formatted in the [bed-based format](#1-data-format). If necessary, a `split` and `label` column should be included. The next step is to add new config files to `../conf/supervised_tasks`. You should create a new directory named after the task, and add a config file for each embedder you want to evaluate. The config files should be named after the embedder.
