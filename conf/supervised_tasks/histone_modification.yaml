@@ -10,25 +10,23 @@ hydra:
   sweeper:
     params:
       embedder:
-        gena-lm-bigbird-base-t2t,
-        gena-lm-bert-large-t2,
         hyenadna-tiny-1k,
         hyenadna-large-1m,
-        dnabert6,
         resnetlm,
         nt_transformer_ms,
+        nt_transformer_v2_500m,
         nt_transformer_human_ref,
         nt_transformer_1000g,
         dnabert2,
-        onehot,
-        awdlstm,
-        resnet-supervised,
-        basset-supervised,
-        nt_transformer_v2_500m,
-        grover
-        #hyenadna-small-32k,
-        #hyenadna-medium-160k,
-        #hyenadna-medium-450k,
+        awdlstm
+        # gena-lm-bigbird-base-t2t,
+        # gena-lm-bert-large-t2,
+        # dnabert6,
+        # onehot,
+        # grover
+        # hyenadna-small-32k,
+        # hyenadna-medium-160k,
+        # hyenadna-medium-450k
 embedder: onehot
 task: histone_modification
 output_dir: ./downstream_tasks/${task}/${embedder}/

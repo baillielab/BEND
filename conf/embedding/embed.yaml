@@ -9,23 +9,24 @@ hydra:
     - file://conf
   sweeper:
     params:
-      model: gena-lm-bigbird-base-t2t,
-        gena-lm-bert-large-t2,
+      model:
         hyenadna-tiny-1k,
         hyenadna-large-1m,
-        dnabert6,
         resnetlm,
         nt_transformer_ms,
+        nt_transformer_v2_500m,
         nt_transformer_human_ref,
         nt_transformer_1000g,
         dnabert2,
-        onehot,
-        awdlstm,
-        nt_transformer_v2_500m,
-        grover
-        hyenadna-small-32k,
-        hyenadna-medium-160k,
-        hyenadna-medium-450k
+        awdlstm
+        # gena-lm-bigbird-base-t2t,
+        # gena-lm-bert-large-t2,
+        # dnabert6,
+        # onehot,
+        # grover
+        # hyenadna-small-32k,
+        # hyenadna-medium-160k,
+        # hyenadna-medium-450k
       task: gene_finding,
         enhancer_annotation,
         histone_modification,
@@ -126,12 +127,6 @@ chromatin_accessibility:
   label_depth: ${datadims.chromatin_accessibility}
 cpg_methylation:
   bed: ${data_dir}/cpg_methylation/cpg_methylation.bed
-  reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  read_strand: true
-  hdf5_file: null
-  label_depth: ${datadims.cpg_methylation}
-shuffled_cpg_methylation:
-  bed: ${data_dir}/cpg_methylation/shuffled_cpg_methylation.bed
   reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   read_strand: true
   hdf5_file: null
