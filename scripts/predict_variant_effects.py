@@ -24,7 +24,9 @@ set_seed()
 def main():
 
     parser = argparse.ArgumentParser("Compute embeddings")
-    parser.add_argument("--work_dir", type=str, help="Path to the data directory")
+    parser.add_argument(
+        "--work_dir", type=str, help="Path to the data directory", default="./"
+    )
     parser.add_argument(
         "--type",
         choices=["expression", "disease"],
