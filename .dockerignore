@@ -13,7 +13,7 @@ results/
 pretrained_models/
 test_notebooks/
 .DS_store
-.env
+shards_*/
 
 # Git
 .git
