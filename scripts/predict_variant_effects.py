@@ -7,31 +7,12 @@ with the variant nucleotide at the variant position.
 
 import argparse
 import time
-
-import h5py
 from bend.utils import embedders, Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
 import os
 import pandas as pd
 from sklearn.metrics import roc_auc_score
-import numpy as np
-
-EMBEDDING_SIZES = {
-    "convnet": 256,
-    "awdlstm": 64,
-    "dnabert2": 768,
-    "nucleotide-transformer-2.5b-1000g": 2560,
-    "nucleotide-transformer-2.5b-multi-species": 2560,
-    "nucleotide-transformer-500m-1000g": 1280,
-    "nucleotide-transformer-500m-human-ref": 1280,
-    "nucleotide-transformer-v2-500m-multi-species": 1024,
-    "hyenadna-tiny-1k-seqlen": 128,
-    "hyenadna-small-32k-seqlen": 256,
-    "hyenadna-medium-160k-seqlen": 256,
-    "hyenadna-medium-450k-seqlen": 256,
-    "hyenadna-large-1m-seqlen": 256,
-}
 
 
 def main():
@@ -46,7 +27,7 @@ def main():
     )
     parser.add_argument(
         "--model",
-        choices=["nt", "awdlstm", "convnet", "hyenadna", "dnabert2"],
+        choices=["nt", "awdlstm", "resnetlm", "hyenadna", "dnabert2"],
         type=str,
         help="Model architecture for computing embeddings",
     )
@@ -85,7 +66,7 @@ def main():
             embedder_dir = os.path.join(args.work_dir, "pretrained_models", "awd_lstm")
             embedder = embedders.AWDLSTMEmbedder(embedder_dir)
 
-        case "convnet":
+        case "resnetlm":
             embedder_dir = os.path.join(args.work_dir, "pretrained_models", "convnet")
             embedder = embedders.ConvNetEmbedder(embedder_dir)
 
@@ -123,29 +104,12 @@ def main():
         )
     genome_annotation.annotation["distance"] = 0.0
 
-    print("Creating hdf5 file")
-    h5_file_path = os.path.join(output_dir, f"{args.version}.h5")
-    h5_file = h5py.File(h5_file_path, "w")
-
-    h5_file.create_group(args.version)
-
-    h5_emb_ref_name = f"{args.version}/embeddings_ref"
-    h5_emb_alt_name = f"{args.version}/embeddings_alt"
-    for dataset_name in [h5_emb_ref_name, h5_emb_alt_name]:
-        h5_file.create_dataset(
-            dataset_name,
-            (len(genome_annotation.annotation), EMBEDDING_SIZES[args.version]),
-            dtype=np.float64,
-            compression="lzf",
-            chunks=(1, EMBEDDING_SIZES[args.version]),
-        )
-
     start = time.time()
 
     print(f"Computing embeddings for {args.version}")
 
     # iterate over the genome annotation
-    for index, row in genome_annotation.annotation.iterrows():
+    for index, row in tqdm(genome_annotation.annotation.iterrows()):
 
         # get the reference and alternate dna sequences
         dna = genome_annotation.get_dna_segment(index=index)
@@ -169,38 +133,28 @@ def main():
         d = spatial.distance.cosine(embedding_alt, embedding_wt)
         genome_annotation.annotation.loc[index, "distance"] = d
 
-        h5_file[h5_emb_ref_name][index] = embedding_wt
-        h5_file[h5_emb_alt_name][index] = embedding_alt
-
-        if index < 10:
-            print(f"Processed {index+1} sequences")
-
-        if (index + 1) % 10000 == 0:
-            print(f"Processed {index+1} sequences")
-
     end = time.time()
     print(f"Finished computing embeddings in {end - start:.2f} seconds")
-    h5_file[args.version].attrs["running_time"] = end - start
-    h5_file[args.version].attrs["use_dataloader"] = "No"
 
     roc_auc = roc_auc_score(
         genome_annotation.annotation["label"], genome_annotation.annotation["distance"]
     )
     print(f"ROC AUC: {roc_auc} for {args.version}")
-    h5_file[args.version].attrs["rocauc_score"] = roc_auc
-    # h5_file.create_dataset(f'{args.version}/rocauc_score', data=roc_auc, dtype=np.float64)
-
-    h5_file.close()
 
     print(f"Saving cosine distances for {args.version}")
-    genome_annotation.annotation.to_hdf(
-        h5_file_path,
-        key=f"{args.version}/annotation",
-        mode="r+",
-        format="fixed",
-        complevel=1,
-        index=False,
+    genome_annotation.annotation.to_csv(
+        output_dir + f"/{args.version}_distances.csv", index=False
     )
+
+    # save the results
+    pd.DataFrame(
+        {
+            "model": [args.model],
+            "version": [args.version],
+            "roc_auc": [roc_auc],
+            "running_time": [end - start],
+        }
+    ).to_csv(args.out_file.replace(".csv", "_rocauc.csv"), index=False)
 
 
 if __name__ == "__main__":
