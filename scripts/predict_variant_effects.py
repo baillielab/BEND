@@ -9,13 +9,16 @@ import argparse
 import time
 
 import hydra
-from bend.utils import embedders, Annotation
+from bend.utils import Annotation
 from tqdm.auto import tqdm
 from scipy import spatial
 import os
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 import yaml
+from bend.utils.set_seed import set_seed
+
+set_seed()
 
 
 def main():
