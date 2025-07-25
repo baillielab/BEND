@@ -11,7 +11,9 @@ beautifulsoup4
 pysam
 h5py
 lxml
-torch>=2.0.1
-torchvision
-pandas>=2.0.2
-scikit-learn>=1.2.2
+
+# If not using the Docker image, install the following packages
+# torch>=2.0.1
+# torchvision
+# pandas>=2.0.2
+# scikit-learn>=1.2.2
