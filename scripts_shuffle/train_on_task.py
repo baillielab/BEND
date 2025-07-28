@@ -38,17 +38,27 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    # wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     # mkdir output_dir
+
+    task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+
+    # create output directory
+    cfg.output_dir = os.path.join(cfg.output_dir, task_dir, cfg.embedder)
+    if cfg.data.cross_validation:
+        cfg.output_dir = os.path.join(
+            cfg.output_dir, f"split_{cfg.data.cross_validation}"
+        )
+
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
-    # init wandb
-    run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
-    OmegaConf.save(
-        cfg, f"{cfg.output_dir}/config.yaml"
-    )  # save the config to the experiment dir
-    # set device
+    # create data directory
+    cfg.data.data_dir = os.path.join(cfg.data.data_dir, task_dir, cfg.embedder)
+    print("data_dir", cfg.data.data_dir)
+
+    # init wandb
+    # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
     if torch.backends.mps.is_available():
         device = torch.device("mps")
@@ -119,6 +129,8 @@ def run_experiment(cfg: DictConfig) -> None:
         config=cfg,
         overwrite_dir=True,
     )
+
+    OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
     if cfg.params.mode == "train":
         # train
