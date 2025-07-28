@@ -1,0 +1,39 @@
+histone_modification:
+  dataset:
+    bed: ${data_dir}/histone_modification/histone_modification.bed
+    reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+    read_strand: true
+    hdf5_file: null
+    label_depth: 18
+    sequence_length: 512
+  dataloader:
+    _target_: bend.utils.data_downstream.get_data
+    data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
+    cross_validation: false
+    batch_size: 256
+    num_workers: 32
+    padding_value: -100
+    shuffle: 200
+  model:
+    _target_: bend.models.downstream.CNN
+    encoder: null
+    input_size: ${embeddings.embedders.${embedder}}
+    output_size: ${dataset.label_depth}
+    hidden_size: 64
+    kernel_size: 3
+    output_downsample_window: 512
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.003
+    weight_decay: 0.01
+  params:
+    epochs: 100
+    load_checkpoint: false
+    mode: train
+    gradient_accumulation_steps: 1
+    criterion: bce
+    class_weights: null
+    metric: auroc
+    activation: none
+  wandb:
+    mode: disabled
