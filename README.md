@@ -1,14 +1,14 @@
-# 🧬 BEND  - **Ben**chmarking **D**NA Language Models on Biologically Meaningful Tasks
-
-![Stars](https://img.shields.io/github/stars/frederikkemarin/BEND?logo=GitHub&color=yellow)
-[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![Documentation Status](https://readthedocs.org/projects/bend/badge/?version=latest)](https://bend.readthedocs.io/en/latest/?badge=latest)
+# Fork of 🧬 BEND  - **Ben**chmarking **D**NA Language Models on Biologically Meaningful Tasks
 
 The BEND paper (ICLR 2024) is available here: 
 
 "[BEND: BENCHMARKING DNA LANGUAGE MODELS ON BIOLOGICALLY MEANINGFUL TASKS](https://arxiv.org/abs/2311.12570)"
 
 Frederikke Isa Marin, Felix Teufel, Marc Horlacher, Dennis Madsen, Dennis Pultz, Ole Winther, Wouter Boomsma
+
+## Why this fork
+Although the incredible work done by the authors of BEND, we found difficult/impossible to reproduce BEND results using the given code.
+This forks wants to fix issues related to the code and add some features, such as setting a random SEED for experiment reproducibility.
 
 ## Documentation
 [Documentation for the BEND code repository](https://bend.readthedocs.io/en/latest/?badge=latest)
@@ -36,7 +36,7 @@ chr3	    1070026	1070436	valid	0
 ### 2. Setup
 
 We recommend installing BEND in a conda environment with Python 3.10.
-1. Clone the BEND repository: `git clone https://github.com/frederikkemarin/BEND.git`
+1. Clone the BEND repository: `git clone https://github.com/baillielab/BEND`
 2. Change to the BEND directory: `cd BEND`
 3. Install the requirements: `pip install -r requirements.txt`
 4. Install BEND in development mode: `pip install -e .`
@@ -67,16 +67,12 @@ Some of the embedders currently also support computing logits and cross entropy 
 
 | Embedder | Reference | Models | Info |
 | --- | --- | --- | ---|
-| [DNABertEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.DNABertEmbedder) | [Ji et al.](https://academic.oup.com/bioinformatics/article/37/15/2112/6128680) | [4 different k-mer tokenizations available](https://github.com/jerryji1993/DNABERT#32-download-pre-trained-dnabert)  | has an additional argument `kmer=6` to specify the k-mer size.|
 |[NucleotideTransformerEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.NucleotideTransformerEmbedder)| [Dalla-Torre et al.](https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2) | [8 different models available](https://huggingface.co/InstaDeepAI) | |
-|[ConvNetEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.ConvNetEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.
-|[AWDLSTMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.AWDLSTMEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.
-|[GPNEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GPNEmbedder)| [Benegas et al.](https://www.biorxiv.org/content/10.1101/2022.08.22.504706v2) | Models trained on [*A. thaliana*](https://huggingface.co/songlab/gpn-arabidopsis) and [Brassicales](https://huggingface.co/songlab/gpn-brassicales) available | This LM was not evaluated in BEND as it was not trained on the human genome. |
-|[GENALMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GENALMEmbedder) | [Fishman et al.](https://www.biorxiv.org/content/10.1101/2023.06.12.544594v1) |[8 different models available](https://huggingface.co/AIRI-Institute) | |
+|[ConvNetEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.ConvNetEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND. |
+|[AWDLSTMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.AWDLSTMEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND. |
 |[HyenaDNAEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.HyenaDNAEmbedder) | [Nguyen et al.](https://arxiv.org/abs/2306.15794) | [5 different models available](https://huggingface.co/LongSafari) | Experimental integration. Requires Git LFS to be installed to automatically download checkpoints. Instead of the HF checkpoint name, the argument when instantiating needs to be of the format `path/to/save/checkpoints/checkpoint_name` |
 |[DNABert2Embedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.DNABert2Embedder) | [Zhou et al.](https://arxiv.org/pdf/2306.15006v1.pdf) | [1 model available](https://huggingface.co/zhihan1996/DNABERT-2-117M) | |
-|[GROVEREmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GROVEREmbedder) | [Sanabria et al.](https://www.nature.com/articles/s42256-024-00872-0) | [1 model available](https://zenodo.org/records/8373117) | The original BPE tokenizer is not available, so we apply MaxMatch for segmentation of the input sequence into tokens.|
-|[CaduceusEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.CaduceusEmbedder) | [Schiff et al.](https://arxiv.org/abs/2403.03234) | [2 different models available](https://github.com/kuleshov-group/caduceus/) | Requires `mamba-ssm==1.2.0.post1` to be installed in the environment. |
+
 
 All embedders can be used as follows:
 ```python
@@ -105,7 +101,7 @@ The embeddings should afterwards be located in `BEND/data/{task_name}/{embedder}
 
 To run a downstream task run (from `BEND/`):
 ```
-python scripts/train_on_task.py --config-name {tasl}
+python scripts/train_on_task.py --config-name {task}
 ```
 By default the task is run on all embeddings. To alter this either modify the config file or change the settings from the commandline 
 E.g. to run gene finding on all embeddings the commandline is:
@@ -129,20 +125,13 @@ And the list of available embedders/models used for training on the tasks are :
 
 - `awdlstm`
 - `resnetlm`
-- `nt_transformer_ms`
-- `nt_transformer_human_ref`
-- `dnabert6` 
-- `resnet_supervised`
-- `onehot`
-- `nt_transformer_1000g`
 - `dnabert2`
-- `gena-lm-bigbird-base-t2t`
-- `gena-lm-bert-large-t2`
+- `nt_transformer_human_ref`
+- `nt_transformer_1000g`
+- `nt_transformer_ms`
+- `nt_transformer_v2_500m`,
 - `hyenadna-large-1m`
 - `hyenadna-tiny-1k`
-- `hyenadna-small-32k`
-- `hyenadna-medium-160k`
-- `grover`
 
 
 The `train_on_task.py` script calls a trainer class `bend.utils.task_trainer`. All configurations required to adapt these 2 scripts to train on a specific task (input data, downstream model, parameters, evaluation metric etc.) are specified in the task specific [hydra](https://hydra.cc/docs/intro/) config files stored in the [conf](../conf/) directory. This minimizes the changes required to the scripts in order to introduce a potential new task. 
@@ -159,12 +148,14 @@ If desired, the config files can be modified to change parameters, output/input 
 For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored. Embeddings are generated and directly evaluated using
 
 ```bash
-python3 scripts/predict_variant_effects.py {variant_file_name}.bed {output_file_name}.csv {model_type} {path_to_checkpoint} {path_to_reference_genome_fasta} --embedding_idx {position_of_embedding}
+python3 scripts/predict_variant_effects.py --work_dir {path_to_BEND_directory} --type {expression/disease} --model {embedder}
 ```
 
-There are two variant effect prediction tasks available for `{variant_file_name}`: Variants with expression effect (eQTLs) in `variant_effects_expression.bed` and disease-causing variants in `variant_effects_disease.bed`.
+There are two types of variant effect prediction tasks available:
+- __expression__: Variants with expression effect (eQTLs) in `variant_effects_expression.bed`
+- __disease__: disease-causing variants in `variant_effects_disease.bed`.
 
-A notebook with an example of how to run the script and evaluate the results can be found in [examples/unsupervised_variant_effects.ipynb](examples/unsupervised_variant_effects.ipynb). To run all models, you can use the script [scripts/run_variant_effects.sh](scripts/run_variant_effects.sh).
+To run all models on both variant effects expression and disease, you can use the script [scripts/run_variant_effects.sh](scripts/run_variant_effects.sh).
 
 ------------
 ## Extending BEND
@@ -172,6 +163,15 @@ A notebook with an example of how to run the script and evaluate the results can
 ### Adding a new embedder
 
 All embedders are defined in [bend/utils/embedders.py](bend/utils/embedders.py) and inherit `BaseEmbedder`. A new embedder needs to implement `load_model`, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed`, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
+
+In addition, [conf/embedding/embed.yaml](conf/embedding/embed.yaml) needs to be updated as follows:
+
+```
+$new_embedder_name
+    target: bend.utils.embedders.$new_embedder_class
+    model_name: $path_to_the_pretrained_embedder_weights_and_tokeniser_config_files
+    upsample_embeddings: true/false
+```
 
 ### Adding a new task
 As the first step, the data for a new task needs to be formatted in the [bed-based format](#1-data-format). If necessary, a `split` and `label` column should be included. The next step is to add new config files to `../conf/supervised_tasks`. You should create a new directory named after the task, and add a config file for each embedder you want to evaluate. The config files should be named after the embedder.

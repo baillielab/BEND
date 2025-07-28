@@ -13,6 +13,7 @@ results/
 test_notebooks/
 shards_*
 .DS_store
+shards_*/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
