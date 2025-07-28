@@ -1,11 +1,8 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import torch
 import os
 import bend.io.sequtils as sequtils
 import pandas as pd
-import numpy as np
-import sys
 from bend.utils.set_seed import set_seed, SEED
 import time
 
@@ -63,6 +60,14 @@ def run_experiment(cfg: DictConfig) -> None:
     """
     print("Embedding data for", cfg.task)
 
+    if cfg.shuffle:
+        cfg[cfg.task].bed = cfg[cfg.task].bed.replace(".bed", "_shuffled.bed")
+
+        if cfg[cfg.task].hdf5_file is not None:
+            cfg[cfg.task].hdf5_file = cfg[cfg.task].hdf5_file.replace(
+                ".hdf5", "_shuffled.hdf5"
+            )
+
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:
         splits = sequtils.get_splits(cfg[cfg.task].bed)
@@ -76,7 +81,9 @@ def run_experiment(cfg: DictConfig) -> None:
 
     for split in splits:
         print(f"Embedding split: {split}")
-        output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
+
+        task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+        output_dir = os.path.join(cfg.output_dir, task_dir, cfg.model)
 
         os.makedirs(output_dir, exist_ok=True)
 
