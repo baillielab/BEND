@@ -8,6 +8,7 @@ defaults:
         histone_modification,
         cpg_methylation,
         var_effects_expression,
+        var_effects_disease,
       ]
   - _self_
 hydra:
@@ -30,7 +31,8 @@ hydra:
         histone_modification,
         chromatin_accessibility,
         cpg_methylation,
-        var_effects_expression
+        var_effects_expression,
+        var_effects_disease
 
 embedder: nt_transformer_1000g
 task: gene_finding
@@ -38,7 +40,8 @@ task: gene_finding
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
+embeddings_output_dir: ${work_dir}/data/embeddings
 output_dir: ${work_dir}/results/ # Specify only the root output directory
 
-chunk_size: 50000
-chunk: null # can be given as a list of chunks to embed
+n_batches_per_shard: 100
+# chunk: null # can be given as a list of chunks to embed
