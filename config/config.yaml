@@ -1,14 +1,14 @@
 defaults:
-  - embeddings: embedders
-  - supervised_tasks:
+  - embedding: embedders
+  - tasks:
       [
         enhancer_annotation,
         chromatin_accessibility,
         gene_finding,
         histone_modification,
         cpg_methylation,
+        var_effects_expression,
       ]
-  - supervised_encoders: [resnet-supervised, basset-supervised]
   - _self_
 hydra:
   mode: MULTIRUN
@@ -29,7 +29,8 @@ hydra:
         enhancer_annotation,
         histone_modification,
         chromatin_accessibility,
-        cpg_methylation
+        cpg_methylation,
+        var_effects_expression
 
 embedder: nt_transformer_1000g
 task: gene_finding
