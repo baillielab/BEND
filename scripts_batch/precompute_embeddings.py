@@ -61,6 +61,7 @@ def run_experiment(cfg: DictConfig) -> None:
                 else None
             ),
             sequence_length=cfg.tasks[cfg.task].dataset.sequence_length,
+            split=split,
         )
 
         dataloader = DataLoader(
