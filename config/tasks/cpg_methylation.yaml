@@ -1,17 +1,14 @@
 cpg_methylation:
   dataset:
-    bed: ${data_dir}/cpg_methylation/cpg_methylation.bed
-    reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-    read_strand: true
-    hdf5_file: null
+    annotations_path: ${data_dir}/cpg_methylation/cpg_methylation.bed
+    genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
     label_depth: 7
     sequence_length: 512
   dataloader:
-    _target_: bend.utils.data_downstream.get_data
-    data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
-    cross_validation: false
+    # _target_: bend.utils.data_downstream.get_data
+    # data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
     batch_size: 256
-    num_workers: 1
+    num_workers: 2
     padding_value: -100
     shuffle: 200
   model:

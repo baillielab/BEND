@@ -1,19 +1,16 @@
 chromatin_accessibility:
   dataset:
-    bed: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
-    reference_fasta: ${data_dir}/genomes/GRCh37.no-chr.fa
-    read_strand: true
-    hdf5_file: null
+    annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
+    genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
     label_depth: 125
     sequence_length: 512
   dataloader:
-    _target_: bend.utils.data_downstream.get_data
+    # _target_: bend.utils.data_downstream.get_data
     data_dir: ./data/${task}/${embedder}/
     batch_size: 256
     num_workers: 8
     padding_value: -100
     shuffle: 1000
-    cross_validation: false
   model:
     _target_: bend.models.downstream.CNN
     encoder: null

@@ -250,7 +250,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
             embeddings = torch.stack(list_embeddings, dim=0)
 
-        return embeddings
+        return np.array(embeddings)
 
 
 class AWDLSTMEmbedder(BaseEmbedder):
@@ -437,7 +437,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             model_name,
             download=not os.path.exists(model_path),
             config=backbone_cfg,
-            DEVICE=DEVICE,
+            device=DEVICE,
             use_head=use_head,
             use_lm_head=False,  # we don't use the LM head for embeddings
             n_classes=n_classes,
@@ -600,7 +600,7 @@ class DNABert2Embedder(BaseEmbedder):
 
             embeddings = torch.stack(list_embeddings, dim=0)
 
-        return embeddings
+        return np.array(embeddings)
 
 
 # Class for one-hot encoding.

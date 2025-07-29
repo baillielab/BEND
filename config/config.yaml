@@ -42,6 +42,3 @@ data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
 embeddings_output_dir: ${work_dir}/data/embeddings
 output_dir: ${work_dir}/results/ # Specify only the root output directory
-
-n_batches_per_shard: 100
-# chunk: null # can be given as a list of chunks to embed

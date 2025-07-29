@@ -1,6 +1,9 @@
 import torch
 import random
 import numpy as np
+import os
+import time
+import pandas as pd
 
 SEED = 42
 
@@ -42,3 +45,39 @@ def get_device():
         return torch.device("mps")
     else:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def record_embedding_time(cfg, start_time: float) -> None:
+    """
+    Record the time taken for embedding in a CSV file.
+    Parameters
+    ----------
+    start_time : float
+        The start time of the embedding process.
+    """
+
+    end_time = time.time()
+    print(f"Embedding completed in {end_time - start_time:.2f} seconds")
+
+    file_path = os.path.join(cfg.embeddings_output_dir, "embedding_times.csv")
+
+    if os.path.exists(file_path):
+        data = pd.read_csv(file_path)
+        data = data._append(
+            {
+                "task": cfg.task,
+                "embedder": cfg.embedder,
+                "time": end_time - start_time,
+            },
+            ignore_index=True,
+        )
+        data.to_csv(file_path, index=False)
+    else:
+        os.makedirs(cfg.output_dir, exist_ok=True)
+        pd.DataFrame(
+            {
+                "task": [cfg.task],
+                "embedder": [cfg.embedder],
+                "time": [end_time - start_time],
+            }
+        ).to_csv(file_path, index=False)
