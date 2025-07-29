@@ -8,10 +8,11 @@ import numpy as np
 import sys
 from bend_batch.utils import set_seed, record_embedding_time
 import webdataset as wds
-from bend_batch.datasets import DataSupervised, DEFAULT_SPLIT_COLUMN_IDX
+from bend_batch.datasets import DataSupervised, DEFAULT_SPLIT_COLUMN_IDX, collate_fn
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 import time
+
 
 set_seed()
 
@@ -64,18 +65,23 @@ def run_experiment(cfg: DictConfig) -> None:
             split=split,
         )
 
+        is_data_uneven = (
+            True if cfg.tasks[cfg.task].dataset.sequence_length is None else False
+        )
+
         dataloader = DataLoader(
             dataset,
             batch_size=cfg.tasks[cfg.task].dataloader.batch_size,
             num_workers=cfg.tasks[cfg.task].dataloader.num_workers,
             shuffle=True if split == "train" else False,
+            collate_fn=collate_fn if is_data_uneven else None,
         )
 
         for batch_idx, (sequences, labels) in tqdm(
             enumerate(dataloader), total=len(dataloader), desc=f"Embedding {split}"
         ):
 
-            embeddings = embedder(sequences)
+            embeddings = embedder(sequences, uneven_length=is_data_uneven)
 
             with wds.ShardWriter(
                 os.path.join(cfg.embeddings_output_dir, f"{split}_%06d.tar.gz"),
@@ -83,13 +89,13 @@ def run_experiment(cfg: DictConfig) -> None:
                 compress="gz",
             ) as writer:
                 for sample_idx in tqdm(
-                    range(embeddings.shape[0]), desc="Writing samples", leave=False
+                    range(len(embeddings)), desc="Writing samples", leave=False
                 ):
                     writer.write(
                         {
                             "__key__": f"sample_{batch_idx * cfg.tasks[cfg.task].dataloader.batch_size + sample_idx}",
                             "input.npy": embeddings[sample_idx],
-                            "output.npy": labels.numpy()[sample_idx],
+                            "output.npy": np.array(labels[sample_idx], dtype=np.int32),
                         }
                     )
 

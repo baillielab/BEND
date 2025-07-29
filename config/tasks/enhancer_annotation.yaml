@@ -1,11 +1,10 @@
 enhancer_annotation:
   dataset:
-    reference_fasta: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-    hdf5_file: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
-    bed: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
-    read_strand: false
+    annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
+    genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+    hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
     label_depth: 1
-    sequence_length: null
+    sequence_length: null # When null, indicates uneven length sequences
   dataloader:
     _target_: bend.utils.data_downstream.get_data
     data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path

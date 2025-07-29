@@ -62,13 +62,15 @@ class BaseEmbedder:
         """Load the model. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(self, sequences: List[str], *args, **kwargs):
+    def embed(self, sequences: List[str], uneven_length: bool = False, *args, **kwargs):
         """Embed a list of sequences. Should be implemented by the inheriting class.
 
         Parameters
         ----------
         sequences : List[str]
             The sequences to embed.
+        uneven_length : bool
+            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to False.
         *args
             Positional arguments. Passed to the model's embedding method.
         **kwargs
@@ -285,6 +287,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
+        uneven_length: bool = False,
     ):
         """
         Embed sequences using the AWD-LSTM baseline LM trained in BEND.
@@ -293,24 +296,39 @@ class AWDLSTMEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-
+        uneven_length : bool
+            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to False.
         Returns
         -------
-        torch.Tensor
-            The embeddings of the sequences.
+        list or np.ndarray
+            The embeddings of the sequences. If `uneven_length` is True, returns a list of embeddings, otherwise returns a numpy array of embeddings.
         """
 
         with torch.no_grad():
-            input_ids = self.tokenizer(
+            output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
-                return_attention_mask=False,
                 return_token_type_ids=False,
-            )["input_ids"]
-            input_ids = input_ids.to(DEVICE)
-            embeddings = self.model(input_ids=input_ids).last_hidden_state
+                padding="longest",
+            )
+
+            input_ids = output["input_ids"]
+
+            embeddings = self.model(input_ids=input_ids.to(DEVICE)).last_hidden_state
             embeddings = embeddings.detach().cpu().numpy()
 
+            if uneven_length:
+                masked_embeddings = []
+                attention_mask = output["attention_mask"].numpy().astype(bool)
+
+                for idx in range(len(embeddings)):
+                    # Remove padding from embeddings
+                    masked_embeddings.append(embeddings[idx][attention_mask[idx]])
+
+                # List of uneven length embeddings cannot be converted to a numpy array
+                return masked_embeddings
+
+        # If uneven_length is False, return a numpy array of embeddings
         return embeddings
 
 
@@ -344,6 +362,7 @@ class ConvNetEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
+        uneven_length: bool = False,
     ):
         """
         Embed sequences using the GPN-inspired ConvNet baseline LM trained in BEND.
@@ -352,7 +371,8 @@ class ConvNetEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-
+        uneven_length : bool, optional
+            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to False.
         Returns
         -------
         torch.Tensor
@@ -360,16 +380,30 @@ class ConvNetEmbedder(BaseEmbedder):
         """
 
         with torch.no_grad():
-            input_ids = self.tokenizer(
+            output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
-                return_attention_mask=False,
                 return_token_type_ids=False,
-            )["input_ids"]
-            input_ids = input_ids.to(DEVICE)
-            embeddings = self.model(input_ids=input_ids).last_hidden_state
+                padding="longest",
+            )
+
+            input_ids = output["input_ids"]
+
+            embeddings = self.model(input_ids=input_ids.to(DEVICE)).last_hidden_state
             embeddings = embeddings.detach().cpu().numpy()
 
+            if uneven_length:
+                masked_embeddings = []
+                attention_mask = output["attention_mask"].numpy().astype(bool)
+
+                for idx in range(len(embeddings)):
+                    # Remove padding from embeddings
+                    masked_embeddings.append(embeddings[idx][attention_mask[idx]])
+
+                # List of uneven length embeddings cannot be converted to a numpy array
+                return masked_embeddings
+
+        # If uneven_length is False, return a numpy array of embeddings
         return embeddings
 
 

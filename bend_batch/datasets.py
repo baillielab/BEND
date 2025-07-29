@@ -15,6 +15,16 @@ DEFAULT_STRAND_COLUMN_IDX = 3  # Default index for strand column in BED file
 DEFAULT_SPLIT_COLUMN_IDX = -1  # Default index for split column in BED file
 
 
+def collate_fn(batch):
+    """
+    Custom collate function to handle variable-length sequences in a batch.
+    Pads sequences and labels to the maximum length in the batch.
+    """
+    sequences, labels = zip(*batch)
+
+    return sequences, labels
+
+
 class DataVariantEffects(Dataset):
 
     def __init__(
@@ -161,20 +171,23 @@ class DataSupervised(Dataset):
                 "Either hdf5_path or label_depth must be provided to initialize DatasetAnnotations."
             )
 
-        if hdf5_path and label_depth:
-            raise ValueError(
-                "Only one of hdf5_path or label_depth should be provided to initialize DatasetAnnotations."
-            )
+        # if hdf5_path and label_depth:
+        #     raise ValueError(
+        #         "Only one of hdf5_path or label_depth should be provided to initialize DatasetAnnotations."
+        #     )
 
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
         genome = Fasta(genome_path)
 
         self.sequence_length = sequence_length
 
+        mask = None
         if split:
+            total_samples = len(annotations)
             annotations, mask = self._filter_annotations(
                 annotations, split, split_column_idx
             )
+            print(f"Filtered annotations from {total_samples} to {len(annotations)}")
 
         if hdf5_path:
             self.sequences, self.labels = self._get_data_hdf5(
@@ -184,8 +197,7 @@ class DataSupervised(Dataset):
                 flank,
                 mask=mask,
             )
-
-        if label_depth:
+        else:
             self.sequences, self.labels = self._get_data_multi_hot(
                 annotations,
                 genome,
@@ -204,7 +216,9 @@ class DataSupervised(Dataset):
         return annotations, mask
 
     def _get_data_hdf5(self, annotations, genome, hdf5_path, flank, mask=None):
-        labels = h5py.File(hdf5_path, mode="r")["labels"]
+        with h5py.File(hdf5_path, mode="r") as h5f:
+            labels = h5f["labels"][()]
+
         if mask is not None:
             labels = labels[mask.to_numpy()]
 
