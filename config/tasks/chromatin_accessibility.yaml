@@ -1,36 +1,38 @@
-chromatin_accessibility:
-  dataset:
-    annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
-    genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
-    label_depth: 125
-    sequence_length: 512
-  dataloader:
-    # _target_: bend.utils.data_downstream.get_data
-    data_dir: ./data/${task}/${embedder}/
-    batch_size: 256
-    num_workers: 8
-    padding_value: -100
-    shuffle: 1000
-  model:
-    _target_: bend.models.downstream.CNN
-    encoder: null
-    input_size: ${embeddings.embedders.${embedder}}
-    output_size: ${dataset.label_depth}
-    hidden_size: 64
-    kernel_size: 3
-    output_downsample_window: 512
-  optimizer:
-    _target_: torch.optim.AdamW
-    lr: 0.003
-    weight_decay: 0.01
-  params:
-    epochs: 100
-    load_checkpoint: false
-    mode: train
-    gradient_accumulation_steps: 1
-    criterion: bce
-    class_weights: null
-    metric: auroc
-    activation: none
-  wandb:
-    mode: disabled
+task_name: chromatin_accessibility
+output_dir: ${output_dir}
+
+dataset:
+  annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
+  genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
+  label_depth: 125
+  sequence_length: 512
+data:
+  # _target_: bend.utils.data_downstream.get_data
+  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  batch_size: 256
+  num_workers: 8
+  padding_value: -100
+  shuffle: 1000
+model:
+  _target_: bend.models.downstream.CNN
+  encoder: null
+  input_size: ${embeddings.embedders.${embedder}}
+  output_size: ${dataset.label_depth}
+  hidden_size: 64
+  kernel_size: 3
+  output_downsample_window: 512
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.003
+  weight_decay: 0.01
+params:
+  epochs: 100
+  load_checkpoint: false
+  mode: train
+  gradient_accumulation_steps: 1
+  criterion: bce
+  class_weights: null
+  metric: auroc
+  activation: none
+wandb:
+  mode: disabled

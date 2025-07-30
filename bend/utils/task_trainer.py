@@ -510,7 +510,7 @@ class BaseTrainer:
             # log losses to csv
             self._log_loss(epoch, train_loss, val_loss, val_metric)
             # log to wandb
-            self._log_wandb(epoch, train_loss, val_loss, val_metric)
+            # self._log_wandb(epoch, train_loss, val_loss, val_metric)
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )

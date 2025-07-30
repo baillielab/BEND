@@ -1,36 +1,38 @@
-gene_finding:
-  dataset:
-    annotations_path: ${data_dir}/gene_finding/gene_finding.bed
-    genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-    hdf5_path: ${data_dir}/gene_finding/gene_finding.hdf5
-    label_depth: 9
-    sequence_length: null # When null, indicates uneven length sequences
-  dataloader:
-    _target_: bend.utils.data_downstream.get_data
-    data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
-    cross_validation: false
-    batch_size: 32
-    num_workers: 1
-    padding_value: -100
-    shuffle: 1000
-  model:
-    _target_: bend.models.downstream.CNN
-    input_size: ${embeddings.embedders.${embedder}}
-    output_size: ${dataset.label_depth}
-    hidden_size: 64
-    kernel_size: 3
-  optimizer:
-    _target_: torch.optim.AdamW
-    lr: 0.003
-    weight_decay: 0.01
-  params:
-    epochs: 100
-    load_checkpoint: false
-    mode: train
-    gradient_accumulation_steps: 1
-    criterion: cross_entropy
-    class_weights: null #[6.37, 1485.62, 1.52, 1485.62, 6.11, 1438.04, 1.52, 1438.04, 1.0]
-    metric: mcc
-    activation: none
-  wandb:
-    mode: disabled
+task_name: gene_finding
+output_dir: ${output_dir}
+
+dataset:
+  annotations_path: ${data_dir}/gene_finding/gene_finding.bed
+  genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  hdf5_path: ${data_dir}/gene_finding/gene_finding.hdf5
+  label_depth: 9
+  sequence_length: null # When null, indicates uneven length sequences
+data:
+  _target_: bend.utils.data_downstream.get_data
+  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  cross_validation: false
+  batch_size: 32
+  num_workers: 1
+  padding_value: -100
+  shuffle: 1000
+model:
+  _target_: bend.models.downstream.CNN
+  input_size: ${embedding.${embedder}.embeddings_dim}
+  output_size: 9
+  hidden_size: 64
+  kernel_size: 3
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.003
+  weight_decay: 0.01
+params:
+  epochs: 100
+  load_checkpoint: false
+  mode: train
+  gradient_accumulation_steps: 1
+  criterion: cross_entropy
+  class_weights: null #[6.37, 1485.62, 1.52, 1485.62, 6.11, 1438.04, 1.52, 1438.04, 1.0]
+  metric: mcc
+  activation: none
+wandb:
+  mode: disabled

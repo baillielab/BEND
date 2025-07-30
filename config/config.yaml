@@ -1,15 +1,6 @@
 defaults:
-  - embedding: embedders
-  - tasks:
-      [
-        enhancer_annotation,
-        chromatin_accessibility,
-        gene_finding,
-        histone_modification,
-        cpg_methylation,
-        var_effects_expression,
-        var_effects_disease,
-      ]
+  - embedding/embedders
+  - tasks@task: gene_finding
   - _self_
 hydra:
   mode: MULTIRUN
@@ -26,7 +17,7 @@ hydra:
         dnabert2,
         awdlstm,
         resnetlm
-      task: gene_finding,
+      tasks@task: gene_finding,
         enhancer_annotation,
         histone_modification,
         chromatin_accessibility,
@@ -35,10 +26,11 @@ hydra:
         var_effects_disease
 
 embedder: nt_transformer_1000g
-task: gene_finding
 
 work_dir: ./
 data_dir: ${work_dir}/data/
 embedders_dir: ${work_dir}/pretrained_models/
 embeddings_output_dir: ${work_dir}/data/embeddings
 output_dir: ${work_dir}/results/ # Specify only the root output directory
+
+max_samples: 50000 # Set to None for no limit

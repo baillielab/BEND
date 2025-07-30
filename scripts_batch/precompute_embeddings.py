@@ -65,6 +65,15 @@ def run_experiment(cfg: DictConfig) -> None:
             split=split,
         )
 
+        dataset.sequences = (
+            dataset.sequences[: cfg.max_samples]
+            if cfg.max_samples
+            else dataset.sequences
+        )
+        dataset.labels = (
+            dataset.labels[: cfg.max_samples] if cfg.max_samples else dataset.labels
+        )
+
         is_data_uneven = (
             True if cfg.tasks[cfg.task].dataset.sequence_length is None else False
         )

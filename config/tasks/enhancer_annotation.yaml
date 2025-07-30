@@ -1,38 +1,40 @@
-enhancer_annotation:
-  dataset:
-    annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
-    genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-    hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
-    label_depth: 1
-    sequence_length: null # When null, indicates uneven length sequences
-  dataloader:
-    _target_: bend.utils.data_downstream.get_data
-    data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
-    batch_size: 8
-    num_workers: 2
-    padding_value: -100
-    shuffle: 100
-    cross_validation: 0 # which split to run in the cross validation
-  model:
-    _target_: bend.models.downstream.CNN
-    input_size: ${embeddings.embedders.${embedder}}
-    output_size: ${dataset.label_depth}
-    hidden_size: 2
-    kernel_size: 3
-    output_downsample_window: 128
-  optimizer:
-    _target_: torch.optim.AdamW
-    lr: 0.001
-    weight_decay: 0.01
-  params:
-    epochs: 100
-    load_checkpoint: false
-    mode: train
-    gradient_accumulation_steps: 1
-    criterion: bce
-    class_weights:
-      - 82.86
-    metric: auprc
-    activation: none
-  wandb:
-    mode: disabled
+task_name: enhancer_annotation
+output_dir: ${output_dir}
+
+dataset:
+  annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
+  genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
+  label_depth: 1
+  sequence_length: null # When null, indicates uneven length sequences
+data:
+  _target_: bend.utils.data_downstream.get_data
+  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  batch_size: 8
+  num_workers: 2
+  padding_value: -100
+  shuffle: 100
+  cross_validation: 0 # which split to run in the cross validation
+model:
+  _target_: bend.models.downstream.CNN
+  input_size: ${embeddings.embedders.${embedder}}
+  output_size: ${dataset.label_depth}
+  hidden_size: 2
+  kernel_size: 3
+  output_downsample_window: 128
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.001
+  weight_decay: 0.01
+params:
+  epochs: 100
+  load_checkpoint: false
+  mode: train
+  gradient_accumulation_steps: 1
+  criterion: bce
+  class_weights:
+    - 82.86
+  metric: auprc
+  activation: none
+wandb:
+  mode: disabled
