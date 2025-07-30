@@ -1,5 +1,6 @@
-task_name: cpg_methylation
-output_dir: ${output_dir}
+task: cpg_methylation
+embedder: ${embedder} # used in trainer class
+output_dir: ${output_dir} # used in trainer class
 
 dataset:
   annotations_path: ${data_dir}/cpg_methylation/cpg_methylation.bed
@@ -7,8 +8,8 @@ dataset:
   label_depth: 7
   sequence_length: 512
 data:
-  # _target_: bend.utils.data_downstream.get_data
-  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  _target_: bend.utils.data_downstream.get_data
+  data_dir: ${embeddings_output_dir}
   batch_size: 256
   num_workers: 2
   padding_value: -100
@@ -16,8 +17,8 @@ data:
 model:
   _target_: bend.models.downstream.CNN
   encoder: null
-  input_size: ${embeddings.embedders.${embedder}}
-  output_size: ${dataset.label_depth}
+  input_size: ${embedding.${embedder}.embeddings_dim}
+  output_size: ${task.dataset.label_depth}
   hidden_size: 64
   kernel_size: 3
   output_downsample_window: 512

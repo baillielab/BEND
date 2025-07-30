@@ -1,5 +1,6 @@
-task_name: enhancer_annotation
-output_dir: ${output_dir}
+task: enhancer_annotation
+embedder: ${embedder} # used in trainer class
+output_dir: ${output_dir} # used in trainer class
 
 dataset:
   annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
@@ -9,7 +10,7 @@ dataset:
   sequence_length: null # When null, indicates uneven length sequences
 data:
   _target_: bend.utils.data_downstream.get_data
-  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  data_dir: ${embeddings_output_dir}
   batch_size: 8
   num_workers: 2
   padding_value: -100
@@ -17,8 +18,8 @@ data:
   cross_validation: 0 # which split to run in the cross validation
 model:
   _target_: bend.models.downstream.CNN
-  input_size: ${embeddings.embedders.${embedder}}
-  output_size: ${dataset.label_depth}
+  input_size: ${embedding.${embedder}.embeddings_dim}
+  output_size: ${task.dataset.label_depth}
   hidden_size: 2
   kernel_size: 3
   output_downsample_window: 128

@@ -1,5 +1,6 @@
-task_name: gene_finding
-output_dir: ${output_dir}
+task: gene_finding
+embedder: ${embedder} # used in trainer class
+output_dir: ${output_dir} # used in trainer class
 
 dataset:
   annotations_path: ${data_dir}/gene_finding/gene_finding.bed
@@ -9,7 +10,7 @@ dataset:
   sequence_length: null # When null, indicates uneven length sequences
 data:
   _target_: bend.utils.data_downstream.get_data
-  data_dir: ${embeddings_output_dir} # Specify only the root data directory, script will generate the full path
+  data_dir: ${embeddings_output_dir}
   cross_validation: false
   batch_size: 32
   num_workers: 1
@@ -18,7 +19,7 @@ data:
 model:
   _target_: bend.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}
-  output_size: 9
+  output_size: ${task.dataset.label_depth}
   hidden_size: 64
   kernel_size: 3
 optimizer:

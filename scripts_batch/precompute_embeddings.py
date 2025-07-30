@@ -27,18 +27,15 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    print(f"== Run embedding for task: {cfg.task} with model: {cfg.embedder} ===")
+    print(f"== Run embedding for task: {cfg.task.task} with model: {cfg.embedder} ===")
 
-    cfg.embeddings_output_dir = os.path.join(
-        cfg.embeddings_output_dir, cfg.task, cfg.embedder
-    )
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
 
     embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
 
     print("Retrieving splits from annotations...")
     annotations = pd.read_csv(
-        cfg.tasks[cfg.task].dataset.annotations_path, sep="\t", low_memory=False
+        cfg.task.dataset.annotations_path, sep="\t", low_memory=False
     )
     splits = annotations.iloc[:, DEFAULT_SPLIT_COLUMN_IDX].unique()
 
@@ -49,39 +46,26 @@ def run_experiment(cfg: DictConfig) -> None:
 
         print("Loading dataset ...")
         dataset = DataSupervised(
-            annotations_path=cfg.tasks[cfg.task].dataset.annotations_path,
-            genome_path=cfg.tasks[cfg.task].dataset.genome_path,
+            annotations_path=cfg.task.dataset.annotations_path,
+            genome_path=cfg.task.dataset.genome_path,
             label_depth=(
-                cfg.tasks[cfg.task].dataset.label_depth
-                if "label_depth" in cfg.tasks[cfg.task].dataset
+                cfg.task.dataset.label_depth
+                if "label_depth" in cfg.task.dataset
                 else None
             ),
             hdf5_path=(
-                cfg.tasks[cfg.task].dataset.hdf5_path
-                if "hdf5_path" in cfg.tasks[cfg.task].dataset
-                else None
+                cfg.task.dataset.hdf5_path if "hdf5_path" in cfg.task.dataset else None
             ),
-            sequence_length=cfg.tasks[cfg.task].dataset.sequence_length,
+            sequence_length=cfg.task.dataset.sequence_length,
             split=split,
         )
 
-        dataset.sequences = (
-            dataset.sequences[: cfg.max_samples]
-            if cfg.max_samples
-            else dataset.sequences
-        )
-        dataset.labels = (
-            dataset.labels[: cfg.max_samples] if cfg.max_samples else dataset.labels
-        )
-
-        is_data_uneven = (
-            True if cfg.tasks[cfg.task].dataset.sequence_length is None else False
-        )
+        is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
 
         dataloader = DataLoader(
             dataset,
-            batch_size=cfg.tasks[cfg.task].dataloader.batch_size,
-            num_workers=cfg.tasks[cfg.task].dataloader.num_workers,
+            batch_size=cfg.task.dataloader.batch_size,
+            num_workers=cfg.task.dataloader.num_workers,
             shuffle=True if split == "train" else False,
             collate_fn=collate_fn if is_data_uneven else None,
         )
@@ -99,10 +83,7 @@ def run_experiment(cfg: DictConfig) -> None:
                 for sample_idx in tqdm(
                     range(len(embeddings)), desc="Writing samples", leave=False
                 ):
-                    sample_key = (
-                        batch_idx * cfg.tasks[cfg.task].dataloader.batch_size
-                        + sample_idx
-                    )
+                    sample_key = batch_idx * cfg.task.dataloader.batch_size + sample_idx
                     writer.write(
                         {
                             "__key__": f"sample{sample_key:08d}",

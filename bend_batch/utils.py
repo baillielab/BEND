@@ -47,7 +47,9 @@ def get_device():
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def record_embedding_time(cfg, start_time: float) -> None:
+def record_embedding_time(
+    task: str, model: str, start_time: float, output_dir: str
+) -> None:
     """
     Record the time taken for embedding in a CSV file.
     Parameters
@@ -59,25 +61,25 @@ def record_embedding_time(cfg, start_time: float) -> None:
     end_time = time.time()
     print(f"Embedding completed in {end_time - start_time:.2f} seconds")
 
-    file_path = os.path.join(cfg.embeddings_output_dir, "embedding_times.csv")
+    file_path = os.path.join(output_dir, "embedding_times.csv")
 
     if os.path.exists(file_path):
         data = pd.read_csv(file_path)
         data = data._append(
             {
-                "task": cfg.task,
-                "embedder": cfg.embedder,
+                "task": task,
+                "embedder": model,
                 "time": end_time - start_time,
             },
             ignore_index=True,
         )
         data.to_csv(file_path, index=False)
     else:
-        os.makedirs(cfg.output_dir, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
         pd.DataFrame(
             {
-                "task": [cfg.task],
-                "embedder": [cfg.embedder],
+                "task": [task],
+                "embedder": [model],
                 "time": [end_time - start_time],
             }
         ).to_csv(file_path, index=False)

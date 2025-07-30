@@ -27,10 +27,7 @@ hydra:
 
 embedder: nt_transformer_1000g
 
-work_dir: ./
-data_dir: ${work_dir}/data/
-embedders_dir: ${work_dir}/pretrained_models/
-embeddings_output_dir: ${work_dir}/data/embeddings
-output_dir: ${work_dir}/results/ # Specify only the root output directory
-
-max_samples: 50000 # Set to None for no limit
+data_dir: ./data/
+embedders_dir: ./pretrained_models/
+embeddings_output_dir: ./data/embeddings/${task.task_name}/${embedder}/
+output_dir: ./results/${task.task_name}/${embedder}/

@@ -24,11 +24,6 @@ os.environ["WDS_VERBOSE_CACHE"] = "1"
 @hydra.main(config_path=f"../config/", config_name="config", version_base=None)
 def run_experiment(cfg: DictConfig) -> None:
 
-    device = get_device()
-
-    cfg_task = cfg.tasks[cfg.task]
-
-    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task, cfg.embedder)
     print("Output directory", cfg.output_dir)
     os.makedirs(cfg.output_dir, exist_ok=True)
 
@@ -45,16 +40,16 @@ def run_experiment(cfg: DictConfig) -> None:
 
     print("Loading genome data")
     dataset = DataVariantEffects(
-        annotation_path=cfg_task.dataset.annotations,
-        genome_path=cfg_task.dataset.genome,
+        annotation_path=cfg.task.dataset.annotations,
+        genome_path=cfg.task.dataset.genome,
         extra_context_left=extra_context_left,
         extra_context_right=extra_context_right,
     )
 
     dataloader = DataLoader(
         dataset,
-        batch_size=cfg_task.dataloader.batch_size,
-        num_workers=cfg_task.dataloader.num_workers,
+        batch_size=cfg.task.data.batch_size,
+        num_workers=cfg.task.data.num_workers,
         shuffle=False,
     )
 

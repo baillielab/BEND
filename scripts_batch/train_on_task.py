@@ -77,9 +77,7 @@ def run_experiment(cfg: DictConfig) -> None:
                     else None
                 )
             )
-    cfg.task.data.data_dir = os.path.join(
-        cfg.task.data.data_dir, cfg.task.task_name, cfg.embedder
-    )
+
     train_loader, val_loader, test_loader = hydra.utils.instantiate(cfg.task.data)
 
     # instantiate trainer
