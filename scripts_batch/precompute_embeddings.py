@@ -77,23 +77,26 @@ def run_experiment(cfg: DictConfig) -> None:
             collate_fn=collate_fn if is_data_uneven else None,
         )
 
-        for batch_idx, (sequences, labels) in tqdm(
-            enumerate(dataloader), total=len(dataloader), desc=f"Embedding {split}"
-        ):
+        with wds.ShardWriter(
+            os.path.join(cfg.embeddings_output_dir, f"{split}_%06d.tar.gz"),
+            verbose=0,
+            compress="gz",
+        ) as writer:
+            for batch_idx, (sequences, labels) in tqdm(
+                enumerate(dataloader), total=len(dataloader), desc=f"Embedding {split}"
+            ):
+                embeddings = embedder(sequences, uneven_length=is_data_uneven)
 
-            embeddings = embedder(sequences, uneven_length=is_data_uneven)
-
-            with wds.ShardWriter(
-                os.path.join(cfg.embeddings_output_dir, f"{split}_%06d.tar.gz"),
-                verbose=0,
-                compress="gz",
-            ) as writer:
                 for sample_idx in tqdm(
                     range(len(embeddings)), desc="Writing samples", leave=False
                 ):
+                    sample_key = (
+                        batch_idx * cfg.tasks[cfg.task].dataloader.batch_size
+                        + sample_idx
+                    )
                     writer.write(
                         {
-                            "__key__": f"sample_{batch_idx * cfg.tasks[cfg.task].dataloader.batch_size + sample_idx}",
+                            "__key__": f"sample{sample_key:08d}",
                             "input.npy": embeddings[sample_idx],
                             "output.npy": np.array(labels[sample_idx], dtype=np.int32),
                         }
