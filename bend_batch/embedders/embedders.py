@@ -44,7 +44,9 @@ class BaseEmbedder:
     All embedders should inherit from this class.
     """
 
-    def __init__(self, autoregressive, *args, **kwargs):
+    def __init__(
+        self, autoregressive, max_sequence_length, upsample_embeddings, *args, **kwargs
+    ):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
         Parameters
@@ -55,8 +57,22 @@ class BaseEmbedder:
             Keyword arguments. Passed to `load_model`.
         """
         self.autoregressive = autoregressive
+        self.max_sequence_length = max_sequence_length
+        self.upsample_embeddings = upsample_embeddings
+
+        self.tokenizer = None
+        self.model = None
 
         self.load_model(*args, **kwargs)
+
+        if self.tokenizer is None:
+            raise ValueError(
+                "Tokenizer is not initialized. Please check the `load_model` method."
+            )
+        if self.model is None:
+            raise ValueError(
+                "Model is not initialized. Please check the `load_model` method."
+            )
 
     def load_model(self, *args, **kwargs):
         """Load the model. Should be implemented by the inheriting class."""
@@ -102,44 +118,137 @@ class BaseEmbedder:
         """
         return self.embed(sequence, *args, **kwargs)
 
-    def _upsample(
-        self,
-        token_ids: torch.Tensor,
-        embedding: torch.Tensor,
-    ):
+    def chunkify_sequences(self, sequences: List[str]) -> tuple[List[str], np.ndarray]:
         """
-        Upsample the embedding to match the length of the input sequence.
-        This is done by repeating the embedding for each token in the input sequence.
-
-        The token IDs and the embedding are expected to be aligned.
+        Chunkify the input sequences into smaller chunks, defined by `self.max_sequence_length`.
 
         Parameters
         ----------
-        token_ids : torch.Tensor
-            The token IDs of the input sequence.
-        embedding : torch.Tensor
-            The embedding of the input sequence.
+        sequences : List[str]
+            The input sequences to chunk.
 
         Returns
         -------
-        torch.Tensor
-            The upsampled embedding.
+        (List[str], np.ndarray)
+            A tuple containing the chunked sequences and their corresponding sequence indices.
         """
 
-        tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+        chunks = []
+        chunk_ids = []
 
-        repetitions = []
-        for token in tokens:
-            if token in ["[UNK]", "[CLS]", "[SEP]"]:
-                repetitions.append(1)
-            else:
-                repetitions.append(len(token))
+        for seq_idx, seq in enumerate(sequences):
+            chunked_sequence = [
+                seq[i : i + self.max_sequence_length]
+                for i in range(0, len(seq), self.max_sequence_length)
+            ]
+            chunks.extend(chunked_sequence)
+            chunk_ids.extend([seq_idx] * len(chunked_sequence))
 
-        upsampled_embedding = torch.repeat_interleave(
-            embedding, torch.tensor(repetitions), dim=0
+        return chunks, np.array(chunk_ids)
+
+    def _upsample(self, token_ids: np.ndarray, embedding: np.ndarray) -> np.ndarray:
+        """
+        Upsamples the embeddings based on the number of characters in each token.
+
+        Parameters
+        ----------
+            token_ids (np.ndarray): The 1D array of token IDs.
+            embedding (np.ndarray): The embeddings array to be upsampled.
+        Returns
+        -------
+            np.ndarray: The upsampled embeddings array.
+        Raises
+        ------
+            ValueError: If the tokenizer does not have a method `convert_ids_to_tokens`.
+        """
+
+        if not hasattr(self.tokenizer, "convert_ids_to_tokens"):
+            raise ValueError(
+                "Tokenizer does not have a method `convert_ids_to_tokens`. "
+                "Please check the tokenizer implementation."
+            )
+
+        tokens = self.tokenizer.convert_ids_to_tokens(
+            token_ids, skip_special_tokens=True
+        )
+        repetitions = np.array([len(token) for token in tokens])
+
+        return np.repeat(embedding, repetitions, axis=0)
+
+    def _remove_special_tokens(
+        self, token_ids: np.ndarray, embedding: np.ndarray
+    ) -> np.ndarray:
+        """
+        Removes special tokens from the embeddings based on the tokenizer's special token mask.
+
+        Parameters
+        ----------
+            token_ids (np.ndarray): The 1D array of token IDs.
+            embedding (np.ndarray): The embeddings array from which to remove special tokens.
+        Returns
+        -------
+            np.ndarray: The embeddings array with special tokens removed.
+        Raises
+        ------
+            ValueError: If the tokenizer does not have a method `get_special_tokens_mask`.
+        """
+
+        if not hasattr(self.tokenizer, "get_special_tokens_mask"):
+            raise ValueError(
+                "Tokenizer does not have a method `get_special_tokens_mask`. "
+                "Please check the tokenizer implementation."
+            )
+
+        mask_special_tokens = ~np.array(
+            self.tokenizer.get_special_tokens_mask(
+                token_ids, already_has_special_tokens=True
+            ),
+            dtype=bool,
         )
 
-        return upsampled_embedding
+        return embedding[mask_special_tokens]
+
+    def process_chunk_embeddings(
+        self,
+        chunk_embeddings: np.ndarray,
+        chunk_input_ids: np.ndarray,
+        sequences_ids: np.ndarray,
+    ):
+        """
+        Processes chunk embeddings by removing special tokens and optionally upsampling the embeddings.
+
+        Parameters
+        ----------
+            chunk_embeddings (np.ndarray): The embeddings for each chunk.
+            chunk_input_ids (np.ndarray): The input IDs corresponding to each chunk.
+            sequences_ids (np.ndarray): The sequence IDs corresponding to each chunk.
+        Returns
+        -------
+            List[np.ndarray]: A list of processed embeddings for each sequence.
+        Raises
+        ------
+            ValueError: If the tokenizer does not have a method `convert_ids_to_tokens`.
+            ValueError: If the tokenizer does not have a method `get_special_tokens_mask`.
+        """
+
+        masked_embeddings = []
+
+        for sequence_idx in np.unique(sequences_ids):
+
+            mask_sequence = sequence_idx == sequences_ids
+            concat_embeddings = np.concatenate(chunk_embeddings[mask_sequence], axis=0)
+            concat_input_ids = np.concatenate(chunk_input_ids[mask_sequence], axis=0)
+
+            concat_embeddings = self._remove_special_tokens(
+                concat_input_ids, concat_embeddings
+            )
+
+            if self.upsample_embeddings:
+                concat_embeddings = self._upsample(concat_input_ids, concat_embeddings)
+
+            masked_embeddings.append(concat_embeddings)
+
+        return masked_embeddings
 
 
 # https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full
@@ -151,8 +260,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_name,
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
         **kwargs,
     ):
         """
@@ -179,24 +286,18 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_name, trust_remote_code=True
             )
-            self.max_seq_len = 12282  # "model_max_length": 2048, --> 12,288
-            self.max_tokens = 2048
             self.is_v2 = True
         else:
             self.model = AutoModelForMaskedLM.from_pretrained(model_name)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.max_seq_len = 5994  # "model_max_length": 1000, 6-mer --> 6000
-            self.max_tokens = 1000
             self.is_v2 = False
         self.model.to(DEVICE)
         self.model.eval()
 
-        self.upsample_embeddings = upsample_embeddings
-        self.remove_special_tokens = remove_special_tokens
-
     def embed(
         self,
         sequences: List[str],
+        uneven_length: bool = False,
     ):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
@@ -205,7 +306,8 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-
+        uneven_length : bool, optional
+            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to False.
         Returns
         -------
         torch.Tensor
@@ -213,6 +315,9 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         """
 
         with torch.no_grad():
+
+            sequences, chunk_ids = self.chunkify_sequences(sequences)
+
             output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
@@ -231,28 +336,31 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 )["hidden_states"][-1]
                 .detach()
                 .cpu()
+                .numpy()
             )
+            input_ids = input_ids.numpy()
 
-            list_embeddings = []
-            for emb, token_ids, mask in zip(embeddings, input_ids, attention_mask):
+            embeddings = self.process_chunk_embeddings(embeddings, input_ids, chunk_ids)
 
-                emb = emb[mask.bool(), :]
-                token_ids = token_ids[mask.bool()]
+            return embeddings
 
-                if self.remove_special_tokens:
-                    emb = emb[1:, :]
-                    token_ids = token_ids[1:]
+            # else:
+            #     list_embeddings = []
 
-                emb = self._upsample(
-                    token_ids,
-                    emb,
-                )
+            #     for sample_idx in range(embeddings.shape[0]):
+            #         emb = embeddings[sample_idx]
+            #         token_ids = input_ids[sample_idx]
 
-                list_embeddings.append(emb)
+            #         # Remove special tokens (CLS)
+            #         emb = emb[1:, :]
+            #         token_ids = token_ids[1:]
 
-            embeddings = torch.stack(list_embeddings, dim=0)
+            #         if self.upsample_embeddings:
+            #             emb = self._upsample(token_ids, emb)
 
-        return np.array(embeddings)
+            #         list_embeddings.append(emb)
+
+            #     return np.array(list_embeddings)
 
 
 class AWDLSTMEmbedder(BaseEmbedder):
@@ -413,7 +521,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
-        remove_special_tokens: bool = True,
         **kwargs,
     ):
         # '''Load the model from the checkpoint path
@@ -439,26 +546,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         """
 
         checkpoint_path, model_name = os.path.split(model_path)
-        max_lengths = {
-            "hyenadna-tiny-1k-seqlen": 1024,
-            "hyenadna-small-32k-seqlen": 32768,
-            "hyenadna-medium-160k-seqlen": 160000,
-            "hyenadna-medium-450k-seqlen": 450000,
-            "hyenadna-large-1m-seqlen": 1_000_000,
-        }
-
-        self.max_length = max_lengths[model_name]  # auto selects
-
-        # all these settings are copied directly from huggingface.py
-
-        # data settings:
-        use_padding = True
-        rc_aug = False  # reverse complement augmentation
-        add_eos = False  # add end of sentence token
-
-        # we need these for the decoder head, if using
-        use_head = False
-        n_classes = 2  # not used for embeddings only
 
         # you can override with your own backbone config here if you want,
         # otherwise we'll load the HF one in None
@@ -472,9 +559,9 @@ class HyenaDNAEmbedder(BaseEmbedder):
             download=not os.path.exists(model_path),
             config=backbone_cfg,
             device=DEVICE,
-            use_head=use_head,
+            use_head=False,
             use_lm_head=False,  # we don't use the LM head for embeddings
-            n_classes=n_classes,
+            n_classes=2,
         )
         model.eval()
 
@@ -492,24 +579,24 @@ class HyenaDNAEmbedder(BaseEmbedder):
         # create tokenizer - NOTE this adds CLS and SEP tokens when add_special_tokens=False
         self.tokenizer = CharacterTokenizer(
             characters=["A", "C", "G", "T", "N"],  # add DNA characters, N is uncertain
-            model_max_length=self.max_length
+            model_max_length=self.max_sequence_length
             + 2,  # to account for special tokens, like EOS
             add_special_tokens=False,  # we handle special tokens elsewhere
             padding_side="left",  # since HyenaDNA is causal, we pad on the left
         )
 
-        self.remove_special_tokens = remove_special_tokens
-
     def embed(
         self,
         sequences: List[str],
+        uneven_length: bool = False,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
         ----------
         sequences : List[str]
             List of sequences to embed.
-
+        uneven_length : bool, optional
+            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to
         Returns
         -------
         torch.Tensor
@@ -517,22 +604,41 @@ class HyenaDNAEmbedder(BaseEmbedder):
         """
 
         with torch.no_grad():
-            input_ids = self.tokenizer(
-                sequences,
-                return_tensors="pt",
-                return_attention_mask=False,
-                return_token_type_ids=False,
-            )["input_ids"]
-            input_ids = torch.LongTensor(input_ids)
-            input_ids = input_ids.to(DEVICE)
-            embeddings = self.model(input_ids=input_ids)
+            if uneven_length:
+                # If uneven length, we need to chunk the sequences
+                chunked_sequences, chunk_ids = self.chunkify_sequences(sequences)
 
-            if self.remove_special_tokens:
-                embeddings = embeddings[:, 1:-1, :]
+                input_ids = self.tokenizer(
+                    chunked_sequences,
+                    return_tensors="pt",
+                    return_token_type_ids=False,
+                    return_attention_mask=False,  # HyenaDNA does not use attention masks
+                    padding="longest",
+                )["input_ids"]
 
-            embeddings = embeddings.detach().cpu().numpy()
+                input_ids = torch.LongTensor(input_ids)
+                embeddings = (
+                    self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
+                )
+                input_ids = input_ids.numpy()
 
-        return embeddings
+                return self.process_chunk_embeddings(embeddings, input_ids, chunk_ids)
+
+            else:
+                input_ids = self.tokenizer(
+                    sequences,
+                    return_tensors="pt",
+                    return_attention_mask=False,
+                    return_token_type_ids=False,
+                )["input_ids"]
+
+                input_ids = torch.LongTensor(input_ids)
+                embeddings = (
+                    self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
+                )
+
+                # Remove special tokens (CLS and SEP)
+                return embeddings[:, 1:-1, :]
 
 
 class DNABert2Embedder(BaseEmbedder):
@@ -543,8 +649,6 @@ class DNABert2Embedder(BaseEmbedder):
     def load_model(
         self,
         model_name="zhihan1996/DNABERT-2-117M",
-        remove_special_tokens: bool = True,
-        upsample_embeddings: bool = True,
         **kwargs,
     ):
         """
@@ -557,10 +661,6 @@ class DNABert2Embedder(BaseEmbedder):
             The name of the model to load. Defaults to "zhihan1996/DNABERT-2-117M".
             When providing a name, the model will be loaded from the HuggingFace model hub.
             Alternatively, you can provide a path to a local model directory.
-        upsample_embeddings : bool, optional
-            Whether to upsample the embeddings to the length of the input sequence. Defaults to True.
-        remove_special_tokens : bool, optional
-            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True.
         """
 
         # keep the source in this repo to avoid using flash attn.
@@ -571,15 +671,10 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(DEVICE)
 
-        # https://github.com/Zhihan1996/DNABERT_2/issues/2
-        self.max_length = 10000  # nucleotides.
-
-        self.upsample_embeddings = upsample_embeddings
-        self.remove_special_tokens = remove_special_tokens
-
     def embed(
         self,
         sequences: List[str],
+        uneven_length: bool = False,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
@@ -595,6 +690,9 @@ class DNABert2Embedder(BaseEmbedder):
         """
 
         with torch.no_grad():
+
+            sequences, chunk_ids = self.chunkify_sequences(sequences)
+
             output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
@@ -607,34 +705,19 @@ class DNABert2Embedder(BaseEmbedder):
 
             embeddings = (
                 self.model(
-                    input_ids=input_ids.to(DEVICE),
+                    input_ids.to(DEVICE),
                     attention_mask=attention_mask.to(DEVICE),
                     output_hidden_states=True,
                 )["hidden_states"]
                 .detach()
                 .cpu()
+                .numpy()
             )
+            input_ids = input_ids.numpy()
 
-            list_embeddings = []
-            for emb, token_ids, mask in zip(embeddings, input_ids, attention_mask):
+            embeddings = self.process_chunk_embeddings(embeddings, input_ids, chunk_ids)
 
-                emb = emb[mask.bool(), :]
-                token_ids = token_ids[mask.bool()]
-
-                if self.remove_special_tokens:
-                    emb = emb[1:-1, :]
-                    token_ids = token_ids[1:-1]
-
-                emb = self._upsample(
-                    token_ids,
-                    emb,
-                )
-
-                list_embeddings.append(emb)
-
-            embeddings = torch.stack(list_embeddings, dim=0)
-
-        return np.array(embeddings)
+            return embeddings
 
 
 # Class for one-hot encoding.

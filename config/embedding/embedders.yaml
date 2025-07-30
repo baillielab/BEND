@@ -4,51 +4,60 @@ dnabert2:
   upsample_embeddings: true
   embeddings_dim: 768
   autoregressive: false
+  max_sequence_length: 10000 # https://github.com/Zhihan1996/DNABERT_2/issues/2
 hyenadna-large-1m:
   _target_: bend_batch.embedders.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
   upsample_embeddings: false
   embeddings_dim: 256
+  max_sequence_length: 1_000_000
   autoregressive: true
 hyenadna-tiny-1k:
   _target_: bend_batch.embedders.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
   upsample_embeddings: false
   embeddings_dim: 128
+  max_sequence_length: 1024
   autoregressive: true
 resnetlm:
   _target_: bend_batch.embedders.embedders.ConvNetEmbedder
   model_path: ${embedders_dir}/convnet/
   upsample_embeddings: false
   embeddings_dim: 256
+  max_sequence_length: null
   autoregressive: false
 awdlstm:
   _target_: bend_batch.embedders.embedders.AWDLSTMEmbedder
   model_path: ${embedders_dir}/awd_lstm/
   upsample_embeddings: false
   embeddings_dim: 64
+  max_sequence_length: null
   autoregressive: true
 nt_transformer_ms:
   _target_: bend_batch.embedders.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
   upsample_embeddings: true
   embeddings_dim: 2560
+  max_sequence_length: 5994 # max 1000 tokens, 6-mer --> 6000
   autoregressive: false
 nt_transformer_human_ref:
   _target_: bend_batch.embedders.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
   upsample_embeddings: true
   embeddings_dim: 1280
+  max_sequence_length: 5994 # max 1000 tokens, 6-mer --> 6000
   autoregressive: false
 nt_transformer_1000g:
   _target_: bend_batch.embedders.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
   upsample_embeddings: true
   embeddings_dim: 2560
+  max_sequence_length: 5994 # max 1000 tokens, 6-mer --> 6000
   autoregressive: false
 nt_transformer_v2_500m:
   _target_: bend_batch.embedders.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
   upsample_embeddings: true
   embeddings_dim: 1024
+  max_sequence_length: 12282 # max 2048 tokens --> 12,288
   autoregressive: false
