@@ -332,6 +332,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 self.model(
                     input_ids.to(DEVICE),
                     attention_mask=attention_mask.to(DEVICE),
+                    encoder_attention_mask=attention_mask.to(DEVICE),
                     output_hidden_states=True,
                 )["hidden_states"][-1]
                 .detach()
@@ -624,21 +625,20 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
                 return self.process_chunk_embeddings(embeddings, input_ids, chunk_ids)
 
-            else:
-                input_ids = self.tokenizer(
-                    sequences,
-                    return_tensors="pt",
-                    return_attention_mask=False,
-                    return_token_type_ids=False,
-                )["input_ids"]
+            input_ids = self.tokenizer(
+                sequences,
+                return_tensors="pt",
+                return_attention_mask=False,
+                return_token_type_ids=False,
+            )["input_ids"]
 
-                input_ids = torch.LongTensor(input_ids)
-                embeddings = (
-                    self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
-                )
+            input_ids = torch.LongTensor(input_ids)
+            embeddings = (
+                self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
+            )
 
-                # Remove special tokens (CLS and SEP)
-                return embeddings[:, 1:-1, :]
+            # Remove special tokens (CLS and SEP)
+            return embeddings[:, 1:-1, :]
 
 
 class DNABert2Embedder(BaseEmbedder):
