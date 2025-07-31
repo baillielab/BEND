@@ -154,7 +154,7 @@ def train_on_task(cfg: DictConfig) -> None:
                     else None
                 )
             )
-
+    cfg.task.data._target = cfg.task.data._target_.replace("utils", "estimate")
     train_loader, _, _ = hydra.utils.instantiate(cfg.task.data)
 
     # instantiate trainer

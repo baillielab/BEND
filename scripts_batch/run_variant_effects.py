@@ -40,8 +40,8 @@ def run_experiment(cfg: DictConfig) -> None:
 
     print("Loading genome data")
     dataset = DataVariantEffects(
-        annotation_path=cfg.task.dataset.annotations,
-        genome_path=cfg.task.dataset.genome,
+        annotation_path=cfg.task.dataset.annotations_path,
+        genome_path=cfg.task.dataset.genome_path,
         extra_context_left=extra_context_left,
         extra_context_right=extra_context_right,
     )
