@@ -72,7 +72,7 @@ class EstimateTrainer(BaseTrainer):
                 columns=["task", "model", "epoch", "time"],
             ).to_csv(csv_file, index=False)
 
-        df = pd.read_csv(f"{self.config.output_dir}/downstream_stats.csv")
+        df = pd.read_csv(csv_file)
         df = pd.concat(
             [
                 df,
