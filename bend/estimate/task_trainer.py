@@ -4,16 +4,14 @@ task_trainer.py
 Trainer class for training downstream models on supervised tasks.
 """
 
-import torch
-import torch.nn as nn
 import os
-import pandas as pd
-from typing import Union, List
-import numpy as np
-import glob
-import pandas as pd
-from bend.utils.task_trainer import BaseTrainer
 import time
+from typing import Union
+
+import pandas as pd
+import torch
+
+from bend.utils.task_trainer import BaseTrainer
 
 
 class EstimateTrainer(BaseTrainer):
@@ -26,7 +24,6 @@ class EstimateTrainer(BaseTrainer):
         self,
         model,
         optimizer,
-        criterion,
         device,
         config,
         overwrite_dir=False,
@@ -55,7 +52,7 @@ class EstimateTrainer(BaseTrainer):
 
         self.model = model
         self.optimizer = optimizer
-        self.criterion = criterion
+        self.criterion = self.get_criterion()
         self.device = device
         self.config = config
         self.overwrite_dir = overwrite_dir

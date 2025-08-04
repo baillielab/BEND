@@ -1,7 +1,6 @@
 """
-train_on_task.py
-----------------
-Train a model on a downstream task.
+Script to estimate resources for embedding nucleotide sequences and
+training the task's downstream model. This script is called by hydra.
 """
 
 import os
@@ -10,19 +9,12 @@ import time
 
 import hydra
 import numpy as np
-import torch
 import webdataset as wds
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from bend.estimate.task_trainer import EstimateTrainer
-from bend.utils.task_trainer import (
-    BCEWithLogitsLoss,
-    CrossEntropyLoss,
-    MSELoss,
-    PoissonLoss,
-)
 from bend_batch.datasets import DataSupervised, collate_fn
 from bend_batch.utils import get_device, record_embedding_time, set_seed
 
@@ -142,30 +134,6 @@ def train_on_task(cfg: DictConfig) -> None:
 
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 
-    # define criterion
-    print(f"Use {cfg.task.params.criterion} loss function")
-    match cfg.task.params.criterion:
-        case "cross_entropy":
-            criterion = CrossEntropyLoss(
-                ignore_index=cfg.task.data.padding_value,
-                weight=(
-                    torch.tensor(cfg.task.params.class_weights).to(device)
-                    if cfg.task.params.class_weights is not None
-                    else None
-                ),
-            )
-        case "poisson_nll":
-            criterion = PoissonLoss()
-        case "mse":
-            criterion = MSELoss()
-        case "bce":
-            criterion = BCEWithLogitsLoss(
-                class_weights=(
-                    torch.tensor(cfg.task.params.class_weights).to(device)
-                    if cfg.task.params.class_weights is not None
-                    else None
-                )
-            )
     cfg.task.data._target = cfg.task.data._target_.replace("utils", "estimate")
     train_loader, _, _ = hydra.utils.instantiate(cfg.task.data)
 
@@ -173,7 +141,6 @@ def train_on_task(cfg: DictConfig) -> None:
     trainer = EstimateTrainer(
         model=model,
         optimizer=optimizer,
-        criterion=criterion,
         device=device,
         config=cfg.task,
         overwrite_dir=True,
@@ -192,7 +159,7 @@ def train_on_task(cfg: DictConfig) -> None:
 
 
 # load config
-@hydra.main(config_path=f"../config", config_name="config", version_base=None)
+@hydra.main(config_path="../config", config_name="config", version_base=None)
 def run_experiment(cfg: DictConfig) -> None:
     """
     Run the experiment.

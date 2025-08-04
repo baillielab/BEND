@@ -4,24 +4,23 @@ task_trainer.py
 Trainer class for training downstream models on supervised tasks.
 """
 
+import glob
+import os
+from typing import List, Union
+
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import wandb
-import os
-from sklearn.metrics import (
-    matthews_corrcoef,
-    roc_auc_score,
-    recall_score,
-    precision_score,
-    average_precision_score,
-    confusion_matrix,
-)
 from sklearn.feature_selection import r_regression
-import pandas as pd
-from typing import Union, List
-import numpy as np
-import glob
-import pandas as pd
+from sklearn.metrics import (
+    average_precision_score,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 
 class CrossEntropyLoss(nn.Module):
@@ -197,7 +196,6 @@ class BaseTrainer:
         self,
         model,
         optimizer,
-        criterion,
         device,
         config,
         overwrite_dir=False,
@@ -212,8 +210,6 @@ class BaseTrainer:
             Model to train.
         optimizer : torch.optim.Optimizer
             Optimizer to use for training.
-        criterion : torch.nn.Module
-            Loss function to use for training.
         device : torch.device
             Device to use for training.
         config : OmegaConf
@@ -226,10 +222,10 @@ class BaseTrainer:
 
         self.model = model
         self.optimizer = optimizer
-        self.criterion = criterion
         self.device = device
         self.config = config
         self.overwrite_dir = overwrite_dir
+        self.criterion = self.get_criterion()
         self._create_output_dir(
             self.config.output_dir
         )  # create the output dir for the model
@@ -237,6 +233,48 @@ class BaseTrainer:
         self.scaler = torch.amp.GradScaler(
             "cuda", enabled=True
         )  # init scaler for mixed precision training
+
+    def get_criterion(self):
+        """
+        Get the criterion to use for training.
+
+        Returns
+        -------
+        criterion : torch.nn.Module
+            Criterion to use for training.
+        Raises
+        ------
+        ValueError
+            If the criterion is not recognized.
+        """
+
+        print(f"Use {self.config.params.criterion} loss function")
+        match self.config.params.criterion:
+            case "cross_entropy":
+                criterion = CrossEntropyLoss(
+                    ignore_index=self.config.data.padding_value,
+                    weight=(
+                        torch.tensor(self.config.params.class_weights).to(self.device)
+                        if self.config.params.class_weights is not None
+                        else None
+                    ),
+                )
+            case "poisson_nll":
+                criterion = PoissonLoss()
+            case "mse":
+                criterion = MSELoss()
+            case "bce":
+                criterion = BCEWithLogitsLoss(
+                    class_weights=(
+                        torch.tensor(self.config.params.class_weights).to(self.device)
+                        if self.config.params.class_weights is not None
+                        else None
+                    )
+                )
+            case _:
+                raise ValueError(f"Unknown criterion {self.config.params.criterion}.")
+
+        return criterion
 
     def _create_output_dir(self, path):
         os.makedirs(f"{path}/checkpoints/", exist_ok=True)
