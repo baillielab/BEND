@@ -94,17 +94,13 @@ def embed(cfg: DictConfig) -> None:
                         "output.npy": np.array(labels[sample_idx], dtype=np.int32),
                     }
                 )
-    tar_size = sum(
-        os.path.getsize(f)
-        for f in os.listdir(cfg.embeddings_output_dir)
-        if f.endswith(".tar.gz")
-    )
+
     record_embedding_time(
         cfg.task.task,
         cfg.embedder,
         start_time,
         n_samples,
-        tar_size,
+        cfg.embeddings_output_dir,
         cfg.output_dir,
     )
 
@@ -127,14 +123,8 @@ def train_on_task(cfg: DictConfig) -> None:
 
     model = hydra.utils.instantiate(cfg.task.model).to(device).float()
 
-    if "nt" in cfg.embedder and (
-        cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
-    ):
-        cfg.task.data.batch_size = max(1, cfg.task.data.batch_size // 2)
-
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 
-    cfg.task.data._target = cfg.task.data._target_.replace("utils", "estimate")
     train_loader, _, _ = hydra.utils.instantiate(cfg.task.data)
 
     # instantiate trainer
@@ -155,8 +145,6 @@ def train_on_task(cfg: DictConfig) -> None:
             False,
         )
 
-    shutil.rmtree(cfg.task.data.data_dir, ignore_errors=True)
-
 
 # load config
 @hydra.main(config_path="../config", config_name="config", version_base=None)
@@ -169,8 +157,19 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
+
+    if "nt" in cfg.embedder and (
+        cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
+    ):
+        cfg.task.data.batch_size = max(1, cfg.task.data.batch_size // 2)
+
+    cfg.task.data._target_ = cfg.task.data._target_.replace("utils", "estimate")
+
     embed(cfg)
     train_on_task(cfg)
+
+    # Remove generated embeddings and checkpoints
+    shutil.rmtree(cfg.task.data.data_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def record_embedding_time(
     model: str,
     start_time: float,
     n_samples: int,
-    size: int,
+    tar_path: str,
     output_dir: str,
 ) -> None:
     """
@@ -67,6 +67,12 @@ def record_embedding_time(
 
     end_time = time.time()
     print(f"Embedding completed in {end_time - start_time:.2f} seconds")
+
+    tar_size = sum(
+        os.path.getsize(os.path.join(tar_path, f))
+        for f in os.listdir(tar_path)
+        if f.endswith(".tar.gz")
+    )
 
     file_path = os.path.join(output_dir, "embeddings_stats.csv")
 
@@ -89,7 +95,7 @@ def record_embedding_time(
             "model": model,
             "time": end_time - start_time,
             "n_samples": n_samples,
-            "size (bytes)": size,
+            "size (bytes)": tar_size,
         },
         ignore_index=True,
     )

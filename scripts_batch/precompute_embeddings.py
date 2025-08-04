@@ -90,17 +90,12 @@ def run_experiment(cfg: DictConfig) -> None:
                         }
                     )
 
-    tar_size = sum(
-        os.path.getsize(f)
-        for f in os.listdir(cfg.embeddings_output_dir)
-        if f.endswith(".tar.gz")
-    )
     record_embedding_time(
         cfg.task.task,
         cfg.embedder,
         start_time,
         len(annotations),
-        tar_size,
+        cfg.embeddings_output_dir,
         cfg.output_dir,
     )
 
