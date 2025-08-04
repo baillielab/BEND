@@ -29,5 +29,5 @@ embedder: nt_transformer_1000g
 
 data_dir: ./data/
 embedders_dir: ./pretrained_models/
-embeddings_output_dir: ./data/embeddings/${task.task_name}/${embedder}/
-output_dir: ./results/${task.task_name}/${embedder}/
+embeddings_output_dir: ./data/embeddings/${task.task}/${embedder}/
+output_dir: ./results/${task.task}/${embedder}/

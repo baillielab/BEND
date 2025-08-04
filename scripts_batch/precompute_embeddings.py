@@ -1,17 +1,14 @@
 import os
-import sys
 import time
 
 import hydra
 import numpy as np
 import pandas as pd
-import torch
 import webdataset as wds
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-import bend.io.sequtils as sequtils
 from bend_batch.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
 from bend_batch.utils import record_embedding_time, set_seed
 
@@ -65,8 +62,8 @@ def run_experiment(cfg: DictConfig) -> None:
 
         dataloader = DataLoader(
             dataset,
-            batch_size=cfg.task.dataloader.batch_size,
-            num_workers=cfg.task.dataloader.num_workers,
+            batch_size=cfg.task.data.batch_size,
+            num_workers=cfg.task.data.num_workers,
             shuffle=True if split == "train" else False,
             collate_fn=collate_fn if is_data_uneven else None,
         )
@@ -84,7 +81,7 @@ def run_experiment(cfg: DictConfig) -> None:
                 for sample_idx in tqdm(
                     range(len(embeddings)), desc="Writing samples", leave=False
                 ):
-                    sample_key = batch_idx * cfg.task.dataloader.batch_size + sample_idx
+                    sample_key = batch_idx * cfg.task.data.batch_size + sample_idx
                     writer.write(
                         {
                             "__key__": f"sample{sample_key:08d}",
