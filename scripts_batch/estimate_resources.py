@@ -20,6 +20,8 @@ from bend_batch.utils import get_device, record_embedding_time, set_seed
 
 EPOCHS = 1
 MAX_SAMPLES = 50000
+FOLD = 0  # Default fold for cross-validation
+
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
@@ -158,12 +160,13 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    if "nt" in cfg.embedder and (
-        cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
-    ):
-        cfg.task.data.batch_size = max(1, cfg.task.data.batch_size // 2)
+    # if ("nt_" in cfg.embedder or "dnabert2" in cfg.embedder) and (
+    #     cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
+    # ):
+    #     cfg.task.data.batch_size = max(1, cfg.task.data.batch_size // 2)
 
     cfg.task.data._target_ = cfg.task.data._target_.replace("utils", "estimate")
+    cfg.task.data.cross_validation = FOLD if cfg.task.data.cross_validation else None
 
     embed(cfg)
     train_on_task(cfg)
