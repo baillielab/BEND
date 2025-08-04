@@ -15,7 +15,7 @@ data:
   num_workers: 2
   padding_value: -100
   shuffle: 100
-  cross_validation: 0 # which split to run in the cross validation
+  cross_validation: true # enhancer_annotation task uses cross-validation
 model:
   _target_: bend.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}
