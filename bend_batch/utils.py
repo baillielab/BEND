@@ -1,9 +1,10 @@
-import torch
-import random
-import numpy as np
 import os
+import random
 import time
+
+import numpy as np
 import pandas as pd
+import torch
 
 SEED = 42
 
@@ -48,10 +49,16 @@ def get_device():
 
 
 def record_embedding_time(
-    task: str, model: str, start_time: float, output_dir: str
+    task: str,
+    model: str,
+    start_time: float,
+    n_samples: int,
+    size: int,
+    output_dir: str,
 ) -> None:
     """
     Record the time taken for embedding in a CSV file.
+
     Parameters
     ----------
     start_time : float
@@ -61,25 +68,29 @@ def record_embedding_time(
     end_time = time.time()
     print(f"Embedding completed in {end_time - start_time:.2f} seconds")
 
-    file_path = os.path.join(output_dir, "embedding_times.csv")
+    file_path = os.path.join(output_dir, "embeddings_stats.csv")
 
-    if os.path.exists(file_path):
-        data = pd.read_csv(file_path)
-        data = data._append(
-            {
-                "task": task,
-                "embedder": model,
-                "time": end_time - start_time,
-            },
-            ignore_index=True,
-        )
-        data.to_csv(file_path, index=False)
-    else:
+    if not os.path.exists(file_path):
         os.makedirs(output_dir, exist_ok=True)
         pd.DataFrame(
-            {
-                "task": [task],
-                "embedder": [model],
-                "time": [end_time - start_time],
-            }
+            columns=[
+                "task",
+                "model",
+                "time",
+                "n_samples",
+                "size (bytes)",
+            ],
         ).to_csv(file_path, index=False)
+
+    data = pd.read_csv(file_path)
+    data = data._append(
+        {
+            "task": task,
+            "model": model,
+            "time": end_time - start_time,
+            "n_samples": n_samples,
+            "size (bytes)": size,
+        },
+        ignore_index=True,
+    )
+    data.to_csv(file_path, index=False)

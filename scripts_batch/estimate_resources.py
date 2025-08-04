@@ -4,27 +4,27 @@ train_on_task.py
 Train a model on a downstream task.
 """
 
-import hydra
-from bend.utils.task_trainer import (
-    MSELoss,
-    BCEWithLogitsLoss,
-    PoissonLoss,
-    CrossEntropyLoss,
-)
-from bend.estimate.task_trainer import EstimateTrainer
-from bend_batch.utils import get_device, set_seed, record_embedding_time
-import shutil
-from omegaconf import DictConfig, OmegaConf
-import torch
 import os
-import pandas as pd
-import numpy as np
-import webdataset as wds
-from bend_batch.datasets import DataSupervised, DEFAULT_SPLIT_COLUMN_IDX, collate_fn
-from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
+import shutil
 import time
 
+import hydra
+import numpy as np
+import torch
+import webdataset as wds
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
+
+from bend.estimate.task_trainer import EstimateTrainer
+from bend.utils.task_trainer import (
+    BCEWithLogitsLoss,
+    CrossEntropyLoss,
+    MSELoss,
+    PoissonLoss,
+)
+from bend_batch.datasets import DataSupervised, collate_fn
+from bend_batch.utils import get_device, record_embedding_time, set_seed
 
 EPOCHS = 1
 MAX_SAMPLES = 50000
@@ -66,14 +66,10 @@ def embed(cfg: DictConfig) -> None:
         split=split,
     )
 
-    dataset.sequences = (
-        dataset.sequences[:MAX_SAMPLES]
-        if MAX_SAMPLES is not None
-        else dataset.sequences
-    )
-    dataset.labels = (
-        dataset.labels[:MAX_SAMPLES] if MAX_SAMPLES is not None else dataset.labels
-    )
+    n_samples = min(len(dataset.sequences), MAX_SAMPLES)
+
+    dataset.sequences = dataset.sequences[:n_samples]
+    dataset.labels = dataset.labels[:n_samples]
 
     is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
 
@@ -106,8 +102,19 @@ def embed(cfg: DictConfig) -> None:
                         "output.npy": np.array(labels[sample_idx], dtype=np.int32),
                     }
                 )
-
-    record_embedding_time(cfg.task.task, cfg.embedder, start_time, cfg.output_dir)
+    tar_size = sum(
+        os.path.getsize(f)
+        for f in os.listdir(cfg.embeddings_output_dir)
+        if f.endswith(".tar.gz")
+    )
+    record_embedding_time(
+        cfg.task.task,
+        cfg.embedder,
+        start_time,
+        n_samples,
+        tar_size,
+        cfg.output_dir,
+    )
 
 
 def train_on_task(cfg: DictConfig) -> None:
@@ -127,6 +134,11 @@ def train_on_task(cfg: DictConfig) -> None:
     print("output_dir", cfg.output_dir)
 
     model = hydra.utils.instantiate(cfg.task.model).to(device).float()
+
+    if "nt" in cfg.embedder and (
+        cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
+    ):
+        cfg.task.data.batch_size = max(1, cfg.task.data.batch_size // 2)
 
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 

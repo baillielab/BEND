@@ -1,18 +1,19 @@
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import torch
 import os
-import bend.io.sequtils as sequtils
-import pandas as pd
-import numpy as np
 import sys
-from bend_batch.utils import set_seed, record_embedding_time
-import webdataset as wds
-from bend_batch.datasets import DataSupervised, DEFAULT_SPLIT_COLUMN_IDX, collate_fn
-from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
 import time
 
+import hydra
+import numpy as np
+import pandas as pd
+import torch
+import webdataset as wds
+from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
+
+import bend.io.sequtils as sequtils
+from bend_batch.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
+from bend_batch.utils import record_embedding_time, set_seed
 
 set_seed()
 
@@ -92,7 +93,19 @@ def run_experiment(cfg: DictConfig) -> None:
                         }
                     )
 
-    record_embedding_time(cfg, start_time)
+    tar_size = sum(
+        os.path.getsize(f)
+        for f in os.listdir(cfg.embeddings_output_dir)
+        if f.endswith(".tar.gz")
+    )
+    record_embedding_time(
+        cfg.task.task,
+        cfg.embedder,
+        start_time,
+        len(annotations),
+        tar_size,
+        cfg.output_dir,
+    )
 
 
 if __name__ == "__main__":
