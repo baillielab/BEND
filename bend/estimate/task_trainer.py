@@ -52,9 +52,9 @@ class EstimateTrainer(BaseTrainer):
 
         self.model = model
         self.optimizer = optimizer
-        self.criterion = self.get_criterion()
-        self.device = device
         self.config = config
+        self.device = device
+        self.criterion = self.get_criterion()
         self.overwrite_dir = overwrite_dir
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.scaler = torch.amp.GradScaler(
@@ -63,10 +63,12 @@ class EstimateTrainer(BaseTrainer):
 
     def _log_stats(self, epoch, start_time):
         csv_file = f"{self.config.output_dir}/downstream_stats.csv"
+        columns = ["task", "model", "epoch", "batch_size", "time"]
+
         if not os.path.exists(csv_file):
             os.makedirs(self.config.output_dir, exist_ok=True)
             pd.DataFrame(
-                columns=["task", "model", "epoch", "time"],
+                columns=columns,
             ).to_csv(csv_file, index=False)
 
         df = pd.read_csv(csv_file)
@@ -79,15 +81,11 @@ class EstimateTrainer(BaseTrainer):
                             self.config.task,
                             self.config.embedder,
                             epoch,
+                            self.config.data.batch_size,
                             time.time() - start_time,
                         ]
                     ],
-                    columns=[
-                        "task",
-                        "model",
-                        "epoch",
-                        "time",
-                    ],
+                    columns=columns,
                 ),
             ],
             ignore_index=True,

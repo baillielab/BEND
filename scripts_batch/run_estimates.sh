@@ -1,16 +1,16 @@
 #!/bin/bash
-for model in hyenadna-tiny-1k \
-            hyenadna-large-1m \
-            resnetlm \
+for model in nt_transformer_1000g \
+            dnabert2 \
             nt_transformer_human_ref \
             nt_transformer_v2_500m \
-            awdlstm \
-            dnabert2 \
-            nt_transformer_1000g
+            hyenadna-tiny-1k \
+            hyenadna-large-1m \
+            resnetlm \
+            awdlstm
 do
-    for task in histone_modification \
+    for task in enhancer_annotation \
                 gene_finding \
-                enhancer_annotation
+                histone_modification
     do
         echo "Running task: $task with model: $model"
         python3 scripts_batch/estimate_resources.py \

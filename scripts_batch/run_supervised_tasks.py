@@ -170,6 +170,7 @@ def run_experiment(cfg: DictConfig) -> None:
 
         for fold in range(len(splits)):
             print(f"=== Running fold {fold + 1}/{len(splits)} ===")
+            cfg.task.data.cross_validation = fold
             cfg.output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
             train_on_task(cfg)
     else:
