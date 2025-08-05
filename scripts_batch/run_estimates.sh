@@ -1,5 +1,5 @@
 #!/bin/bash
-for model in nt_transformer_1000g \
+for model in nt_transformer_ms \
             dnabert2 \
             nt_transformer_human_ref \
             nt_transformer_v2_500m \
