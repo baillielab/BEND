@@ -163,7 +163,7 @@ def run_experiment(cfg: DictConfig) -> None:
         embed(cfg, splits=splits)
 
     if (
-        cfg.task.data.cross_validation is not None
+        "cross_validation" in cfg.task.data.keys()
         and cfg.task.data.cross_validation is True
     ):
         output_dir = cfg.output_dir
