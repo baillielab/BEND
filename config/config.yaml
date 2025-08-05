@@ -1,0 +1,34 @@
+defaults:
+  - embedding/embedders
+  - tasks@task: gene_finding
+  - _self_
+hydra:
+  mode: MULTIRUN
+  searchpath:
+    - file://config
+  sweeper:
+    params:
+      embedder: hyenadna-tiny-1k,
+        hyenadna-large-1m,
+        nt_transformer_ms,
+        nt_transformer_1000g,
+        nt_transformer_human_ref,
+        nt_transformer_v2_500m,
+        dnabert2,
+        awdlstm,
+        resnetlm
+      tasks@task: gene_finding,
+        enhancer_annotation,
+        histone_modification,
+        chromatin_accessibility,
+        cpg_methylation,
+        var_effects_expression,
+        var_effects_disease
+
+data_dir: ./data/
+embedders_dir: ./pretrained_models/
+embeddings_output_dir: ./data/embeddings/${task.task}/${embedder}/
+output_dir: ./results/${task.task}/${embedder}/
+
+embedder: nt_transformer_1000g
+compute_embeddings: true # Set to false if embeddings already exist
