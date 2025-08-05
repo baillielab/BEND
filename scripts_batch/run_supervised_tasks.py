@@ -163,15 +163,15 @@ def run_experiment(cfg: DictConfig) -> None:
         embed(cfg, splits=splits)
 
     if (
-        cfg.task.data.cross_validation is not None
+        "cross_validation" in cfg.task.data.keys()
         and cfg.task.data.cross_validation is True
     ):
         output_dir = cfg.output_dir
 
-        for split in range(len(splits)):
-            print(f"=== Running split {split + 1}/{len(splits)} ===")
-            cfg.task.data.cross_validation = split
-            cfg.output_dir = os.path.join(output_dir, f"split_{split + 1}")
+        for fold in range(len(splits)):
+            print(f"=== Running fold {fold + 1}/{len(splits)} ===")
+            cfg.task.data.cross_validation = fold
+            cfg.output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
             train_on_task(cfg)
     else:
         train_on_task(cfg)

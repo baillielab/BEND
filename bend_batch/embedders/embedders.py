@@ -14,26 +14,20 @@ Embedders can be used as follows. Please check the individual classes for more d
 
 """
 
-import torch
-import numpy as np
-from typing import List, Iterable
-from functools import partial
 import os
+from typing import List
+
+import numpy as np
+import torch
+from sklearn.preprocessing import LabelEncoder
+from transformers import AutoModelForMaskedLM, AutoTokenizer, logging
 
 from bend.models.awd_lstm import AWDLSTMModelForInference
 from bend.models.dilated_cnn import ConvNetModel
-from bend.models.hyena_dna import HyenaDNAPreTrainedModel, CharacterTokenizer
 from bend.models.dnabert2 import BertForMaskedLM as DNABert2BertForMaskedLM
+from bend.models.hyena_dna import CharacterTokenizer, HyenaDNAPreTrainedModel
 from bend.utils.download import download_model
 from bend_batch.utils import get_device
-
-from tqdm.auto import tqdm
-from transformers import (
-    logging,
-    AutoTokenizer,
-    AutoModelForMaskedLM,
-)
-from sklearn.preprocessing import LabelEncoder
 
 logging.set_verbosity_error()
 DEVICE = get_device()
@@ -583,7 +577,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             model_max_length=self.max_sequence_length
             + 2,  # to account for special tokens, like EOS
             add_special_tokens=False,  # we handle special tokens elsewhere
-            padding_side="left",  # since HyenaDNA is causal, we pad on the left
+            padding_side="right",  # as we are interested in the embeddings, and not in generating sequences, we pad on the right
         )
 
     def embed(
