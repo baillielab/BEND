@@ -4,21 +4,23 @@ train_on_task.py
 Train a model on a downstream task.
 """
 
-import hydra
-from omegaconf import DictConfig, OmegaConf, open_dict
-import torch
-from bend.utils.task_trainer import (
-    BaseTrainer,
-    MSELoss,
-    BCEWithLogitsLoss,
-    PoissonLoss,
-    CrossEntropyLoss,
-)
-import wandb
-from bend.models.downstream import CustomDataParallel
 import os
 import sys
+
+import hydra
+import torch
+import wandb
+from omegaconf import DictConfig, OmegaConf, open_dict
+
+from bend.models.downstream import CustomDataParallel
 from bend.utils.set_seed import set_seed
+from bend.utils.task_trainer import (
+    BaseTrainer,
+    BCEWithLogitsLoss,
+    CrossEntropyLoss,
+    MSELoss,
+    PoissonLoss,
+)
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
@@ -90,30 +92,6 @@ def run_experiment(cfg: DictConfig) -> None:
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
-    # define criterion
-    print(f"Use {cfg.params.criterion} loss function")
-    if cfg.params.criterion == "cross_entropy":
-        criterion = CrossEntropyLoss(
-            ignore_index=cfg.data.padding_value,
-            weight=(
-                torch.tensor(cfg.params.class_weights).to(device)
-                if cfg.params.class_weights is not None
-                else None
-            ),
-        )
-    elif cfg.params.criterion == "poisson_nll":
-        criterion = PoissonLoss()
-    elif cfg.params.criterion == "mse":
-        criterion = MSELoss()
-    elif cfg.params.criterion == "bce":
-        criterion = BCEWithLogitsLoss(
-            class_weights=(
-                torch.tensor(cfg.params.class_weights).to(device)
-                if cfg.params.class_weights is not None
-                else None
-            )
-        )
-
     # init dataloaders
     if "supervised" in cfg.embedder:
         cfg.data.data_dir = cfg.data.data_dir.replace(cfg.embedder, "onehot")
@@ -124,7 +102,6 @@ def run_experiment(cfg: DictConfig) -> None:
     trainer = BaseTrainer(
         model=model,
         optimizer=optimizer,
-        criterion=criterion,
         device=device,
         config=cfg,
         overwrite_dir=True,
