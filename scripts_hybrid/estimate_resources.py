@@ -15,8 +15,8 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from bend.estimate.task_trainer import EstimateTrainer
-from bend_batch.datasets import DataSupervised, collate_fn
-from bend_batch.utils import get_device, record_embedding_time, set_seed
+from bend_hybrid.datasets import DataSupervised, collate_fn
+from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 EPOCHS = 1
 MAX_SAMPLES = 50000

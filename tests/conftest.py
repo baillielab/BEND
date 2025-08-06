@@ -3,23 +3,23 @@ Initialization file for pytest configuration.
 This file sets up fixtures and configurations for testing datasets in the BEND project.
 """
 
-from tqdm.auto import tqdm
+import h5py
 import pandas as pd
 import pytest
 from hydra import compose, initialize
-import h5py
-from bend.io.sequtils import multi_hot, Fasta
-from bend_batch.datasets import DataSupervised
+from tqdm.auto import tqdm
 
+from bend.io.sequtils import Fasta, multi_hot
+from bend_hybrid.datasets import DataSupervised
 
 with initialize(version_base=None, config_path="../conf/embedding/"):
     CFG_DEFAULT = compose(config_name="embed")
 
 SUPERVISED_TASKS = {
-    "gene_finding": ["train", "valid", "test"],
-    "cpg_methylation": ["train", "valid", "test"],
-    "chromatin_accessibility": ["train", "valid", "test"],
+    "gene_finding": ["valid", "train", "test"],
     "histone_modification": ["train", "valid", "test"],
+    "cpg_methylation": ["train", "valid", "test"],
+    "chromatin_accessibility": ["valid", "test", "train"],
     "enhancer_annotation": [f"part{i}" for i in range(1, 10)],
 }
 

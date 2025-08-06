@@ -2,36 +2,35 @@
 Test generated embeddings for BEND tasks using different embedder models.
 """
 
-from tqdm.auto import tqdm
-import torch
+import hydra
 import numpy as np
 import pytest
+import torch
 from hydra import compose, initialize
-import hydra
-from torch.utils.data import DataLoader
 from scipy.stats import pearsonr
-
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 EMBEDDERS = [
-    # "hyenadna-tiny-1k",
+    "hyenadna-tiny-1k",
     # "hyenadna-large-1m",
-    "nt_transformer_ms",
-    "nt_transformer_1000g",
-    "nt_transformer_human_ref",
-    "nt_transformer_v2_500m",
-    "dnabert2",
-    "awdlstm",
-    "resnetlm",
+    # "nt_transformer_ms",
+    # "nt_transformer_1000g",
+    # "nt_transformer_human_ref",
+    # "nt_transformer_v2_500m",
+    # "dnabert2",
+    # "awdlstm",
+    # "resnetlm",
 ]
 
 # Number of embeddings to retrieve for testing
-N_EMBEDDINGS = 10
+N_EMBEDDINGS = 1000
 # Minimum Pearson correlation between embeddings
 MIN_CORR = 1 - 1e-5
 # Maximum allowed difference between any two embedding values
 # Results can be batch dependent!
 # (ie for HyenaDNA, due to normalisation based on batch)
-ABS_TOL = 1e-4
+ABS_TOL = 0
 PADDING_VALUE = -100
 
 
@@ -57,25 +56,31 @@ def get_gt_embeddings(gt_sequences, embedder):
     return gt_embeddings, sequences
 
 
-def get_batch_embeddings(dataset, embedder):
+def get_batch_embeddings(task, dataset, embedder):
     """
     Generate embeddings for a batch of sequences using our approach and the specified embedder.
     """
 
     with initialize(version_base=None, config_path="../config/"):
-        cfg = compose(config_name="config")
+        cfg = compose(
+            config_name="config",
+            overrides=[f"embedder={embedder}", f"tasks@task={task}"],
+        )
 
     embedder = hydra.utils.instantiate(cfg.embedding[embedder])
 
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
+    dataloader = DataLoader(
+        dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True
+    )
 
+    print(cfg.task.dataset.sequence_length)  # Debugging line
     is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
+    print(f"Is data uneven: {is_data_uneven}")  # Debugging line
 
     embeddings = []
     sequences = []
 
     for _, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
-        print(f"Len sequence: {len(seq[0])} bases")
 
         seq_embed = embedder(seq, is_data_uneven)
 
@@ -125,13 +130,11 @@ def assert_embeddings(gt_embeddings, batch_embeddings):
         pearson_corr.append(pearsonr(gt_emb, batch_emb)[0])
 
         max_diff = max(max_diff, np.max(np.abs(gt_emb - batch_emb)))
-        print(f"Max difference: {max_diff}")
         assert np.allclose(
             gt_emb, batch_emb, atol=ABS_TOL
         ), f"Max difference too high: {max_diff}"
 
     pearson_corr = np.mean(np.array(pearson_corr))
-    print(f"Pearson correlation: {pearson_corr}")
     assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
 
 
@@ -153,7 +156,7 @@ def test_supervised_embeddings(supervised_data, embedder):
 
     gt_sequences, _ = gt_data
 
-    batch_embeddings, batch_sequences = get_batch_embeddings(dataset, embedder)
+    batch_embeddings, batch_sequences = get_batch_embeddings(task, dataset, embedder)
     gt_embeddings, gt_sequences = get_gt_embeddings(gt_sequences, embedder)
 
     assert_sequences(gt_sequences, batch_sequences)

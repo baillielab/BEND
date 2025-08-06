@@ -16,7 +16,7 @@ import numpy as np
 import torch
 import webdataset as wds
 
-from bend_batch.utils import SEED, seed_worker
+from bend_hybrid.utils import SEED, seed_worker
 
 
 def pad_to_longest(sequences: List[torch.Tensor], padding_value=-100, batch_first=True):

@@ -5,17 +5,19 @@ sequence. The variant sequence is obtained by replacing the reference nucleotide
 with the variant nucleotide at the variant position.
 """
 
-import hydra
-from omegaconf import DictConfig
 import os
-from bend_batch.utils import set_seed, get_device
-from bend_batch.datasets import DataVariantEffects
-from torch.utils.data import DataLoader
-from sklearn.metrics import roc_auc_score
-import pandas as pd
 import time
+
+import hydra
+import pandas as pd
+from omegaconf import DictConfig
 from scipy import spatial
+from sklearn.metrics import roc_auc_score
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+
+from bend_hybrid.datasets import DataVariantEffects
+from bend_hybrid.utils import get_device, set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
