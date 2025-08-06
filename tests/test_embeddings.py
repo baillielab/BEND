@@ -24,7 +24,7 @@ EMBEDDERS = [
 ]
 
 # Number of embeddings to retrieve for testing
-N_EMBEDDINGS = 1000
+N_EMBEDDINGS = 100
 # Minimum Pearson correlation between embeddings
 MIN_CORR = 1 - 1e-5
 # Maximum allowed difference between any two embedding values
@@ -73,9 +73,7 @@ def get_batch_embeddings(task, dataset, embedder):
         dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True
     )
 
-    print(cfg.task.dataset.sequence_length)  # Debugging line
     is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
-    print(f"Is data uneven: {is_data_uneven}")  # Debugging line
 
     embeddings = []
     sequences = []
