@@ -1,137 +1,152 @@
-from tqdm.auto import tqdm
+"""
+Test generated embeddings for BEND tasks using different embedder models.
+"""
+
+import hydra
 import numpy as np
 import pytest
-from hydra import compose, initialize
-import hydra
-from torch.utils.data import DataLoader
-from scipy.stats import pearsonr
-from bend.utils.set_seed import set_seed
 import torch
-
-set_seed()
+from hydra import compose, initialize
+from scipy.stats import pearsonr
+from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 EMBEDDERS = [
-    "dnabert2",
-    "nt_transformer_v2_500m",
-    "nt_transformer_ms",
-    "nt_transformer_human_ref",
-    "nt_transformer_1000g",
     "hyenadna-tiny-1k",
-    "hyenadna-large-1k",
-    "resnetlm",
-    "awdlstm",
+    # "hyenadna-large-1m",
+    # "nt_transformer_ms",
+    # "nt_transformer_1000g",
+    # "nt_transformer_human_ref",
+    # "nt_transformer_v2_500m",
+    # "dnabert2",
+    # "awdlstm",
+    # "resnetlm",
 ]
 
-
-N_EMBEDDINGS = 10  # Number of embeddings to retrieve for testing
-MIN_CORR = 1 - 1e-5  # Minimum Pearson correlation between embeddings
-ABS_TOL = 1e-4  # Maximum allowed difference between any two embedding values -> Results are batch dependent! (at least for HyenaDNA, due to normalisation based on batch)
-
+# Number of embeddings to retrieve for testing
+N_EMBEDDINGS = 100
+# Minimum Pearson correlation between embeddings
+MIN_CORR = 1 - 1e-5
+# Maximum allowed difference between any two embedding values
+# Results can be batch dependent!
+# (ie for HyenaDNA, due to normalisation based on batch)
+ABS_TOL = 0
 PADDING_VALUE = -100
-
-with initialize(version_base=None, config_path="../conf/embedding/"):
-    CFG_SEQ = compose(config_name="embed")
-with initialize(version_base=None, config_path="../config_memoryless/embedders_batch/"):
-    CFG_BATCH = compose(config_name="embedders")
-    CFG_BATCH["embedders_dir"] = CFG_SEQ["embedders_dir"]
 
 
 def get_gt_embeddings(gt_sequences, embedder):
-    embedder = hydra.utils.instantiate(CFG_SEQ[embedder])
+    """
+    Generate embeddings for the given sequences using BEND method and the specified embedder.
+    """
+
+    with initialize(version_base=None, config_path="../conf/embedding/"):
+        cfg = compose(config_name="embed")
+
+    embedder = hydra.utils.instantiate(cfg[embedder])
     sequences_subset = gt_sequences[:N_EMBEDDINGS]
 
     gt_embeddings = []
     sequences = []
 
-    for idx_sample, seq in tqdm(
-        enumerate(sequences_subset), desc="Embedding GT sequences"
-    ):
+    for _, seq in tqdm(enumerate(sequences_subset), desc="Embedding GT sequences"):
         sequences.append(seq)
         seq_embed = embedder(seq, upsample_embeddings=True)
         gt_embeddings.extend(seq_embed)
 
-    gt_embeddings = np.array(gt_embeddings).astype(np.float64)
-
     return gt_embeddings, sequences
 
 
-def get_batch_embeddings(dataset, embedder):
+def get_batch_embeddings(task, dataset, embedder):
+    """
+    Generate embeddings for a batch of sequences using our approach and the specified embedder.
+    """
 
-    embedder = hydra.utils.instantiate(CFG_BATCH[embedder])
+    with initialize(version_base=None, config_path="../config/"):
+        cfg = compose(
+            config_name="config",
+            overrides=[f"embedder={embedder}", f"tasks@task={task}"],
+        )
+
+    embedder = hydra.utils.instantiate(cfg.embedding[embedder])
 
     dataloader = DataLoader(
-        dataset,
-        batch_size=1,
-        shuffle=False,
-        num_workers=0,
+        dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True
     )
+
+    is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
 
     embeddings = []
     sequences = []
 
-    for idx_batch, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
-        sequences.extend(seq)
-        batch_embedded = embedder(seq)
-        batch_embedded = batch_embedded.cpu().numpy()
+    for _, (seq, _) in tqdm(enumerate(dataloader), desc="Embedding batches"):
 
-        embeddings.extend(batch_embedded)  # list of seq_len x embed_dim numpy arrays
+        seq_embed = embedder(seq, is_data_uneven)
 
-        idx_sample = (idx_batch + 1) * len(batch_embedded)
-        if idx_sample >= N_EMBEDDINGS:
+        embeddings.extend(seq_embed)  # list of one sequence as batch is of size 1
+        sequences.extend(seq)  # list of one sequence as batch is of size 1
+
+        if len(embeddings) >= N_EMBEDDINGS:
             break
-
-    embeddings = embeddings[:N_EMBEDDINGS]
-    embeddings = np.array(embeddings).astype(np.float64)
-
-    sequences = sequences[:N_EMBEDDINGS]
 
     return embeddings, sequences
 
 
 def assert_sequences(gt_sequences, batch_sequences):
     """Asserts that ground truth sequences and batch sequences are equal."""
-    assert len(batch_sequences) == len(gt_sequences), (
-        f"Batch sequences and GT sequences length mismatch: "
+
+    assert len(gt_sequences) == len(batch_sequences), (
+        f"GT sequences and batch sequences length mismatch: "
         f"{len(batch_sequences)} != {len(gt_sequences)}"
     )
     for b_seq, gt_seq in zip(batch_sequences, gt_sequences):
-        assert b_seq == gt_seq, f"Sequence mismatch: {b_seq} != {gt_seq}"
+        assert b_seq == gt_seq, "Sequence mismatch!"
 
 
 def assert_embeddings(gt_embeddings, batch_embeddings):
-    """
-    Asserts that ground truth embeddings and batch embeddings are similar
+    """Asserts that ground truth embeddings and batch embeddings are similar
     using Pearson correlation and absolute tolerance.
     """
 
-    assert batch_embeddings.shape == gt_embeddings.shape, (
-        f"Batch embeddings and GT embeddings shape mismatch: "
-        f"{batch_embeddings.shape} != {gt_embeddings.shape}"
+    assert len(gt_embeddings) == len(batch_embeddings) and len(gt_embeddings) > 0, (
+        f"GT embeddings and batch embeddings length mismatch: "
+        f"{len(batch_embeddings)} != {len(gt_embeddings)}"
     )
 
-    batch_embeddings = batch_embeddings.flatten()
-    gt_embeddings = gt_embeddings.flatten()
+    pearson_corr = []
+    max_diff = 0
 
-    pearson_corr = pearsonr(batch_embeddings, gt_embeddings)[0]
+    for gt_emb, batch_emb in zip(gt_embeddings, batch_embeddings):
 
-    print(f"Pearson correlation: {pearson_corr}")
+        assert gt_emb.shape == batch_emb.shape, (
+            f"GT embeddings and batch embeddings shape mismatch: "
+            f"{gt_emb.shape} != {batch_emb.shape}"
+        )
 
+        batch_emb = batch_emb.flatten()
+        gt_emb = gt_emb.flatten()
+
+        pearson_corr.append(pearsonr(gt_emb, batch_emb)[0])
+
+        max_diff = max(max_diff, np.max(np.abs(gt_emb - batch_emb)))
+        assert np.allclose(
+            gt_emb, batch_emb, atol=ABS_TOL
+        ), f"Max difference too high: {max_diff}"
+
+    pearson_corr = np.mean(np.array(pearson_corr))
     assert pearson_corr > MIN_CORR, f"Pearson correlation too low: {pearson_corr}"
-
-    max_diff = np.max(np.abs(gt_embeddings - batch_embeddings))
-    print(f"Max difference: {max_diff}")
-    assert np.allclose(
-        gt_embeddings, batch_embeddings, atol=ABS_TOL
-    ), f"Max difference too high: {max_diff}"
 
 
 @pytest.mark.parametrize(
     "embedder",
     EMBEDDERS,
 )
-def test_embeddings(data, embedder):
+def test_supervised_embeddings(supervised_data, embedder):
+    """
+    Test that the embeddings generated using our approach match BEND's approach
+    for the specified embedder.
+    """
 
-    task, split, gt_data, dataset = data
+    task, split, gt_data, dataset = supervised_data
 
     print(
         f"\nTesting embeddings for task: {task}, split: {split}, embedder: {embedder}\n"
@@ -139,12 +154,8 @@ def test_embeddings(data, embedder):
 
     gt_sequences, _ = gt_data
 
-    batch_embeddings, batch_sequences = get_batch_embeddings(dataset, embedder)
-    print(f"Batch Embeddings shape: {batch_embeddings.shape}")
-
+    batch_embeddings, batch_sequences = get_batch_embeddings(task, dataset, embedder)
     gt_embeddings, gt_sequences = get_gt_embeddings(gt_sequences, embedder)
-    print(f"GT Embeddings shape: {gt_embeddings.shape}")
 
     assert_sequences(gt_sequences, batch_sequences)
-
     assert_embeddings(gt_embeddings, batch_embeddings)

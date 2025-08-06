@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from bend.utils.task_trainer import BaseTrainer
-from bend_batch.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
-from bend_batch.utils import get_device, record_embedding_time, set_seed
+from bend_hybrid.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
+from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"

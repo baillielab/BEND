@@ -1,10 +1,18 @@
+"""
+Test that the following datasets produce the same sequences and labels as the ground truth:
+- DataSupervised
+- DataVariantEffects
+"""
+
 import numpy as np
-import pytest
 
 
-def test_sequences_and_labels(data):
+def test_supervised_sequences_and_labels(supervised_data):
+    """
+    Test that the sequences and labels from the DataSupervised dataset match the ground truth data.
+    """
 
-    task, split, gt_data, dataset = data
+    task, split, gt_data, dataset = supervised_data
 
     print(f"Testing sequences and labels for task: {task}, split: {split}")
 
