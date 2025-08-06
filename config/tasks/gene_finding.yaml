@@ -9,13 +9,13 @@ dataset:
   label_depth: 9
   sequence_length: null # When null, indicates uneven length sequences
 data:
-  _target_: bend.utils.data_downstream.get_data
+  _target_: bend_batch.data_downstream.get_data
   data_dir: ${embeddings_output_dir}
   cross_validation: false
-  batch_size: 32
-  num_workers: 1
+  batch_size: 64
+  num_workers: 2
   padding_value: -100
-  shuffle: 1000
+  shuffle: 1280
 model:
   _target_: bend.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}
