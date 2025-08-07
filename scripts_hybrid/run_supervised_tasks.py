@@ -17,7 +17,7 @@ set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def embed(cfg: DictConfig, embedder, split: str) -> None:
+def embed(cfg: DictConfig, split: str) -> None:
     """
     Embed all sequences in the dataset.
 
@@ -26,6 +26,9 @@ def embed(cfg: DictConfig, embedder, split: str) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
+
+    os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
+    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
 
     print("Loading dataset ...")
     dataset = DataSupervised(
@@ -39,11 +42,6 @@ def embed(cfg: DictConfig, embedder, split: str) -> None:
         ),
         sequence_length=cfg.task.dataset.sequence_length,
         split=split,
-        undersample=(
-            cfg.task.dataset.annotations_undersample
-            if "annotations_undersample" in cfg.task.dataset
-            else False
-        ),
     )
 
     is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
@@ -144,20 +142,16 @@ def run_experiment(cfg: DictConfig) -> None:
             f"=== Embedding sequences for task: {cfg.task.task} with model: {cfg.embedder} ==="
         )
 
-        os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
-        embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
         start_time = time.time()
 
         for split in splits:
             print(f"=== Processing split: {split} ===")
-            embed(cfg, embedder, split)
-
-        end_time = time.time()
+            embed(cfg, split)
 
         record_embedding_time(
             cfg.task.task,
             cfg.embedder,
-            running_time=end_time - start_time,
+            running_time=time.time() - start_time,
             n_samples=len(annotations),
             tar_path=cfg.embeddings_output_dir,
             output_dir=cfg.output_dir,
