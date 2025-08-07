@@ -165,7 +165,7 @@ class DataSupervised(Dataset):
         split: str = None,
         split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
         flank: int = DEFAULT_FLANK,
-        undersample: Union[bool, int] = False,
+        frac: float = None,
     ):
 
         if hdf5_path is None and label_depth is None:
@@ -184,19 +184,17 @@ class DataSupervised(Dataset):
             annotations, mask = self._filter_annotations(
                 annotations, split, split_column_idx
             )
-            print(f"Filtered annotations from {total_samples} to {len(annotations)}")
+            print(
+                f"Total annotations: {total_samples}. {split} annotations: {len(annotations)}"
+            )
 
-            if (
-                split == "train"
-                and undersample is not False
-                and isinstance(undersample, int)
-                and len(annotations) >= undersample
-                and undersample > 0
-            ):
-                print(f"Undersampling to {undersample} samples for training.")
-                annotations = annotations.sample(
-                    n=undersample, random_state=SEED, replace=False
-                )
+        if frac is not None:
+            if not (0 < frac <= 1):
+                raise ValueError("Sample fraction must be between 0 and 1.")
+            print(f"Undersampling to {round(frac*len(annotations))} samples.")
+            annotations = annotations.sample(
+                frac=frac, random_state=SEED, replace=False
+            )
 
         if hdf5_path:
             self.sequences, self.labels = self._get_data_hdf5(
