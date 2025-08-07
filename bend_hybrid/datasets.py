@@ -188,9 +188,12 @@ class DataSupervised(Dataset):
 
             if (
                 split == "train"
+                and undersample is not False
                 and isinstance(undersample, int)
-                and len(annotations) > undersample
+                and len(annotations) >= undersample
+                and undersample > 0
             ):
+                print(f"Undersampling to {undersample} samples for training.")
                 annotations = annotations.sample(
                     n=undersample, random_state=SEED, replace=False
                 )

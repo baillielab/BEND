@@ -51,7 +51,11 @@ def embed(cfg: DictConfig, splits: list[str]) -> None:
             ),
             sequence_length=cfg.task.dataset.sequence_length,
             split=split,
-            undersample=cfg.undersample,
+            undersample=(
+                cfg.task.dataset.annotations_undersample
+                if "annotations_undersample" in cfg.task.dataset
+                else False
+            ),
         )
         total_samples += len(dataset)
 
