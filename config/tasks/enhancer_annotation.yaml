@@ -9,7 +9,7 @@ dataset:
   label_depth: 1
   sequence_length: null # When null, indicates uneven length sequences
 data:
-  _target_: bend_batch.data_downstream.get_data
+  _target_: bend_hybrid.data_downstream.get_data
   data_dir: ${embeddings_output_dir}
   batch_size: 8
   num_workers: 2

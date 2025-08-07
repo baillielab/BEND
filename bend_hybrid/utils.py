@@ -51,7 +51,7 @@ def get_device():
 def record_embedding_time(
     task: str,
     model: str,
-    start_time: float,
+    running_time: float,
     n_samples: int,
     tar_path: str,
     output_dir: str,
@@ -61,12 +61,21 @@ def record_embedding_time(
 
     Parameters
     ----------
-    start_time : float
-        The start time of the embedding process.
+    task : str
+        The name of the task.
+    model : str
+        The name of the model used for embedding.
+    running_time : float
+        The time taken to run the embedding.
+    n_samples : int
+        The number of samples embedded.
+    tar_path : str
+        The path where the tar files are stored.
+    output_dir : str
+        The directory where the output CSV file will be saved.
     """
 
-    end_time = time.time()
-    print(f"Embedding completed in {end_time - start_time:.2f} seconds")
+    print(f"Embedding completed in {running_time:.2f} seconds")
 
     tar_size = sum(
         os.path.getsize(os.path.join(tar_path, f))

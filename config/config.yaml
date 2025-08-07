@@ -32,3 +32,4 @@ output_dir: ./results/${task.task}/${embedder}/
 
 embedder: nt_transformer_1000g
 compute_embeddings: true # Set to false if embeddings already exist
+

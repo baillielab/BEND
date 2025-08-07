@@ -7,8 +7,12 @@ dataset:
   genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
   label_depth: 125
   sequence_length: 512
+  # If not false, undersample train annotations to this number of samples.
+  # Valid annotations will be undersampled to keep the original split proportions.
+  # Test annotations will not be undersampled.
+  annotations_undersample: 10000
 data:
-  _target_: bend_batch.data_downstream.get_data
+  _target_: bend_hybrid.data_downstream.get_data
   data_dir: ${embeddings_output_dir}
   batch_size: 256
   num_workers: 2
