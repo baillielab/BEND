@@ -31,4 +31,6 @@ embeddings_output_dir: ./data/embeddings/${task.task}/${embedder}/
 output_dir: ./results/${task.task}/${embedder}/
 
 embedder: nt_transformer_1000g
+undersample: false # Set to the number of samples to undersample, or false to not undersample
 compute_embeddings: true # Set to false if embeddings already exist
+

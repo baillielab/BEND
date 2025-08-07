@@ -1,13 +1,14 @@
-from torch.utils.data import Dataset
-import pandas as pd
-from Bio import SeqIO
-from tqdm.auto import tqdm
-import pysam
-import pandas as pd
-import numpy as np
+from typing import Union
+
 import h5py
-from torch.utils.data import Dataset
 import numpy as np
+import pandas as pd
+import pysam
+from Bio import SeqIO
+from torch.utils.data import Dataset
+from tqdm.auto import tqdm
+
+from bend_hybrid.utils import SEED
 
 DEFAULT_FLANK = 0  # Default flank size for sequence fetching
 DEFAULT_LABEL_COLUMN_IDX = 6  # Default index for label column in BED file
@@ -164,6 +165,7 @@ class DataSupervised(Dataset):
         split: str = None,
         split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
         flank: int = DEFAULT_FLANK,
+        undersample: Union[bool, int] = False,
     ):
 
         if hdf5_path is None and label_depth is None:
@@ -171,23 +173,27 @@ class DataSupervised(Dataset):
                 "Either hdf5_path or label_depth must be provided to initialize DatasetAnnotations."
             )
 
-        # if hdf5_path and label_depth:
-        #     raise ValueError(
-        #         "Only one of hdf5_path or label_depth should be provided to initialize DatasetAnnotations."
-        #     )
-
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
         genome = Fasta(genome_path)
 
         self.sequence_length = sequence_length
 
         mask = None
-        if split:
+        if split is not None:
             total_samples = len(annotations)
             annotations, mask = self._filter_annotations(
                 annotations, split, split_column_idx
             )
             print(f"Filtered annotations from {total_samples} to {len(annotations)}")
+
+            if (
+                split == "train"
+                and isinstance(undersample, int)
+                and len(annotations) > undersample
+            ):
+                annotations = annotations.sample(
+                    n=undersample, random_state=SEED, replace=False
+                )
 
         if hdf5_path:
             self.sequences, self.labels = self._get_data_hdf5(
