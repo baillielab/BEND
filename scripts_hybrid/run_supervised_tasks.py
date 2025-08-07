@@ -111,8 +111,6 @@ def train_on_task(cfg: DictConfig) -> None:
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
-    OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
-
     model = hydra.utils.instantiate(cfg.task.model).to(device).float()
 
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
@@ -126,6 +124,8 @@ def train_on_task(cfg: DictConfig) -> None:
         config=cfg.task,
         overwrite_dir=True,
     )
+
+    OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
     if cfg.task.params.mode == "train":
         trainer.train(
@@ -171,7 +171,7 @@ def run_experiment(cfg: DictConfig) -> None:
         for fold in range(len(splits)):
             print(f"=== Running fold {fold + 1}/{len(splits)} ===")
             cfg.task.data.cross_validation = fold
-            cfg.output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
+            cfg.output_dir = os.path.join(output_dir, f"split_{fold + 1}")
             train_on_task(cfg)
     else:
         train_on_task(cfg)
