@@ -12,7 +12,7 @@ data:
   _target_: bend_hybrid.data_downstream.get_data
   data_dir: ${embeddings_output_dir}
   batch_size: 8
-  num_workers: 2
+  num_workers: 16
   padding_value: -100
   shuffle: 160
   cross_validation: true # enhancer_annotation task uses cross-validation

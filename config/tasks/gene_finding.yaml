@@ -13,7 +13,7 @@ data:
   data_dir: ${embeddings_output_dir}
   cross_validation: false
   batch_size: 64
-  num_workers: 2
+  num_workers: 16
   padding_value: -100
   shuffle: 1280
 model:
