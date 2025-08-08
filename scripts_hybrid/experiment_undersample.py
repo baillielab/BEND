@@ -210,31 +210,35 @@ def run_experiment(cfg: DictConfig) -> None:
             output_dir=cfg.output_dir,
         )
 
-    n_samples_train = None
-    n_samples_valid = None
-
-    if (
-        "num_train_embeddings" in cfg.task.data
-        and cfg.task.data.num_train_embeddings is not None
-    ):
-        valid_annotations = annotations[
-            annotations.iloc[:, DEFAULT_SPLIT_COLUMN_IDX] == "valid"
-        ]
-
-        n_samples_train = max(1, cfg.task.data.num_train_embeddings)
-        if n_samples_train > len(train_annotations):
-            print(
-                f"Warning: num_train_embeddings ({n_samples_train}) is greater than the "
-                "total number of training annotations. Using all training annotations."
-            )
-            n_samples_train = len(train_annotations)
-
-        undersampling_ratio = n_samples_train / len(train_annotations)
-        n_samples_valid = max(
-            1, math.ceil(undersampling_ratio * len(valid_annotations))
+    if cfg.train_model is True:
+        print(
+            f"=== Training model for task: {cfg.task.task} with embedder: {cfg.embedder} ==="
         )
+        n_samples_train = None
+        n_samples_valid = None
 
-    train_on_task(cfg, n_samples_train, n_samples_valid)
+        if (
+            "num_train_embeddings" in cfg.task.data
+            and cfg.task.data.num_train_embeddings is not None
+        ):
+            valid_annotations = annotations[
+                annotations.iloc[:, DEFAULT_SPLIT_COLUMN_IDX] == "valid"
+            ]
+
+            n_samples_train = max(1, cfg.task.data.num_train_embeddings)
+            if n_samples_train > len(train_annotations):
+                print(
+                    f"Warning: num_train_embeddings ({n_samples_train}) is greater than the "
+                    "total number of training annotations. Using all training annotations."
+                )
+                n_samples_train = len(train_annotations)
+
+            undersampling_ratio = n_samples_train / len(train_annotations)
+            n_samples_valid = max(
+                1, math.ceil(undersampling_ratio * len(valid_annotations))
+            )
+
+        train_on_task(cfg, n_samples_train, n_samples_valid)
 
 
 if __name__ == "__main__":

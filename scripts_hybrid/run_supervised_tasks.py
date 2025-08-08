@@ -157,19 +157,23 @@ def run_experiment(cfg: DictConfig) -> None:
             output_dir=cfg.output_dir,
         )
 
-    if (
-        "cross_validation" in cfg.task.data.keys()
-        and cfg.task.data.cross_validation is True
-    ):
-        output_dir = cfg.output_dir
+    if cfg.train_model is True:
+        print(
+            f"=== Training model for task: {cfg.task.task} with embedder: {cfg.embedder} ==="
+        )
+        if (
+            "cross_validation" in cfg.task.data.keys()
+            and cfg.task.data.cross_validation is True
+        ):
+            output_dir = cfg.output_dir
 
-        for fold in range(len(splits)):
-            print(f"=== Running fold {fold + 1}/{len(splits)} ===")
-            cfg.task.data.cross_validation = fold
-            cfg.output_dir = os.path.join(output_dir, f"split_{fold + 1}")
+            for fold in range(len(splits)):
+                print(f"=== Running fold {fold + 1}/{len(splits)} ===")
+                cfg.task.data.cross_validation = fold
+                cfg.output_dir = os.path.join(output_dir, f"split_{fold + 1}")
+                train_on_task(cfg)
+        else:
             train_on_task(cfg)
-    else:
-        train_on_task(cfg)
 
 
 if __name__ == "__main__":
