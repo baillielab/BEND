@@ -20,7 +20,7 @@ set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def embed(cfg: DictConfig, split: str, frac_annotations: float = None) -> None:
+def embed(cfg: DictConfig, split: str, frac_annotations: float = None) -> int:
     """
     Embed all sequences in the dataset.
 
@@ -28,6 +28,16 @@ def embed(cfg: DictConfig, split: str, frac_annotations: float = None) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
+    split : str
+        The dataset split to embed (e.g., 'train', 'valid', 'test').
+    frac_annotations : float, optional
+        Fraction of annotations to use for embedding. If None, use all annotations.
+        Defaults to None.
+
+    Returns
+    -------
+    int
+        The number of samples embedded.
     """
 
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
@@ -80,6 +90,8 @@ def embed(cfg: DictConfig, split: str, frac_annotations: float = None) -> None:
                     }
                 )
 
+    return len(dataset)  # Return the number of samples embedded
+
 
 def train_on_task(cfg: DictConfig, n_samples_train=None, n_samples_valid=None) -> None:
     """
@@ -93,6 +105,7 @@ def train_on_task(cfg: DictConfig, n_samples_train=None, n_samples_valid=None) -
 
     device = get_device()
 
+    cfg.output_dir = os.path.join(cfg.output_dir, "downstream")
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
@@ -197,15 +210,16 @@ def run_experiment(cfg: DictConfig) -> None:
                 frac_annotations = None
 
         start_time = time.time()
+        n_emb_samples = 0
         for split in splits:
             print(f"=== Processing split: {split} ===")
-            embed(cfg, split, frac_annotations if split != "test" else None)
+            n_emb_samples += embed(cfg, split, frac_annotations)
 
         record_embedding_time(
             cfg.task.task,
             cfg.embedder,
             running_time=time.time() - start_time,
-            n_samples=len(annotations),
+            n_samples=n_emb_samples,
             tar_path=cfg.embeddings_output_dir,
             output_dir=cfg.output_dir,
         )

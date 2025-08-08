@@ -89,6 +89,7 @@ def train_on_task(cfg: DictConfig) -> None:
 
     device = get_device()
 
+    cfg.output_dir = os.path.join(cfg.output_dir, "downstream")
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
