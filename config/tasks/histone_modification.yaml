@@ -18,6 +18,7 @@ data:
   num_workers: 2
   padding_value: -100
   shuffle: 5120
+  shardshuffle: 32 # Shuffle top n shards
   # If not null, train using only the specified number of embeddings.
   # Validation embeddings are undersampled to keep the original split proportions.
   # All test embeddings are used.

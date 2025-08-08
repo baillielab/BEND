@@ -16,6 +16,7 @@ data:
   num_workers: 16
   padding_value: -100
   shuffle: 1280
+  shardshuffle: 32 # Shuffle top n shards
 model:
   _target_: bend.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}

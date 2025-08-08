@@ -113,6 +113,7 @@ def train_on_task(cfg: DictConfig, n_samples_train=None, n_samples_valid=None) -
             num_workers=cfg.task.data.num_workers,
             padding_value=cfg.task.data.padding_value,
             shuffle=cfg.task.data.shuffle,
+            shardshuffle=False,  # Do not shuffle shards, but train on the same data
         )
 
         if n_samples is not None:
@@ -212,7 +213,10 @@ def run_experiment(cfg: DictConfig) -> None:
     n_samples_train = None
     n_samples_valid = None
 
-    if "num_train_embeddings" in cfg.task.data:
+    if (
+        "num_train_embeddings" in cfg.task.data
+        and cfg.task.data.num_train_embeddings is not None
+    ):
         valid_annotations = annotations[
             annotations.iloc[:, DEFAULT_SPLIT_COLUMN_IDX] == "valid"
         ]

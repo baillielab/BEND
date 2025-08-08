@@ -91,6 +91,7 @@ def return_dataloader(
     num_workers: int = 0,
     padding_value=-100,
     shuffle: int = None,
+    shardshuffle: Union[bool, int] = False,
 ):
     """
     Function to return a dataloader from a list of tar files or a single one.
@@ -107,6 +108,9 @@ def return_dataloader(
         Value to pad with. The default is -100.
     shuffle : int, optional
         Whether to shuffle the data. The default is None.
+    shardshuffle : Union[bool, int], optional
+        Whether to shuffle the shards of the dataset.
+        If an int, it will shuffle the first n shards. The default is False (no shuffling).
     """
 
     # '''Load data to dataloader from a list of paths or a single path'''
@@ -114,10 +118,9 @@ def return_dataloader(
         data = [data]
 
     # shardShuffle is not explicitly set in the original code, which would lead to not be shuffled as the default value is None.
-    # However, this raises a warning asking to be set explicitly to False, True or a number.
+    # However, this raises a warning asking to be set explicitly to False or a number.
     # To avoid the warning and keep the original behavior, we set it to False.
-
-    dataset = wds.WebDataset(data, shardshuffle=len(data), seed=SEED)
+    dataset = wds.WebDataset(data, shardshuffle=shardshuffle, seed=SEED)
 
     if shuffle is not None:
         dataset = dataset.shuffle(
@@ -169,6 +172,7 @@ def get_data(
     num_workers: int = 32,
     padding_value=-100,
     shuffle: int = None,
+    shardshuffle: Union[bool, int] = False,
     **kwargs,
 ):
     """
@@ -253,6 +257,7 @@ def get_data(
             num_workers=num_workers,
             padding_value=padding_value,
             shuffle=shuffle,
+            shardshuffle=shardshuffle,
         )
         if train_data
         else None
@@ -263,6 +268,8 @@ def get_data(
             batch_size=batch_size,
             num_workers=num_workers,
             padding_value=padding_value,
+            shuffle=False,
+            shardshuffle=False,
         )
         if valid_data
         else None
@@ -273,6 +280,8 @@ def get_data(
             batch_size=batch_size,
             num_workers=num_workers,
             padding_value=padding_value,
+            shuffle=False,
+            shardshuffle=False,
         )
         if test_data
         else None
