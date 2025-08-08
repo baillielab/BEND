@@ -102,7 +102,7 @@ def record_embedding_time(
         {
             "task": task,
             "model": model,
-            "time": end_time - start_time,
+            "time": running_time,
             "n_samples": n_samples,
             "size (bytes)": tar_size,
         },
