@@ -27,8 +27,8 @@ hydra:
 
 data_dir: ./data/
 embedders_dir: ./pretrained_models/
-embeddings_output_dir: ./data/embeddings/${task.task}/${embedder}/
-output_dir: ./results/${task.task}/${embedder}/
+embeddings_output_dir: ./data/embeddings/
+output_dir: ./results/
 
 embedder: nt_transformer_1000g
 compute_embeddings: true # Set to false to skip embedding computation
