@@ -1,4 +1,4 @@
-task_name: var_effects_disease
+task: var_effects_disease
 dataset:
   annotations_path: ${data_dir}/variant_effects/variant_effects_disease.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
