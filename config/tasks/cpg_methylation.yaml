@@ -15,7 +15,7 @@ data:
   _target_: bend_hybrid.data_downstream.get_data
   data_dir: ${embeddings_output_dir}
   batch_size: 256
-  num_workers: 32
+  num_workers: 1
   padding_value: -100
   shuffle: 5120
   shardshuffle: 32 # Shuffle top n shards
