@@ -15,6 +15,7 @@ data:
   num_workers: 2
   padding_value: -100
   shuffle: 160
+  shardshuffle: 32 # Shuffle top n shards
   cross_validation: true # enhancer_annotation task uses cross-validation
 model:
   _target_: bend.models.downstream.CNN

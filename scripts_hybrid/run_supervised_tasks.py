@@ -17,7 +17,7 @@ set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def embed(cfg: DictConfig, embedder, split: str) -> None:
+def embed(cfg: DictConfig, split: str) -> None:
     """
     Embed all sequences in the dataset.
 
@@ -26,6 +26,9 @@ def embed(cfg: DictConfig, embedder, split: str) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
+
+    os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
+    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
 
     print("Loading dataset ...")
     dataset = DataSupervised(
@@ -39,11 +42,6 @@ def embed(cfg: DictConfig, embedder, split: str) -> None:
         ),
         sequence_length=cfg.task.dataset.sequence_length,
         split=split,
-        undersample=(
-            cfg.task.dataset.annotations_undersample
-            if "annotations_undersample" in cfg.task.dataset
-            else False
-        ),
     )
 
     is_data_uneven = True if cfg.task.dataset.sequence_length is None else False
@@ -91,6 +89,7 @@ def train_on_task(cfg: DictConfig) -> None:
 
     device = get_device()
 
+    cfg.output_dir = os.path.join(cfg.output_dir, "downstream")
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
@@ -133,6 +132,17 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
+    if "var" in cfg.task.task:
+        print(
+            "Skipping experiment for task variant_effects, as it is not a supervised task."
+        )
+        return
+
+    cfg.embeddings_output_dir = os.path.join(
+        cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
+    )
+    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.task, cfg.embedder)
+
     print("Retrieving splits from annotations...")
     annotations = pd.read_csv(
         cfg.task.dataset.annotations_path, sep="\t", low_memory=False
@@ -144,38 +154,38 @@ def run_experiment(cfg: DictConfig) -> None:
             f"=== Embedding sequences for task: {cfg.task.task} with model: {cfg.embedder} ==="
         )
 
-        os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
-        embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
         start_time = time.time()
 
         for split in splits:
             print(f"=== Processing split: {split} ===")
-            embed(cfg, embedder, split)
-
-        end_time = time.time()
+            embed(cfg, split)
 
         record_embedding_time(
             cfg.task.task,
             cfg.embedder,
-            running_time=end_time - start_time,
+            running_time=time.time() - start_time,
             n_samples=len(annotations),
             tar_path=cfg.embeddings_output_dir,
             output_dir=cfg.output_dir,
         )
 
-    if (
-        "cross_validation" in cfg.task.data.keys()
-        and cfg.task.data.cross_validation is True
-    ):
-        output_dir = cfg.output_dir
+    if cfg.train_model is True:
+        print(
+            f"=== Training model for task: {cfg.task.task} with embedder: {cfg.embedder} ==="
+        )
+        if (
+            "cross_validation" in cfg.task.data.keys()
+            and cfg.task.data.cross_validation is True
+        ):
+            output_dir = cfg.output_dir
 
-        for fold in range(len(splits)):
-            print(f"=== Running fold {fold + 1}/{len(splits)} ===")
-            cfg.task.data.cross_validation = fold
-            cfg.output_dir = os.path.join(output_dir, f"split_{fold + 1}")
+            for fold in range(len(splits)):
+                print(f"=== Running fold {fold + 1}/{len(splits)} ===")
+                cfg.task.data.cross_validation = fold
+                cfg.output_dir = os.path.join(output_dir, f"split_{fold + 1}")
+                train_on_task(cfg)
+        else:
             train_on_task(cfg)
-    else:
-        train_on_task(cfg)
 
 
 if __name__ == "__main__":

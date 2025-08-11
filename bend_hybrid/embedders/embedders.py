@@ -135,6 +135,30 @@ class BaseEmbedder:
             for chunk in range(0, len(sequence), self.max_sequence_length)
         ]
 
+    def _remove_pad_tokens(
+        self, embedding: np.ndarray, input_ids: np.ndarray, attention_mask: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Remove the PAD tokens from the embedding and input IDs based on the attention mask.
+
+        Parameters
+        ----------
+        embedding : np.ndarray
+            The embedding to process.
+        input_ids : np.ndarray
+            The input IDs to process.
+        attention_mask : np.ndarray
+            The attention mask to apply to the input IDs.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            The processed embedding and input IDs.
+        """
+
+        attention_mask = attention_mask.astype(bool)
+        return embedding[attention_mask, :], input_ids[attention_mask]
+
 
 # https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full
 class NucleotideTransformerEmbedder(BaseEmbedder):
@@ -236,7 +260,9 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                         chunk_emb = chunk_emb[0, :, :]
                         input_ids = input_ids[0, :]
 
-                        chunk_emb = self._remove_cls_embedding(chunk_emb)
+                        chunk_emb, input_ids = self._remove_cls_tokens(
+                            chunk_emb, input_ids
+                        )
 
                         if self.upsample_embeddings:
                             chunk_emb = self._upsample(input_ids, chunk_emb)
@@ -249,20 +275,30 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
             # if sequences are of the same length, we can batch process without chunking
 
-            input_ids = self.tokenizer(
+            output = self.tokenizer(
                 sequences,
                 return_tensors="pt",
-            )["input_ids"].int()
+                return_token_type_ids=False,
+                padding="longest",
+            )
+            input_ids = output["input_ids"].int()
+            attention_masks = output["attention_mask"]
 
-            embeddings = self.get_embedding(input_ids)
+            embeddings = self.get_embedding(input_ids, attention_masks)
+            input_ids = input_ids.numpy()
+            attention_masks = attention_masks.numpy().astype(bool)
 
             list_embeddings = []
 
-            for sample_idx in range(embeddings.shape[0]):
-                emb = embeddings[sample_idx]
-                token_ids = input_ids[sample_idx]
+            for idx, _ in enumerate(embeddings):
+                emb = embeddings[idx]
+                token_ids = input_ids[idx]
 
-                emb = self._remove_cls_embedding(emb)
+                emb, token_ids = self._remove_pad_tokens(
+                    emb, token_ids, attention_masks[idx]
+                )
+
+                emb, token_ids = self._remove_cls_tokens(emb, token_ids)
 
                 if self.upsample_embeddings:
                     emb = self._upsample(token_ids, emb)
@@ -271,7 +307,9 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
             return np.array(list_embeddings)
 
-    def get_embedding(self, input_ids: torch.Tensor) -> np.ndarray:
+    def get_embedding(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor = None
+    ) -> np.ndarray:
         """
         Get the embedding of the given input IDs.
 
@@ -279,6 +317,8 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         ----------
         input_ids : torch.Tensor
             The input IDs for which to get the embeddings.
+        attention_mask : torch.Tensor, optional
+            The attention mask to apply to the input IDs.
 
         Returns
         -------
@@ -289,10 +329,14 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         embedding = (
             self.model(
                 input_ids.to(DEVICE),
+                attention_mask=(
+                    attention_mask.to(DEVICE) if attention_mask is not None else None
+                ),
+                encoder_attention_mask=(
+                    attention_mask.to(DEVICE) if attention_mask is not None else None
+                ),
                 output_hidden_states=True,
-            )[
-                "hidden_states"
-            ][-1]
+            )["hidden_states"][-1]
             .detach()
             .cpu()
             .numpy()
@@ -300,9 +344,13 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
         return embedding
 
-    def _remove_cls_embedding(self, embedding: np.ndarray) -> np.ndarray:
+    def _remove_cls_tokens(
+        self,
+        embedding: np.ndarray,
+        input_ids: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Remove the CLS token embedding.
+        Remove the PAD and CLS token embedding.
 
         Parameters
         ----------
@@ -314,8 +362,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         np.ndarray
             The embedding with the CLS token removed.
         """
-
-        return embedding[1:, :]
+        return embedding[1:, :], input_ids[1:]
 
     def _upsample(self, token_ids: np.ndarray, embedding: np.ndarray) -> np.ndarray:
         """
@@ -685,21 +732,6 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(DEVICE)
 
-    def _remove_cls_sep_embeddings(self, embeddings: np.ndarray) -> np.ndarray:
-        """Remove embeddings of the CLS and SEP tokens.
-
-        Parameters
-        ----------
-        embeddings : np.ndarray
-            The embeddings to process.
-
-        Returns
-        -------
-        np.ndarray
-            The embeddings with special tokens removed.
-        """
-        return embeddings[1:-1, :]
-
     def embed(
         self,
         sequences: List[str],
@@ -748,7 +780,9 @@ class DNABert2Embedder(BaseEmbedder):
                         chunk_emb = chunk_emb[0, :, :]
                         input_ids = input_ids[0, :]
 
-                        chunk_emb = self._remove_cls_sep_embeddings(chunk_emb)
+                        chunk_emb, input_ids = self._remove_cls_sep_tokens(
+                            chunk_emb, input_ids
+                        )
 
                         if self.upsample_embeddings:
                             chunk_emb = self._upsample(input_ids, chunk_emb)
@@ -759,11 +793,15 @@ class DNABert2Embedder(BaseEmbedder):
 
                 return embeddings
 
-            input_ids = self.tokenizer(sequences, return_tensors="pt")["input_ids"]
+            output = self.tokenizer(sequences, return_tensors="pt", padding="longest")
+            input_ids = output["input_ids"]
+            attention_mask = output["attention_mask"]
 
             embeddings = (
                 self.model(
                     input_ids.to(DEVICE),
+                    attention_mask=attention_mask.to(DEVICE),
+                    encoder_attention_mask=attention_mask.to(DEVICE),
                     output_hidden_states=True,
                 )["hidden_states"]
                 .detach()
@@ -771,6 +809,7 @@ class DNABert2Embedder(BaseEmbedder):
                 .numpy()
             )
             input_ids = input_ids.numpy()
+            attention_mask = attention_mask.numpy().astype(bool)
 
             list_embeddings = []
 
@@ -778,7 +817,10 @@ class DNABert2Embedder(BaseEmbedder):
                 emb = embeddings[idx]
                 token_ids = input_ids[idx]
 
-                emb = self._remove_cls_sep_embeddings(emb)
+                emb, token_ids = self._remove_pad_tokens(
+                    emb, token_ids, attention_mask=attention_mask[idx]
+                )
+                emb, token_ids = self._remove_cls_sep_tokens(emb, token_ids)
 
                 if self.upsample_embeddings:
                     emb = self._upsample(token_ids, emb)
@@ -786,6 +828,24 @@ class DNABert2Embedder(BaseEmbedder):
                 list_embeddings.append(emb)
 
             return np.array(list_embeddings)
+
+    def _remove_cls_sep_tokens(
+        self, embeddings: np.ndarray, input_ids: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Remove embeddings of the CLS and SEP tokens.
+
+        Parameters
+        ----------
+        embeddings : np.ndarray
+            The embeddings to process.
+        input_ids : np.ndarray
+            The input IDs to process.
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            The embeddings and input IDs with special tokens removed.
+        """
+        return embeddings[1:-1, :], input_ids[1:-1]
 
     def _upsample(self, token_ids: np.ndarray, embedding: np.ndarray) -> np.ndarray:
         """

@@ -1,4 +1,4 @@
-task_name: var_effects_expression
+task: var_effects_expression
 dataset:
   annotations_path: ${data_dir}/variant_effects/variant_effects_expression.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
