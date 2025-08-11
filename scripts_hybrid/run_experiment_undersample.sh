@@ -1,8 +1,8 @@
 #!/bin/bash
 # This script runs a series of supervised tasks using specified models and datasets.
 # Usage: ./run_undesample_experiment.sh <task_name> <model_name> <data_dir> <embedders_dir> <embeddings_output_dir (root)>  <output_dir (root)>
-    
-for n_samples in 10000 50000 100000 150000 250000; 
+
+for n_samples in 10000 50000 100000 150000 250000;
 do
     echo "Running task: $1 with model: $2 using $n_samples samples"
     python3 scripts_hybrid/experiment_undersample.py \
@@ -10,7 +10,7 @@ do
         embedder=$2 \
         data_dir=$3 \
         embedders_dir=$4 \
-        embeddings_output_dir=$5/$1/$2/$n_samples \
+        embeddings_output_dir=$5 \
         output_dir=$6/$1/$2/$n_samples \
         task.data.num_train_embeddings=$n_samples \
         compute_embeddings=false
