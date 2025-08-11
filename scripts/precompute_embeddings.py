@@ -1,21 +1,25 @@
-import hydra
-from omegaconf import DictConfig, OmegaConf
 import os
-import bend.io.sequtils as sequtils
-import pandas as pd
-from bend.utils.set_seed import set_seed, SEED
 import time
+
+import hydra
+import pandas as pd
+from omegaconf import DictConfig, OmegaConf
+
+import bend.io.sequtils as sequtils
+from bend.utils.set_seed import SEED, set_seed
 
 set_seed()
 
 
-def record_embedding_time(cfg, start_time: float):
+def record_embedding_time(cfg, start_time: float, total_samples: int):
     """
     Record the time taken for embedding in a CSV file.
     Parameters
     ----------
     start_time : float
         The start time of the embedding process.
+    total_samples : int
+        The total number of samples processed.
     """
 
     end_time = time.time()
@@ -42,7 +46,7 @@ def record_embedding_time(cfg, start_time: float):
                 "task": [cfg.task],
                 "model": [cfg.model],
                 "time": [end_time - start_time],
-                "n_samples": cfg.chunk_size,
+                "n_samples": total_samples,
             }
         ).to_csv(file_path, index=False)
 
@@ -78,6 +82,7 @@ def run_experiment(cfg: DictConfig) -> None:
     embedder = hydra.utils.instantiate(cfg[cfg.model])
 
     start_time = time.time()
+    total_samples = 0
 
     for split in splits:
         print(f"Embedding split: {split}")
@@ -91,6 +96,7 @@ def run_experiment(cfg: DictConfig) -> None:
         # get length of bed file and divide by chunk size, if a spcific chunk is not set
         df = pd.read_csv(cfg[cfg.task].bed, sep="\t", low_memory=False)
         df = df[df.iloc[:, -1] == split] if split is not None else df
+        total_samples += len(df)
         possible_chunks = list(range(int(len(df) / cfg.chunk_size) + 1))
 
         is_chunk_none = cfg.chunk is None
@@ -124,7 +130,7 @@ def run_experiment(cfg: DictConfig) -> None:
         if is_chunk_none:
             cfg.chunk = None
 
-    record_embedding_time(cfg, start_time)
+    record_embedding_time(cfg, start_time, total_samples)
 
 
 if __name__ == "__main__":
