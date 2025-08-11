@@ -218,7 +218,6 @@ class DataSupervised(Dataset):
         mask = annotations.iloc[:, split_column_idx] == split
         annotations = annotations[mask]
         annotations = annotations.reset_index(drop=True)
-        print(f"Filtered annotations to {len(annotations)}")
 
         return annotations, mask
 
