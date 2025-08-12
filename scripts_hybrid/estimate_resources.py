@@ -159,6 +159,11 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
+    cfg.embeddings_output_dir = os.path.join(
+        cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
+    )
+    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.task, cfg.embedder)
+
     if ("nt_" in cfg.embedder or "dnabert2" in cfg.embedder) and (
         cfg.task.task == "enhancer_annotation" or cfg.task.task == "gene_finding"
     ):
