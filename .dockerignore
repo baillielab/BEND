@@ -16,6 +16,7 @@ test_notebooks/
 shards_*/
 shuffle_experiment/
 .vscode/
+wandb/
 
 # Git
 .git
