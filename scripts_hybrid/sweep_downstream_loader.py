@@ -80,7 +80,7 @@ def run_experiment(config=None):
 
                 start_time = time.time()
                 for step, _ in tqdm(enumerate(train_loader), total=total_steps):
-                    if step == wait + warmup:
+                    if step == wait + warmup - 1:
                         start_time = time.time()
                     if step >= total_steps:
                         break
