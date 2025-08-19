@@ -4,10 +4,9 @@ import pprint
 import time
 
 import hydra
-import omegaconf
 import torch
 import torch.profiler
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch.profiler import tensorboard_trace_handler
 from tqdm import tqdm
 
@@ -27,21 +26,12 @@ def main(cfg: DictConfig) -> None:
         cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
     )
 
+    sweep_config = OmegaConf.to_container(cfg.sweep, resolve=True)
     parameters_dict = {
-        key: (
-            {"values": list(value)}
-            if isinstance(value, omegaconf.listconfig.ListConfig)
-            else {"value": value}
-        )
-        for key, value in cfg.sweep.parameters.items()
+        key: ({"values": value} if isinstance(value, list) else {"value": value})
+        for key, value in sweep_config["parameters"].items()
     }
-
-    sweep_config = {
-        "method": cfg.sweep.method,
-        "metric": dict(cfg.sweep.metric),
-        "parameters": parameters_dict,
-        "run_cap": cfg.sweep.run_cap,
-    }
+    sweep_config["parameters"] = parameters_dict
     pprint.pprint(sweep_config)
 
     sweep_id = wandb.sweep(sweep_config, project="pytorch-sweeps-demo")
