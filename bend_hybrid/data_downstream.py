@@ -107,19 +107,24 @@ def return_dataloader(
     if isinstance(data, str):
         data = [data]
 
-    dataset = (
-        wds.WebDataset(data, shardshuffle=shardshuffle, seed=SEED)
+    dataset = wds.WebDataset(data, shardshuffle=shardshuffle, seed=SEED)
+
+    if shuffle is not None:
         # Each worker shuffles the top `shuffle` samples that it loads
         # https://github.com/webdataset/webdataset/issues/71
-        .shuffle(shuffle)
-        .decode()
+        dataset = dataset.shuffle(shuffle)
+
+    dataset = (
+        dataset.decode()
         .to_tuple("input.npy", "output.npy")
         .map_tuple(torch.from_numpy, torch.from_numpy)
         .map_tuple(torch.squeeze, torch.squeeze)
-        # Each worker load samples into batches from its assigned shards
-        # Each batch is composed only of samples from the worker's assigned shards
-        .batched(batch_size, collation_fn=None)
-        .map(partial(collate_fn_pad_to_longest, padding_value=padding_value))
+    )
+
+    # Each worker load samples into batches from its assigned shards
+    # Each batch is composed only of samples from the worker's assigned shards
+    dataset = dataset.batched(batch_size, collation_fn=None).map(
+        partial(collate_fn_pad_to_longest, padding_value=padding_value)
     )
 
     # number of workers has to be equal or less than the number of shards in the dataset, otherwise it will raise an error
@@ -134,7 +139,9 @@ def return_dataloader(
         num_workers=num_workers,
         persistent_workers=num_workers > 0,
         # https://github.com/webdataset/webdataset/issues/151
-        prefetch_factor=(prefetch_factor if prefetch_factor > 0 else None),
+        prefetch_factor=(
+            prefetch_factor if prefetch_factor > 0 and num_workers > 0 else None
+        ),
         pin_memory=pin_memory,
         batch_size=None,
         worker_init_fn=seed_worker,
