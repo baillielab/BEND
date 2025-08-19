@@ -1,6 +1,6 @@
 method: "bayes"
 metric:
-  name: "throughput"
+  name: "samples/sec"
   goal: "maximize"
 run_cap: 5
 

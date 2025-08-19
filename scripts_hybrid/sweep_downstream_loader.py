@@ -88,7 +88,7 @@ def run_experiment(config=None):
 
                 total_samples = config.batch_size * (active * (1 + repeat))
 
-                wandb.log({"throughput": total_samples / (time.time() - start_time)})
+                wandb.log({"samples/sec": total_samples / (time.time() - start_time)})
 
             profile_art = wandb.Artifact(f"trace-{wandb.run.id}", type="profile")
             profile_art.add_file(
