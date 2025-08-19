@@ -16,8 +16,9 @@ data:
   data_dir: ${embeddings_output_dir}
   batch_size: 256
   num_workers: 8
+  prefetch_factor: 2
   padding_value: -100
-  shuffle: 5120
+  shuffle: 512
   shardshuffle: 32 # Shuffle top n shards
   # If not null, train using only the specified number of embeddings.
   # Validation embeddings are undersampled to keep the original split proportions.

@@ -73,22 +73,12 @@ def collate_fn_pad_to_longest(batch, padding_value=-100):
     return padded
 
 
-def worker_init_fn(self, _):
-    """
-    Initialize worker function for data loading to make sure that each worker loads a different part of the data.
-    See the pytorch data loading documentation for more information.
-    """
-    worker_info = torch.utils.data.get_worker_info()
-    dataset = worker_info.dataset
-    worker_id = worker_info.id
-    split_size = len(dataset.data) // worker_info.num_workers
-    dataset.data = dataset.data[worker_id * split_size : (worker_id + 1) * split_size]
-
-
 def return_dataloader(
     data: Union[str, list],
     batch_size: int = 8,
     num_workers: int = 0,
+    prefetch_factor: int = 2,
+    pin_memory: bool = True,
     padding_value=-100,
     shuffle: int = None,
     shardshuffle: Union[bool, int] = False,
@@ -117,32 +107,19 @@ def return_dataloader(
     if isinstance(data, str):
         data = [data]
 
-    # shardShuffle is not explicitly set in the original code, which would lead to not be shuffled as the default value is None.
-    # However, this raises a warning asking to be set explicitly to False or a number.
-    # To avoid the warning and keep the original behavior, we set it to False.
-    dataset = wds.WebDataset(data, shardshuffle=shardshuffle, seed=SEED)
-
-    if shuffle is not None:
-        dataset = dataset.shuffle(
-            shuffle
-        )  # Use in-memory shuffle buffer - here 'shuffle' is the buffer size
-
     dataset = (
-        dataset.decode()
-    )  # iterator over samples - each sample is dict with keys "input.npy" and "output.npy"
-
-    dataset = dataset.to_tuple("input.npy", "output.npy")
-    dataset = dataset.map_tuple(
-        torch.from_numpy, torch.from_numpy
-    )  # TODO any specific dtype requirements or all handled already?
-
-    # untested from here on
-    dataset = dataset.map_tuple(
-        torch.squeeze, torch.squeeze
-    )  # necessary for collate_fn_pad_to_longest ?
-    dataset = dataset.batched(batch_size, collation_fn=None)  # returns list of tuples
-    dataset = dataset.map(
-        partial(collate_fn_pad_to_longest, padding_value=padding_value)
+        wds.WebDataset(data, shardshuffle=shardshuffle, seed=SEED)
+        # Each worker shuffles the top `shuffle` samples that it loads
+        # https://github.com/webdataset/webdataset/issues/71
+        .shuffle(shuffle)
+        .decode()
+        .to_tuple("input.npy", "output.npy")
+        .map_tuple(torch.from_numpy, torch.from_numpy)
+        .map_tuple(torch.squeeze, torch.squeeze)
+        # Each worker load samples into batches from its assigned shards
+        # Each batch is composed only of samples from the worker's assigned shards
+        .batched(batch_size, collation_fn=None)
+        .map(partial(collate_fn_pad_to_longest, padding_value=padding_value))
     )
 
     # number of workers has to be equal or less than the number of shards in the dataset, otherwise it will raise an error
@@ -155,6 +132,10 @@ def return_dataloader(
     dataloader = wds.WebLoader(
         dataset,
         num_workers=num_workers,
+        persistent_workers=num_workers > 0,
+        # https://github.com/webdataset/webdataset/issues/151
+        prefetch_factor=(prefetch_factor if prefetch_factor > 0 else None),
+        pin_memory=pin_memory,
         batch_size=None,
         worker_init_fn=seed_worker,
     )
@@ -170,6 +151,8 @@ def get_data(
     cross_validation: Union[bool, int] = False,
     batch_size: int = 8,
     num_workers: int = 32,
+    prefetch_factor: int = 2,
+    pin_memory: bool = True,
     padding_value=-100,
     shuffle: int = None,
     shardshuffle: Union[bool, int] = False,
@@ -255,6 +238,8 @@ def get_data(
             train_data,
             batch_size=batch_size,
             num_workers=num_workers,
+            prefetch_factor=prefetch_factor,
+            pin_memory=pin_memory,
             padding_value=padding_value,
             shuffle=shuffle,
             shardshuffle=shardshuffle,
@@ -267,8 +252,10 @@ def get_data(
             valid_data,
             batch_size=batch_size,
             num_workers=num_workers,
+            prefetch_factor=prefetch_factor,
+            pin_memory=pin_memory,
             padding_value=padding_value,
-            shuffle=False,
+            shuffle=None,
             shardshuffle=False,
         )
         if valid_data
@@ -279,8 +266,10 @@ def get_data(
             test_data,
             batch_size=batch_size,
             num_workers=num_workers,
+            prefetch_factor=prefetch_factor,
+            pin_memory=pin_memory,
             padding_value=padding_value,
-            shuffle=False,
+            shuffle=None,
             shardshuffle=False,
         )
         if test_data

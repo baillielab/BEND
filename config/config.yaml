@@ -1,5 +1,6 @@
 defaults:
   - embedding/embedders
+  - sweeper/parameters@sweep
   - tasks@task: gene_finding
   - _self_
 hydra:

@@ -1,0 +1,15 @@
+method: "bayes"
+metric:
+  name: "throughput"
+  goal: "maximize"
+run_cap: 5
+
+parameters:
+  data_dir: ${embeddings_output_dir}
+  n_batches_to_read: 1000
+  batch_size: [64, 256, 512, 1024]
+  num_workers: [4, 8, 16, 32, 64]
+  pin_memory: [False, True]
+  prefetch_factor: [0, 2, 4, 8]
+  shuffle: [None, 1024, 5120]
+  shardshuffle: [False, 9]
