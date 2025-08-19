@@ -59,13 +59,14 @@ def run_experiment(config=None):
                 data_dir=config.data_dir,
                 batch_size=config.batch_size,
                 num_workers=config.num_workers,
-                pin_memory=config.pin_memory,
                 prefetch_factor=config.prefetch_factor,
+                pin_memory=config.pin_memory,
                 shuffle=config.shuffle,
                 shardshuffle=config.shardshuffle,
             )
 
-            wait, warmup, active, repeat = 1, 1, config.n_batches_to_read, 0
+            wait, warmup, repeat = 1, 1, 0
+            active = max(1, round(config.n_samples / config.batch_size))
             total_steps = (wait + warmup + active) * (1 + repeat)
 
             with torch.profiler.profile(
@@ -85,13 +86,9 @@ def run_experiment(config=None):
                         break
                     profiler.step()
 
-                wandb.log(
-                    {
-                        "loading_time": time.time() - start_time,
-                        "throughput": (total_steps - wait - warmup)
-                        / (time.time() - start_time),
-                    }
-                )
+                total_samples = config.batch_size * (active * (1 + repeat))
+
+                wandb.log({"throughput": total_samples / (time.time() - start_time)})
 
             profile_art = wandb.Artifact(f"trace-{wandb.run.id}", type="profile")
             profile_art.add_file(
