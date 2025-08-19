@@ -20,7 +20,7 @@ WANDB_KEY = os.getenv("WANDB_KEY", None)
 def main(cfg: DictConfig) -> None:
     """Run the wandb sweep."""
 
-    wandb.login(anonymous="must")
+    wandb.login(anonymous="allow", key=WANDB_KEY)
 
     cfg.embeddings_output_dir = os.path.join(
         cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
