@@ -20,7 +20,7 @@ WANDB_KEY = os.getenv("WANDB_KEY", None)
 def main(cfg: DictConfig) -> None:
     """Run the wandb sweep."""
 
-    wandb.login(anonymous="allow", key=WANDB_KEY)
+    wandb.login(anonymous="must")
 
     cfg.embeddings_output_dir = os.path.join(
         cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
@@ -31,10 +31,11 @@ def main(cfg: DictConfig) -> None:
         key: ({"values": value} if isinstance(value, list) else {"value": value})
         for key, value in sweep_config["parameters"].items()
     }
+    sweep_config["metric"] = {"name": "mean_samples_per_sec", "goal": "maximize"}
     sweep_config["parameters"] = parameters_dict
     pprint.pprint(sweep_config)
 
-    sweep_id = wandb.sweep(sweep_config, project="pytorch-sweeps-demo")
+    sweep_id = wandb.sweep(sweep_config, project="BEND-sweep-downstream")
     wandb.agent(sweep_id, run_experiment)
 
 
@@ -55,7 +56,7 @@ def run_experiment(config=None):
                 shardshuffle=config.shardshuffle,
             )
 
-            wait, warmup, repeat = 1, 1, 0
+            wait, warmup, repeat = 0, 0, 0
             active = max(1, round(config.n_samples / config.batch_size))
             total_steps = (wait + warmup + active) * (1 + repeat)
 
@@ -70,15 +71,16 @@ def run_experiment(config=None):
 
                 start_time = time.time()
                 for step, _ in tqdm(enumerate(train_loader), total=total_steps):
-                    if step == wait + warmup - 1:
-                        start_time = time.time()
+
                     if step >= total_steps:
                         break
+
                     profiler.step()
 
                 total_samples = config.batch_size * (active * (1 + repeat))
-
-                wandb.log({"samples/sec": total_samples / (time.time() - start_time)})
+                wandb.log(
+                    {"mean_samples_per_sec": total_samples / (time.time() - start_time)}
+                )
 
             profile_art = wandb.Artifact(f"trace-{wandb.run.id}", type="profile")
             profile_art.add_file(
