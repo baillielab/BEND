@@ -13,8 +13,9 @@ data:
   data_dir: ${embeddings_output_dir}
   batch_size: 8
   num_workers: 2
+  prefetch_factor: 2
   padding_value: -100
-  shuffle: 160
+  shuffle: 16
   shardshuffle: 32 # Shuffle top n shards
   cross_validation: true # enhancer_annotation task uses cross-validation
 model:

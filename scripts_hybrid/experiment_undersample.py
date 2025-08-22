@@ -175,6 +175,11 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
+    cfg.embeddings_output_dir = os.path.join(
+        cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
+    )
+    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.task, cfg.embedder)
+
     print("Retrieving splits from annotations...")
     annotations = pd.read_csv(
         cfg.task.dataset.annotations_path, sep="\t", low_memory=False

@@ -1,5 +1,6 @@
 defaults:
   - embedding/embedders
+  - sweeper/parameters@sweep
   - tasks@task: gene_finding
   - _self_
 hydra:
@@ -25,10 +26,11 @@ hydra:
         var_effects_expression,
         var_effects_disease
 
-data_dir: ./data/
-embedders_dir: ./pretrained_models/
-embeddings_output_dir: ./data/embeddings/
-output_dir: ./results/
+# Specify only root directories
+data_dir: ./data/ # Full data path specified in tasks/{task}.yml
+embedders_dir: ./pretrained_models/ # Full embedding path specified in embedding/embedders.yml
+embeddings_output_dir: ./data/embeddings/ # scripts will add /{task}/{embedder}
+output_dir: ./results/ # scripts will add /{task}/{embedder}/
 
 embedder: nt_transformer_1000g
 compute_embeddings: true # Set to false to skip embedding computation

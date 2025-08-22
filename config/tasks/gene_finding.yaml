@@ -14,8 +14,9 @@ data:
   cross_validation: false
   batch_size: 64
   num_workers: 1
+  prefetch_factor: 2
   padding_value: -100
-  shuffle: 1280
+  shuffle: 128
   shardshuffle: 32 # Shuffle top n shards
 model:
   _target_: bend.models.downstream.CNN

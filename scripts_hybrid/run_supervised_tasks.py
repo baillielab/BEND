@@ -11,13 +11,14 @@ from tqdm.auto import tqdm
 
 from bend.utils.task_trainer import BaseTrainer
 from bend_hybrid.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
+from bend_hybrid.embedders.embedders import BaseEmbedder
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def embed(cfg: DictConfig, split: str) -> None:
+def embed(cfg: DictConfig, embedder: BaseEmbedder, split: str) -> None:
     """
     Embed all sequences in the dataset.
 
@@ -25,12 +26,12 @@ def embed(cfg: DictConfig, split: str) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
+    embedder : BaseEmbedder
+        The embedder to use for embedding sequences.
+    split : str
+        The dataset split to embed (e.g., "train", "val", "test").
     """
 
-    os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
-    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
-
-    print("Loading dataset ...")
     dataset = DataSupervised(
         annotations_path=cfg.task.dataset.annotations_path,
         genome_path=cfg.task.dataset.genome_path,
@@ -154,11 +155,14 @@ def run_experiment(cfg: DictConfig) -> None:
             f"=== Embedding sequences for task: {cfg.task.task} with model: {cfg.embedder} ==="
         )
 
+        os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
+        embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
+
         start_time = time.time()
 
         for split in splits:
             print(f"=== Processing split: {split} ===")
-            embed(cfg, split)
+            embed(cfg, embedder, split)
 
         record_embedding_time(
             cfg.task.task,

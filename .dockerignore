@@ -14,7 +14,9 @@ pretrained_models/
 test_notebooks/
 .DS_store
 shards_*/
+shuffle_experiment/
 .vscode/
+wandb/
 
 # Git
 .git

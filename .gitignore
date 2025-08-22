@@ -13,7 +13,9 @@ results/
 test_notebooks/
 .DS_store
 shards_*/
+shuffle_experiment/
 .vscode/
+wandb/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
