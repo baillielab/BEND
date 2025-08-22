@@ -1,3 +1,0 @@
-basset-supervised:
-  _target_: bend.models.basset.Basset
-  input_len : 512

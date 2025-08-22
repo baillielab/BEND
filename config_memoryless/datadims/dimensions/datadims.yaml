@@ -1,4 +1,0 @@
-datadims:
-  histone_modification_label_dim: 18
-  onehot: 5
-  convnet: 256

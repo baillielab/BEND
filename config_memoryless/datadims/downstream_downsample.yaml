@@ -1,4 +1,0 @@
-# downstream model params that are dependent on the task
-output_downsample_window: # how much to downsample the output by
-  histone_modification: 512
-  cpg_methylation: 512
