@@ -589,12 +589,7 @@ class BaseTrainer:
                 activation=self.config.params.activation,
             )
 
-            if self.device == torch.device("mps"):
-                target = target.to(
-                    self.device, non_blocking=True, dtype=torch.float32
-                ).long()
-            else:
-                target = target.to(self.device, non_blocking=True).long()
+            target = target.to(self.device, non_blocking=True).long()
 
             loss = self.criterion(output, target)
 
@@ -636,10 +631,7 @@ class BaseTrainer:
                     data.to(self.device), activation=self.config.params.activation
                 )
 
-                if self.device == torch.device("mps"):
-                    target = target.to(self.device, dtype=torch.float32).long()
-                else:
-                    target = target.to(self.device).long()
+                target = target.to(self.device).long()
                 loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":

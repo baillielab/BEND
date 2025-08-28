@@ -62,10 +62,7 @@ def run_experiment(cfg: DictConfig) -> None:
     # init wandb
     # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)
 
     # instantiate model
