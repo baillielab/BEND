@@ -1,3 +1,4 @@
+import math
 from typing import Union
 
 import h5py
@@ -24,6 +25,61 @@ def collate_fn(batch):
     sequences, labels = zip(*batch)
 
     return sequences, labels
+
+
+def get_splits(
+    annotations_path,
+    split_column_idx=DEFAULT_SPLIT_COLUMN_IDX,
+):
+    annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+
+    splits = annotations.iloc[:, split_column_idx].unique().tolist()
+
+    annotations_splits = {
+        split: annotations[annotations.iloc[:, split_column_idx] == split]
+        for split in splits
+    }
+
+    return annotations_splits
+
+
+def undersample(annotations_splits, n_samples: Union[int, None] = None):
+
+    if n_samples is not None:
+        if not "train" in annotations_splits.keys():
+            print("Warning: To use n_samples, the dataset must have a 'train' split.")
+            return annotations_splits
+        if n_samples <= 0:
+            print("Warning: n_samples must be a positive integer.")
+            return annotations_splits
+
+        undersampling_ratio = n_samples / len(annotations_splits["train"])
+
+        if undersampling_ratio >= 1.0:
+            print(
+                f"Warning: n_samples ({n_samples}) is greater than the total number of training annotations. Using all training annotations."
+            )
+            return annotations_splits
+
+        print(f"Undersampling ratio: {undersampling_ratio:.2f}")
+
+        for split in annotations_splits.keys():
+            if split == "test":
+                continue
+
+            n_samples_split = max(
+                1,
+                math.ceil(undersampling_ratio * len(annotations_splits[split])),
+            )
+
+            print(f"Undersampling {split} to {n_samples_split} samples.")
+
+            annotations_splits[split] = annotations_splits[split].sample(
+                n=n_samples_split,
+                random_state=SEED,
+            )
+
+    return annotations_splits
 
 
 class DataVariantEffects(Dataset):
@@ -162,10 +218,7 @@ class DataSupervised(Dataset):
         sequence_length: int = None,
         default_label_column_idx: int = DEFAULT_LABEL_COLUMN_IDX,
         default_strand_column_idx: int = DEFAULT_STRAND_COLUMN_IDX,
-        split: str = None,
-        split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
         flank: int = DEFAULT_FLANK,
-        frac: float = None,
     ):
 
         if hdf5_path is None and label_depth is None:
@@ -174,27 +227,10 @@ class DataSupervised(Dataset):
             )
 
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+
         genome = Fasta(genome_path)
 
         self.sequence_length = sequence_length
-
-        mask = None
-        if split is not None:
-            total_samples = len(annotations)
-            annotations, mask = self._filter_annotations(
-                annotations, split, split_column_idx
-            )
-            print(
-                f"Total annotations: {total_samples}. {split} annotations: {len(annotations)}"
-            )
-
-        if frac is not None:
-            if not (0 < frac <= 1):
-                raise ValueError("Sample fraction must be between 0 and 1.")
-            print(f"Undersampling to {round(frac*len(annotations))} samples.")
-            annotations = annotations.sample(
-                frac=frac, random_state=SEED, replace=False
-            )
 
         if hdf5_path:
             self.sequences, self.labels = self._get_data_hdf5(
@@ -202,7 +238,6 @@ class DataSupervised(Dataset):
                 genome,
                 hdf5_path,
                 flank,
-                mask=mask,
             )
         else:
             self.sequences, self.labels = self._get_data_multi_hot(
@@ -214,19 +249,12 @@ class DataSupervised(Dataset):
                 flank,
             )
 
-    def _filter_annotations(self, annotations, split, split_column_idx):
-        mask = annotations.iloc[:, split_column_idx] == split
-        annotations = annotations[mask]
-        annotations = annotations.reset_index(drop=True)
+    def is_uneven(self):
+        return True if self.sequence_length is None else False
 
-        return annotations, mask
-
-    def _get_data_hdf5(self, annotations, genome, hdf5_path, flank, mask=None):
+    def _get_data_hdf5(self, annotations, genome, hdf5_path, flank):
         with h5py.File(hdf5_path, mode="r") as h5f:
             labels = h5f["labels"][()]
-
-        if mask is not None:
-            labels = labels[mask.to_numpy()]
 
         sequences = []
         for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):

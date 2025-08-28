@@ -8,9 +8,7 @@ downsteam tasks on embeddings saved in webdataset .tar.gz format.
 import glob
 import os
 from functools import partial
-from typing import List, Tuple, Union
-
-import numpy as np
+from typing import List, Union
 
 # create torch dataset & dataloader from webdataset
 import torch
@@ -142,7 +140,7 @@ def return_dataloader(
         prefetch_factor=(
             prefetch_factor if prefetch_factor > 0 and num_workers > 0 else None
         ),
-        pin_memory=pin_memory,
+        pin_memory=True if torch.cuda.is_available() and pin_memory else False,
         batch_size=None,
         worker_init_fn=seed_worker,
     )
@@ -152,14 +150,10 @@ def return_dataloader(
 
 def get_data(
     data_dir: str,
-    train_data: List[str] = None,
-    valid_data: List[str] = None,
-    test_data: List[str] = None,
     cross_validation: Union[bool, int] = False,
     batch_size: int = 8,
     num_workers: int = 32,
     prefetch_factor: int = 2,
-    pin_memory: bool = True,
     padding_value=-100,
     shuffle: int = None,
     shardshuffle: Union[bool, int] = False,
@@ -172,13 +166,6 @@ def get_data(
     ----------
     data_dir : str
         Path to data directory containing the tar files.
-    train_data : List[str], optional
-        List of paths to train tar files. The default is None.
-        In case of cross validation can be simply the path to the data directory.
-    valid_data : List[str], optional
-        List of paths to valid tar files. The default is None.
-    test_data : List[str], optional
-        List of paths to test tar files. The default is None.
     cross_validation : Union[bool, int], optional
         If int, use the given partition as test set, +1 as valid set and the rest as train set.
         First split is 1. The default is False.
@@ -206,81 +193,45 @@ def get_data(
         raise SystemExit(
             f"The data directory {data_dir} does not exist\nExiting script"
         )
+
+    tars = glob.glob(f"{data_dir}/*.tar.gz")
+
     if cross_validation is not False:
-        cross_validation = int(cross_validation) - 1
-        # get basepath of data directory
-        # get all tar.gz in data directory
-        tars = glob.glob(f"{data_dir}/*.tar.gz")
-        # sort tar files
-        tars = sorted(tars, key=lambda x: int(x.split("/")[-1].split(".")[0][4:]))
-        test_data = tars[cross_validation]
-        # get valid data, cycle through tar.gz if test set is the last one
-        if cross_validation == len(tars) - 1:
-            valid_data = tars[0]
-        else:
-            valid_data = tars[cross_validation + 1]
-        # get train data, remove test and valid data from list of tar files
-        tars.remove(test_data)
-        tars.remove(valid_data)
-        train_data = tars
+        fold_names = list(
+            set([os.path.split(shard)[-1].split("_")[0] for shard in tars])
+        )
+        fold_names = sorted(fold_names, key=lambda x: int(x.replace("part", "")))
 
-    # TODO chunking loading done right - need to support both this and the commented out block.
+        test_shards = [
+            shard for shard in tars if f"{fold_names[cross_validation]}_" in shard
+        ]
+
+        val_idx = cross_validation + 1 if cross_validation + 1 < len(fold_names) else 0
+        valid_shards = [shard for shard in tars if f"{fold_names[val_idx]}_" in shard]
+
+        train_shards = [
+            shard
+            for shard in tars
+            if shard not in test_shards and shard not in valid_shards
+        ]
+
     else:
-        tars = glob.glob(f"{data_dir}/*.tar.gz")
-        train_data = [x for x in tars if os.path.split(x)[-1].startswith("train")]
-        valid_data = [x for x in tars if os.path.split(x)[-1].startswith("valid")]
-        test_data = [x for x in tars if os.path.split(x)[-1].startswith("test")]
+        train_shards = [x for x in tars if os.path.split(x)[-1].startswith("train")]
+        valid_shards = [x for x in tars if os.path.split(x)[-1].startswith("valid")]
+        test_shards = [x for x in tars if os.path.split(x)[-1].startswith("test")]
 
-    # else:
-    #     # join data_dir with each item in train_data, valid_data and test_data
-
-    #     train_data = [f'{data_dir}/{x}' for x in train_data] if train_data else None
-    #     valid_data = [f'{data_dir}/{x}' for x in valid_data] if valid_data else None
-    #     test_data = [f'{data_dir}/{x}' for x in test_data] if test_data else None
-
-    # get dataloaders
-    # import ipdb; ipdb.set_trace()
-    train_dataloader = (
-        return_dataloader(
-            train_data,
+    dataloaders = {}
+    for split, shards in zip(
+        ["train", "valid", "test"], [train_shards, valid_shards, test_shards]
+    ):
+        dataloaders[split] = return_dataloader(
+            shards,
             batch_size=batch_size,
             num_workers=num_workers,
             prefetch_factor=prefetch_factor,
-            pin_memory=pin_memory,
             padding_value=padding_value,
-            shuffle=shuffle,
-            shardshuffle=shardshuffle,
+            shuffle=shuffle if split == "train" else None,
+            shardshuffle=shardshuffle if split == "train" else False,
         )
-        if train_data
-        else None
-    )
-    valid_dataloader = (
-        return_dataloader(
-            valid_data,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            prefetch_factor=prefetch_factor,
-            pin_memory=pin_memory,
-            padding_value=padding_value,
-            shuffle=None,
-            shardshuffle=False,
-        )
-        if valid_data
-        else None
-    )
-    test_dataloader = (
-        return_dataloader(
-            test_data,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            prefetch_factor=prefetch_factor,
-            pin_memory=pin_memory,
-            padding_value=padding_value,
-            shuffle=None,
-            shardshuffle=False,
-        )
-        if test_data
-        else None
-    )
 
-    return train_dataloader, valid_dataloader, test_dataloader
+    return dataloaders
