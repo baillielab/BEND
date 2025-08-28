@@ -12,8 +12,7 @@ hydra:
         chromatin_accessibility,
         cpg_methylation
 
-work_dir: ./
-data_dir: ${work_dir}/data/
+data_dir: ./data/
 task: gene_finding
 
 # data configurations for each task

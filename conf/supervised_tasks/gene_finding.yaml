@@ -30,8 +30,7 @@ hydra:
 task: gene_finding
 embedder: onehot
 shuffle: false
-work_dir: ./
-output_dir: ${work_dir}/shuffle_experiment/default/ # Specify only the root output directory, script will generate the full path
+output_dir: ./shuffle_experiment/shuffle_${shuffle}/ # Specify only the root output directory, script will add task and model subdirectories
 model:
   _target_: bend.models.downstream.CNN
   input_size: ${datadims.${embedder}}
@@ -50,7 +49,7 @@ data:
   padding_value: -100
   shuffle: 1000
   parent_dir: ./data
-  data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
+  data_dir: ./data/shuffle_${shuffle}/ # Specify only the root data directory, script will generate the full path
 params:
   epochs: 100
   load_checkpoint: false

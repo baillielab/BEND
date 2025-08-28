@@ -30,8 +30,7 @@ hydra:
 embedder: onehot
 task: cpg_methylation
 shuffle: false
-work_dir: ./
-output_dir: ${work_dir}/shuffle_experiment/default/ # Specify only the root output directory, script will generate the full path
+output_dir: ./shuffle_experiment/shuffle_${shuffle}/ # Specify only the root output directory, script will add task and model subdirectories
 model:
   _target_: bend.models.downstream.CNN
   encoder: null
@@ -46,7 +45,7 @@ optimizer:
   weight_decay: 0.01
 data:
   _target_: bend.utils.data_downstream.get_data
-  data_dir: ${work_dir}/data/ # Specify only the root data directory, script will generate the full path
+  data_dir: ./data/shuffle_${shuffle}/ # Specify only the root data directory, script will generate the full path
   cross_validation: false
   batch_size: 256
   num_workers: 15
