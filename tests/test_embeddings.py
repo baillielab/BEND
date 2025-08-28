@@ -39,7 +39,7 @@ def get_gt_embeddings(gt_sequences, embedder):
     Generate embeddings for the given sequences using BEND method and the specified embedder.
     """
 
-    with initialize(version_base=None, config_path="../conf/embedding/"):
+    with initialize(version_base=None, config_path="./conf/embedding/"):
         cfg = compose(config_name="embed")
 
     embedder = hydra.utils.instantiate(cfg[embedder])

@@ -22,11 +22,15 @@ import torch
 from sklearn.preprocessing import LabelEncoder
 from transformers import AutoModelForMaskedLM, AutoTokenizer, logging
 
-from bend.models.awd_lstm import AWDLSTMModelForInference
-from bend.models.dilated_cnn import ConvNetModel
-from bend.models.dnabert2 import BertForMaskedLM as DNABert2BertForMaskedLM
-from bend.models.hyena_dna import CharacterTokenizer, HyenaDNAPreTrainedModel
-from bend.utils.download import download_model
+from bend_hybrid.embedders.models.awd_lstm import AWDLSTMModelForInference
+from bend_hybrid.embedders.models.dilated_cnn import ConvNetModel
+from bend_hybrid.embedders.models.dnabert2 import (
+    BertForMaskedLM as DNABert2BertForMaskedLM,
+)
+from bend_hybrid.embedders.models.hyena_dna import (
+    CharacterTokenizer,
+    HyenaDNAPreTrainedModel,
+)
 from bend_hybrid.utils import get_device
 
 logging.set_verbosity_error()
@@ -394,6 +398,48 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         repetitions = np.array([len(token) for token in tokens], dtype=np.int64)
 
         return np.repeat(embedding, repetitions, axis=0)
+
+
+def download_model(
+    model: str = "convnet",
+    base_url: str = "https://sid.erda.dk/share_redirect/dbQM0pgSlM/pretrained_models/",
+    destination_dir: str = "./pretrained_models/",  # pretrained_models
+) -> None:
+    """Download BEND pretrained model checkpoints from the ERDA URL.
+    Uses wget to download the files.
+
+    Parameters
+    ----------
+    model : str
+        Model to download. Needs to be a directory name in base_url.
+    base_url : str
+        Base URL to download from.
+        Default is BEND's pretrained models directory on ERDA.
+    destination_dir : str
+        Destination directory to download to.
+        Default is ./pretrained_models/
+
+    Returns
+    -------
+    None.
+    """
+
+    # """download model from url to destination directory"""
+    # make destination directory if it doesn't exist
+    os.makedirs(destination_dir, exist_ok=True)
+
+    files = [
+        "config.json",
+        "pytorch_model.bin",
+        "special_tokens_map.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+    ]
+    for file in files:
+        url = f"{base_url}{model}/{file}"
+        os.system(f"wget {url} -P {destination_dir}/")
+
+    return
 
 
 class AWDLSTMEmbedder(BaseEmbedder):

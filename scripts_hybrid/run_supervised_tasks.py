@@ -9,9 +9,9 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from bend.utils.task_trainer import BaseTrainer
 from bend_hybrid.datasets import DEFAULT_SPLIT_COLUMN_IDX, DataSupervised, collate_fn
 from bend_hybrid.embedders.embedders import BaseEmbedder
+from bend_hybrid.task_trainer import BaseTrainer
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()

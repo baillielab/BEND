@@ -19,7 +19,7 @@ data:
   shardshuffle: 32 # Shuffle top n shards
   cross_validation: true # enhancer_annotation task uses cross-validation
 model:
-  _target_: bend.models.downstream.CNN
+  _target_: bend_hybrid.embedders.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 2

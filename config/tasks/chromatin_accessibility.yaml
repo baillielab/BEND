@@ -17,7 +17,7 @@ data:
   shuffle: 512
   shardshuffle: 32 # Shuffle top n shards
 model:
-  _target_: bend.models.downstream.CNN
+  _target_: bend_hybrid.embedders.models.downstream.CNN
   encoder: null
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}

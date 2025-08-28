@@ -6,7 +6,7 @@ defaults:
 hydra:
   mode: MULTIRUN
   searchpath:
-    - file://conf
+    - file://tests/conf
   sweeper:
     params:
       model: gena-lm-bigbird-base-t2t,

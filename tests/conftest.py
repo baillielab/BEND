@@ -6,13 +6,13 @@ This file sets up fixtures and configurations for testing datasets in the BEND p
 import h5py
 import pandas as pd
 import pytest
+from bend.io.sequtils import Fasta, multi_hot
 from hydra import compose, initialize
 from tqdm.auto import tqdm
 
-from bend.io.sequtils import Fasta, multi_hot
 from bend_hybrid.datasets import DataSupervised
 
-with initialize(version_base=None, config_path="../conf/embedding/"):
+with initialize(version_base=None, config_path="./conf/embedding/"):
     CFG_DEFAULT = compose(config_name="embed")
 
 SUPERVISED_TASKS = {
