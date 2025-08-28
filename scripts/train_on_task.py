@@ -9,7 +9,6 @@ import sys
 
 import hydra
 import torch
-import wandb
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from bend.models.downstream import CustomDataParallel
@@ -40,8 +39,6 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    # wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    # mkdir output_dir
 
     task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
 
@@ -58,9 +55,6 @@ def run_experiment(cfg: DictConfig) -> None:
     # create data directory
     cfg.data.data_dir = os.path.join(cfg.data.data_dir, task_dir, cfg.embedder)
     print("data_dir", cfg.data.data_dir)
-
-    # init wandb
-    # run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)

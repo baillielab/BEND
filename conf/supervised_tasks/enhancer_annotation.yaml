@@ -60,5 +60,3 @@ params:
     - 82.86
   metric: auprc
   activation: none
-wandb:
-  mode: disabled
