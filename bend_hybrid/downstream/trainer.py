@@ -282,11 +282,10 @@ class BaseTrainer:
             print(self.overwrite_dir)
             print(self.config.params.load_checkpoint)
             # delete all checkpoints from previous runs
-            [
-                os.remove(f)
-                for f in glob.glob(f"{path}/**", recursive=True)
-                if os.path.isfile(f)
-            ]
+            for f in glob.glob(f"{path}/**", recursive=True):
+                if os.path.isfile(f):
+                    os.remove(f)
+
             pd.DataFrame(
                 columns=[
                     "Epoch",
@@ -347,19 +346,6 @@ class BaseTrainer:
             ignore_index=True,
         )
         df.to_csv(f"{self.config.output_dir}/losses.csv", index=False)
-        return
-
-    def _log_wandb(self, epoch, train_loss, val_loss, val_metric):
-        wandb.log(
-            {
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                f"val_{self.config.params.metric}": val_metric,
-            },
-            step=epoch,
-        )
-
-        # wandb.log({"Training latent with labels": wandb.Image(plt)})
         return
 
     def _calculate_metric(self, y_true, y_pred) -> List[float]:
@@ -498,7 +484,6 @@ class BaseTrainer:
         self,
         train_loader,
         val_loader,
-        test_loader,
         epochs,
         load_checkpoint: Union[bool, int] = True,
     ):
@@ -539,14 +524,12 @@ class BaseTrainer:
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
-            # test_loss, test_metric = self.test(test_loader, overwrite=False)
-            # print('TEST:', test_loss, test_metric, checkpoint = epoch)
+
             # save epoch in output dir
             self._save_checkpoint(epoch, train_loss, val_loss, val_metric)
             # log losses to csv
             self._log_loss(epoch, train_loss, val_loss, val_metric)
             # log to wandb
-            # self._log_wandb(epoch, train_loss, val_loss, val_metric)
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )

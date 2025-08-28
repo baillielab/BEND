@@ -104,17 +104,13 @@ def train_on_task(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    device = get_device()
-
     cfg.output_dir = os.path.join(cfg.output_dir, "downstream")
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
 
+    device = get_device()
     model = hydra.utils.instantiate(cfg.task.model).to(device).float()
-
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
-
-    dataloaders = hydra.utils.instantiate(cfg.task.dataloader.downstream)
 
     trainer = BaseTrainer(
         model=model,
@@ -126,14 +122,14 @@ def train_on_task(cfg: DictConfig) -> None:
 
     OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
-    if cfg.task.params.mode == "train":
-        trainer.train(
-            dataloaders["train"],
-            dataloaders["valid"],
-            dataloaders["test"],
-            cfg.task.params.epochs,
-            cfg.task.params.load_checkpoint,
-        )
+    dataloaders = hydra.utils.instantiate(cfg.task.dataloader.downstream)
+
+    trainer.train(
+        dataloaders["train"],
+        dataloaders["valid"],
+        cfg.task.params.epochs,
+        cfg.task.params.load_checkpoint,
+    )
 
     trainer.test(dataloaders["test"], overwrite=False)
 
