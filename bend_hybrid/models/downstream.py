@@ -13,11 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from bend_hybrid.embedders.models.dilated_cnn import (
-    ConvNetConfig,
-    ConvNetModel,
-    OneHotEmbedding,
-)
+from bend_hybrid.models.dilated_cnn import ConvNetConfig, ConvNetModel, OneHotEmbedding
 
 
 class CustomDataParallel(torch.nn.DataParallel):

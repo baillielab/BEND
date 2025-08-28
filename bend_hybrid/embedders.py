@@ -22,15 +22,10 @@ import torch
 from sklearn.preprocessing import LabelEncoder
 from transformers import AutoModelForMaskedLM, AutoTokenizer, logging
 
-from bend_hybrid.embedders.models.awd_lstm import AWDLSTMModelForInference
-from bend_hybrid.embedders.models.dilated_cnn import ConvNetModel
-from bend_hybrid.embedders.models.dnabert2 import (
-    BertForMaskedLM as DNABert2BertForMaskedLM,
-)
-from bend_hybrid.embedders.models.hyena_dna import (
-    CharacterTokenizer,
-    HyenaDNAPreTrainedModel,
-)
+from bend_hybrid.models.awd_lstm import AWDLSTMModelForInference
+from bend_hybrid.models.dilated_cnn import ConvNetModel
+from bend_hybrid.models.dnabert2 import BertForMaskedLM as DNABert2BertForMaskedLM
+from bend_hybrid.models.hyena_dna import CharacterTokenizer, HyenaDNAPreTrainedModel
 from bend_hybrid.utils import get_device
 
 logging.set_verbosity_error()

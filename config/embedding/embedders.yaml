@@ -1,40 +1,40 @@
 dnabert2:
-  _target_: bend_hybrid.embedders.embedders.DNABert2Embedder
+  _target_: bend_hybrid.embedders.DNABert2Embedder
   model_name: zhihan1996/DNABERT-2-117M
   upsample_embeddings: true
   embeddings_dim: 768
   autoregressive: false
   max_sequence_length: 10000 # https://github.com/Zhihan1996/DNABERT_2/issues/2
 hyenadna-large-1m:
-  _target_: bend_hybrid.embedders.embedders.HyenaDNAEmbedder
+  _target_: bend_hybrid.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
   upsample_embeddings: false
   embeddings_dim: 256
   max_sequence_length: 1_000_000
   autoregressive: true
 hyenadna-tiny-1k:
-  _target_: bend_hybrid.embedders.embedders.HyenaDNAEmbedder
+  _target_: bend_hybrid.embedders.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
   upsample_embeddings: false
   embeddings_dim: 128
   max_sequence_length: 1024
   autoregressive: true
 resnetlm:
-  _target_: bend_hybrid.embedders.embedders.ConvNetEmbedder
+  _target_: bend_hybrid.embedders.ConvNetEmbedder
   model_path: ${embedders_dir}/convnet/
   upsample_embeddings: false
   embeddings_dim: 256
   max_sequence_length: null
   autoregressive: false
 awdlstm:
-  _target_: bend_hybrid.embedders.embedders.AWDLSTMEmbedder
+  _target_: bend_hybrid.embedders.AWDLSTMEmbedder
   model_path: ${embedders_dir}/awd_lstm/
   upsample_embeddings: false
   embeddings_dim: 64
   max_sequence_length: null
   autoregressive: true
 nt_transformer_ms:
-  _target_: bend_hybrid.embedders.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
   upsample_embeddings: true
   embeddings_dim: 2560
@@ -42,7 +42,7 @@ nt_transformer_ms:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_human_ref:
-  _target_: bend_hybrid.embedders.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
   upsample_embeddings: true
   embeddings_dim: 1280
@@ -50,7 +50,7 @@ nt_transformer_human_ref:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_1000g:
-  _target_: bend_hybrid.embedders.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
   upsample_embeddings: true
   embeddings_dim: 2560
@@ -58,7 +58,7 @@ nt_transformer_1000g:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_v2_500m:
-  _target_: bend_hybrid.embedders.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedders.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
   upsample_embeddings: true
   embeddings_dim: 1024

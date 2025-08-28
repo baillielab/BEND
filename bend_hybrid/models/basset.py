@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from bend_hybrid.embedders.models.dilated_cnn import OneHotEmbedding
+from bend_hybrid.models.dilated_cnn import OneHotEmbedding
 
 
 class CustomDataParallel(torch.nn.DataParallel):
