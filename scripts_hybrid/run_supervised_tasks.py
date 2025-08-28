@@ -3,14 +3,13 @@ import time
 
 import hydra
 import numpy as np
-import pandas as pd
 import webdataset as wds
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
-from bend_hybrid.datasets import DataSupervised, collate_fn, get_splits
-from bend_hybrid.task_trainer import BaseTrainer
+from bend_hybrid.downstream.trainer import BaseTrainer
+from bend_hybrid.embeddings.datasets import DataSupervised, collate_fn, get_splits
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
@@ -56,8 +55,9 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
     for split, annotations in annotations_splits.items():
         dataloader = DataLoader(
             Subset(dataset, annotations.index),
-            batch_size=cfg.task.data.batch_size,
-            num_workers=cfg.task.data.num_workers,
+            batch_size=cfg.task.dataloader.annotations.batch_size,
+            num_workers=cfg.task.dataloader.annotations.num_workers,
+            prefetch_factor=cfg.task.dataloader.annotations.prefetch_factor,
             shuffle=True if split == "train" else False,
             collate_fn=collate_fn if dataset.is_uneven() else None,
         )
@@ -114,7 +114,7 @@ def train_on_task(cfg: DictConfig) -> None:
 
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 
-    dataloaders = hydra.utils.instantiate(cfg.task.data)
+    dataloaders = hydra.utils.instantiate(cfg.task.dataloader.downstream)
 
     trainer = BaseTrainer(
         model=model,
@@ -170,18 +170,20 @@ def run_experiment(cfg: DictConfig) -> None:
             f"=== Training model for task: {cfg.task.task} with embedder: {cfg.embedder} ==="
         )
         if (
-            "cross_validation" in cfg.task.data.keys()
-            and cfg.task.data.cross_validation is True
+            "fold_idx" in cfg.task.dataloader.downstream
+            and cfg.task.dataloader.downstream.fold_idx is None
         ):
+
             output_dir = cfg.output_dir
             n_folds = len(annotations_splits.keys())
 
-            for fold in range(n_folds):
-                print(f"=== Running fold {fold + 1}/{n_folds} ===")
-                cfg.task.data.cross_validation = fold
-                cfg.output_dir = os.path.join(output_dir, f"fold_{fold + 1}")
+            for fold_idx in range(n_folds):
+                print(f"=== Running fold {fold_idx + 1}/{n_folds} ===")
+                cfg.task.dataloader.downstream.fold_idx = fold_idx
+                cfg.output_dir = os.path.join(output_dir, f"fold_{fold_idx + 1}")
                 train_on_task(cfg)
 
+        # If not cross-validation, or only one fold specified, train once
         train_on_task(cfg)
 
 

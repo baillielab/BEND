@@ -8,16 +8,21 @@ dataset:
   hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
   label_depth: 1
   sequence_length: null # When null, indicates uneven length sequences
-data:
-  _target_: bend_hybrid.data_downstream.get_data
-  data_dir: ${embeddings_output_dir}
-  batch_size: 8
-  num_workers: 2
-  prefetch_factor: 2
-  padding_value: -100
-  shuffle: 16
-  shardshuffle: 32 # Shuffle top n shards
-  cross_validation: true # enhancer_annotation task uses cross-validation
+dataloader:
+  annotations:
+    batch_size: 8
+    num_workers: 2
+    prefetch_factor: 2
+  downstream:
+    _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
+    data_dir: ${embeddings_output_dir}
+    batch_size: 8
+    num_workers: 2
+    prefetch_factor: 2
+    padding_value: -100
+    shuffle: 16
+    shardshuffle: 32
+    fold_idx: null # if null, cross-validation is performed on all folds
 model:
   _target_: bend_hybrid.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}

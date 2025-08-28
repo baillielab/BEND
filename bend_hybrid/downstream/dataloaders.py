@@ -71,7 +71,7 @@ def collate_fn_pad_to_longest(batch, padding_value=-100):
     return padded
 
 
-def return_dataloader(
+def make_dataloader(
     data: Union[str, list],
     batch_size: int = 8,
     num_workers: int = 0,
@@ -148,15 +148,15 @@ def return_dataloader(
     return dataloader
 
 
-def get_data(
+def get_dataloaders(
     data_dir: str,
-    cross_validation: Union[bool, int] = False,
     batch_size: int = 8,
     num_workers: int = 32,
     prefetch_factor: int = 2,
     padding_value=-100,
     shuffle: int = None,
     shardshuffle: Union[bool, int] = False,
+    fold_idx: int = None,
     **kwargs,
 ):
     """
@@ -196,17 +196,15 @@ def get_data(
 
     tars = glob.glob(f"{data_dir}/*.tar.gz")
 
-    if cross_validation is not False:
+    if fold_idx is not None:
         fold_names = list(
             set([os.path.split(shard)[-1].split("_")[0] for shard in tars])
         )
         fold_names = sorted(fold_names, key=lambda x: int(x.replace("part", "")))
 
-        test_shards = [
-            shard for shard in tars if f"{fold_names[cross_validation]}_" in shard
-        ]
+        test_shards = [shard for shard in tars if f"{fold_names[fold_idx]}_" in shard]
 
-        val_idx = cross_validation + 1 if cross_validation + 1 < len(fold_names) else 0
+        val_idx = fold_idx + 1 if fold_idx + 1 < len(fold_names) else 0
         valid_shards = [shard for shard in tars if f"{fold_names[val_idx]}_" in shard]
 
         train_shards = [
@@ -224,7 +222,7 @@ def get_data(
     for split, shards in zip(
         ["train", "valid", "test"], [train_shards, valid_shards, test_shards]
     ):
-        dataloaders[split] = return_dataloader(
+        dataloaders[split] = make_dataloader(
             shards,
             batch_size=batch_size,
             num_workers=num_workers,

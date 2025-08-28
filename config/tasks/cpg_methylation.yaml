@@ -7,15 +7,20 @@ dataset:
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   label_depth: 7
   sequence_length: 512
-data:
-  _target_: bend_hybrid.data_downstream.get_data
-  data_dir: ${embeddings_output_dir}
-  batch_size: 256
-  num_workers: 8
-  prefetch_factor: 2
-  padding_value: -100
-  shuffle: 512
-  shardshuffle: 32 # Shuffle top n shards
+dataloader:
+  annotations:
+    batch_size: 256
+    num_workers: 8
+    prefetch_factor: 2
+  downstream:
+    _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
+    data_dir: ${embeddings_output_dir}
+    batch_size: 256
+    num_workers: 8
+    prefetch_factor: 2
+    padding_value: -100
+    shuffle: 512
+    shardshuffle: 32
 model:
   _target_: bend_hybrid.models.downstream.CNN
   encoder: null

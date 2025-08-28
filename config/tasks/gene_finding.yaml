@@ -8,16 +8,20 @@ dataset:
   hdf5_path: ${data_dir}/gene_finding/gene_finding.hdf5
   label_depth: 9
   sequence_length: null # When null, indicates uneven length sequences
-data:
-  _target_: bend_hybrid.data_downstream.get_data
-  data_dir: ${embeddings_output_dir}
-  cross_validation: false
-  batch_size: 64
-  num_workers: 2
-  prefetch_factor: 2
-  padding_value: -100
-  shuffle: 128
-  shardshuffle: 32 # Shuffle top n shards
+dataloader:
+  annotations:
+    batch_size: 64
+    num_workers: 2
+    prefetch_factor: 2
+  downstream:
+    _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
+    data_dir: ${embeddings_output_dir}
+    batch_size: 64
+    num_workers: 2
+    prefetch_factor: 2
+    padding_value: -100
+    shuffle: 128
+    shardshuffle: 32
 model:
   _target_: bend_hybrid.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}

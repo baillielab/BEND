@@ -16,8 +16,8 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from bend_hybrid.datasets import DataVariantEffects
-from bend_hybrid.utils import get_device, set_seed
+from bend_hybrid.embeddings.datasets import DataVariantEffects
+from bend_hybrid.utils import set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"

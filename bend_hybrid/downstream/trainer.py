@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import wandb
 from sklearn.feature_selection import r_regression
 from sklearn.metrics import (
     average_precision_score,
@@ -20,8 +21,6 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-
-import wandb
 
 
 class CrossEntropyLoss(nn.Module):
