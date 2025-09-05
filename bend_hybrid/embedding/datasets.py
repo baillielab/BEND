@@ -66,62 +66,6 @@ def get_splits(
     return annotations_splits
 
 
-def undersample(
-    annotations_splits: dict[str, pd.DataFrame], n_samples: Union[int, None] = None
-) -> dict[str, pd.DataFrame]:
-    """
-    Undersample the training and validation split to the specified number of samples.
-
-    Parameters
-    ----------
-    annotations_splits : dict[str, pd.DataFrame]
-        Dictionary containing the train/validation/test splits.
-    n_samples : int, optional
-        Number of samples to use for the training split. If None, no undersampling is performed.
-
-    Returns
-    -------
-    dict[str, pd.DataFrame]
-        Dictionary containing the (possibly) undersampled train/validation/test splits.
-    """
-
-    if n_samples is not None:
-        if not "train" in annotations_splits.keys():
-            print("Warning: To use n_samples, the dataset must have a 'train' split.")
-            return annotations_splits
-        if n_samples <= 0:
-            print("Warning: n_samples must be a positive integer.")
-            return annotations_splits
-
-        undersampling_ratio = n_samples / len(annotations_splits["train"])
-
-        if undersampling_ratio >= 1.0:
-            print(
-                f"Warning: n_samples ({n_samples}) is greater than the total number of training annotations. Using all training annotations."
-            )
-            return annotations_splits
-
-        print(f"Undersampling ratio: {undersampling_ratio:.2f}")
-
-        for split in annotations_splits.keys():
-            if split == "test":
-                continue
-
-            n_samples_split = max(
-                1,
-                math.ceil(undersampling_ratio * len(annotations_splits[split])),
-            )
-
-            print(f"Undersampling {split} to {n_samples_split} samples.")
-
-            annotations_splits[split] = annotations_splits[split].sample(
-                n=n_samples_split,
-                random_state=SEED,
-            )
-
-    return annotations_splits
-
-
 class Fasta(pysam.FastaFile):
     """Class for fetching sequences from a reference genome fasta file."""
 
