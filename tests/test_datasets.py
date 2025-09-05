@@ -25,8 +25,8 @@ def test_supervised_sequences_and_labels(supervised_data):
     for split in gt_splits:
         print(f"Testing split: {split}")
 
-        gt_samples = gt_data.get_split_samples(split)
-        batch_samples = batch_data.get_split_samples(split)
+        gt_samples = gt_data.get_samples(split)
+        batch_samples = batch_data.get_samples(split)
 
         assert len(gt_samples) == len(
             batch_samples

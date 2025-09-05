@@ -26,30 +26,46 @@ SUPERVISED_TASKS = [
 ]
 
 
-class Data:
+class SupervisedData:
     """
     Simple class to hold sequences and label of a specific task.
     """
 
     def __init__(self, task):
         self.task = task
+        self.cfg = None
+
+    def _set_cfg(self, config_path: str, config_name: str, override_task: bool = False):
+        """
+        Load configuration using Hydra.
+        """
+        with initialize(version_base=None, config_path=config_path):
+            self.cfg = compose(
+                config_name=config_name,
+                overrides=[f"task={self.task}"] if override_task else None,
+            )
 
     @abc.abstractmethod
     def get_split_names(self) -> list[str]:
         """
-        Return the data split names.
+        Return the data split names or an empty list if no splits are defined.
         """
-        return [None]
+        return []
 
     @abc.abstractmethod
-    def get_split_samples(self, split: str) -> list[tuple[str, int]]:
+    def get_samples(self, split: str = None) -> list[tuple[str, int]]:
         """
-        Return the samples for a given split.
+        Return all samples or return the samples for a given split.
+        Each sample is a tuple of (sequence, label).
         """
         return [(None, None)]
 
+    def get_cfg(self):
+        """Return the Hydra configuration dictionary."""
+        return self.cfg
 
-class DefaultData(Data):
+
+class DefaultSupervisedData(SupervisedData):
     """
     Class to load sequences and labels using default BEND approach.
     """
@@ -57,10 +73,11 @@ class DefaultData(Data):
     def __init__(self, task, config_path, config_name):
         super().__init__(task)
 
-        with initialize(version_base=None, config_path=config_path):
-            self.cfg = compose(config_name=config_name)
+        self._set_cfg(config_path, config_name)
 
         self.splits = sequtils.get_splits(self.cfg[self.task]["bed"])
+
+        self.data = {split: self._get_sequences_labels(split) for split in self.splits}
 
     def _get_data_from_bed(
         self,
@@ -105,8 +122,7 @@ class DefaultData(Data):
 
         start_offset = chunk * chunk_size
 
-        sequences = []
-        targets = []
+        samples = []
 
         for n, line in tqdm(f.iterrows(), total=len(f), desc="Loading sequences"):
             # get bed row
@@ -144,10 +160,9 @@ class DefaultData(Data):
                 )
                 print(n, chrom, start, end, strand)
                 continue
-            sequences.append(sequence)
-            targets.append(labels)
+            samples.append((sequence, labels))
 
-        return sequences, targets
+        return samples
 
     def _get_sequences_labels(self, split: str):
         """
@@ -162,7 +177,7 @@ class DefaultData(Data):
         data = {}
 
         for _, chunk in enumerate(chunks):
-            sequences, labels = self._get_data_from_bed(
+            chunk_samples = self._get_data_from_bed(
                 self.cfg[self.task]["bed"],
                 self.cfg[self.task]["reference_fasta"],
                 hdf5_labels=self.cfg[self.task].get("hdf5_file", None),
@@ -173,33 +188,29 @@ class DefaultData(Data):
                 chunk=chunk,
             )
 
-            data[f"chunk_{chunk}"] = (sequences, labels)
+            data[f"chunk_{chunk}"] = chunk_samples
 
-        sequences = []
-        labels = []
+        samples = []
 
-        for chunk, (seqs, lbls) in tqdm(data.items(), desc="Merging chunks"):
-            sequences.extend(seqs)
-            labels.extend(lbls)
+        for chunk, sample in tqdm(data.items(), desc="Merging chunks"):
+            samples.extend(sample)
 
-        return sequences, labels
+        return samples
 
     def get_split_names(self) -> list[str]:
-        """
-        Return the data split names.
-        """
         return self.splits
 
-    def get_split_samples(self, split: str) -> list[tuple[str, int]]:
-        """
-        Return the samples for a given split.
-        """
-        sequences, labels = self._get_sequences_labels(split)
+    def get_samples(self, split: str = None) -> list[tuple[str, int]]:
+        if split is None:
+            samples = []
+            for split_samples in self.data.values():
+                samples.extend(split_samples)
+            return samples
 
-        return [(sequences[i], labels[i]) for i in range(len(sequences))]
+        return self.data[split]
 
 
-class BatchData(Data):
+class BatchSupervisedData(SupervisedData):
     """
     Class to load data using the DataSupervised dataset.
     """
@@ -207,8 +218,7 @@ class BatchData(Data):
     def __init__(self, task, config_path, config_name):
         super().__init__(task)
 
-        with initialize(version_base=None, config_path=config_path):
-            self.cfg = compose(config_name=config_name, overrides=[f"task={self.task}"])
+        self._set_cfg(config_path, config_name, override_task=True)
 
         self.dataset = DataSupervised(
             self.cfg.task.dataset.annotations_path,
@@ -222,37 +232,43 @@ class BatchData(Data):
             self.cfg.task.dataset.annotations_path
         )
 
+        self.samples = {}  # split -> list of (sequence, label)
+        self.subsets = {}  # split -> Subset(dataset, split) object
+
+        for split, annotations in self.annotations_splits.items():
+            indices = annotations.index.tolist()
+            self.samples[split] = [
+                (self.dataset.sequences[idx], self.dataset.labels[idx])
+                for idx in indices
+            ]
+            self.subsets[split] = Subset(self.dataset, indices)
+
     def get_split_names(self):
-        """
-        Return the data split names.
-        """
         return list(self.annotations_splits.keys())
 
-    def get_split_samples(self, split: str):
-        """
-        Return the samples for a given split.
-        """
+    def get_samples(self, split: str = None):
+        if split is None:
+            samples = []
+            for split_samples in self.samples.values():
+                samples.extend(split_samples)
+            return samples
 
-        annotations = self.annotations_splits[split]
-        indices = annotations.index.tolist()
-        return [
-            (self.dataset.sequences[idx], self.dataset.labels[idx]) for idx in indices
-        ]
+        return self.samples[split]
 
-    def get_split_dataset(self, split: str):
+    def get_dataset(self, split: str = None):
         """
-        Return the instantiated dataset.
+        Return the whole dataset or a subset for a given split.
         """
-        annotations = self.annotations_splits[split]
-
-        return Subset(self.dataset, annotations.index)
+        if split is None:
+            return self.dataset
+        return self.subsets[split]
 
 
 @pytest.fixture(
     params=[task for task in SUPERVISED_TASKS],
     scope="session",
 )
-def supervised_data(request):
+def supervised_data(request) -> tuple[str, DefaultSupervisedData, BatchSupervisedData]:
     """
     Fixture to provide task and split data of supervised datasets.
     """
@@ -261,6 +277,6 @@ def supervised_data(request):
 
     return (
         task,
-        DefaultData(task, "./conf/embedding/", "embed"),
-        BatchData(task, "../config/", "config"),
+        DefaultSupervisedData(task, "./conf/embedding/", "embed"),
+        BatchSupervisedData(task, "../config/", "config"),
     )

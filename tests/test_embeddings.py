@@ -5,7 +5,7 @@ Test generated embeddings for BEND tasks using different embedder models.
 import hydra
 import numpy as np
 import pytest
-from conftest import BatchData, DefaultData
+from conftest import BatchSupervisedData, DefaultSupervisedData
 from scipy.stats import pearsonr
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -33,13 +33,13 @@ ABS_TOL = 0
 PADDING_VALUE = -100
 
 
-def get_gt_embeddings(gt_data: DefaultData, split: str, embedder: str):
+def get_gt_embeddings(gt_data: DefaultSupervisedData, split: str, embedder: str):
     """
     Generate embeddings for the given sequences using BEND method and the specified embedder.
     """
 
-    cfg = gt_data.cfg
-    gt_split = gt_data.get_split_samples(split)
+    cfg = gt_data.get_cfg()
+    gt_split = gt_data.get_samples(split)
     sequences_subset = [seq for seq, _ in gt_split[:N_EMBEDDINGS]]
 
     embedder = hydra.utils.instantiate(cfg[embedder])
@@ -55,13 +55,13 @@ def get_gt_embeddings(gt_data: DefaultData, split: str, embedder: str):
     return gt_embeddings, sequences
 
 
-def get_batch_embeddings(batch_data: BatchData, split: str, embedder: str):
+def get_batch_embeddings(batch_data: BatchSupervisedData, split: str, embedder: str):
     """
     Generate embeddings for a batch of sequences using our approach and the specified embedder.
     """
 
-    cfg = batch_data.cfg
-    dataset = batch_data.get_split_dataset(split)
+    cfg = batch_data.get_cfg()
+    dataset = batch_data.get_dataset(split)
 
     embedder = hydra.utils.instantiate(cfg.embedding[embedder])
 
