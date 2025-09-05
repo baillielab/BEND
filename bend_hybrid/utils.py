@@ -1,6 +1,9 @@
+"""
+Utility functions for the BEND project.
+"""
+
 import os
 import random
-import time
 
 import numpy as np
 import pandas as pd
@@ -85,27 +88,20 @@ def record_embedding_time(
 
     file_path = os.path.join(output_dir, "embeddings_stats.csv")
 
+    new_df = pd.DataFrame.from_dict(
+        {
+            "task": [task],
+            "model": [model],
+            "time": [running_time],
+            "n_samples": [n_samples],
+            "size (bytes)": [tar_size],
+        }
+    )
+
     if not os.path.exists(file_path):
         os.makedirs(output_dir, exist_ok=True)
-        pd.DataFrame(
-            columns=[
-                "task",
-                "model",
-                "time",
-                "n_samples",
-                "size (bytes)",
-            ],
-        ).to_csv(file_path, index=False)
+        new_df.to_csv(file_path, index=False)
 
-    data = pd.read_csv(file_path)
-    data = data._append(
-        {
-            "task": task,
-            "model": model,
-            "time": running_time,
-            "n_samples": n_samples,
-            "size (bytes)": tar_size,
-        },
-        ignore_index=True,
-    )
-    data.to_csv(file_path, index=False)
+    old_df = pd.read_csv(file_path)
+    new_df = pd.concat([old_df, new_df], ignore_index=True)
+    new_df.to_csv(file_path, index=False)
