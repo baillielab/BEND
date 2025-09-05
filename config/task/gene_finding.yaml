@@ -1,34 +1,33 @@
-task: histone_modification
+name: gene_finding
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
 dataset:
-  annotations_path: ${data_dir}/histone_modification/histone_modification.bed
+  annotations_path: ${data_dir}/gene_finding/gene_finding.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  label_depth: 18
-  sequence_length: 512
+  hdf5_path: ${data_dir}/gene_finding/gene_finding.hdf5
+  label_depth: 9
+  sequence_length: null # When null, indicates uneven length sequences
 dataloader:
   annotations:
-    batch_size: 256
-    num_workers: 8
+    batch_size: 64
+    num_workers: 2
     prefetch_factor: 2
   downstream:
     _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
-    data_dir: ${embeddings_output_dir}
-    batch_size: 256
-    num_workers: 8
+    shards_dir: ${embeddings_output_dir}
+    batch_size: 64
+    num_workers: 2
     prefetch_factor: 2
     padding_value: -100
-    shuffle: 512
+    shuffle: 128
     shardshuffle: 32
 model:
   _target_: bend_hybrid.models.downstream.CNN
-  encoder: null
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64
   kernel_size: 3
-  output_downsample_window: 512
 optimizer:
   _target_: torch.optim.AdamW
   lr: 0.003
@@ -37,9 +36,9 @@ params:
   epochs: 100
   load_checkpoint: false
   gradient_accumulation_steps: 1
-  criterion: bce
-  class_weights: null
-  metric: auroc
+  criterion: cross_entropy
+  class_weights: null #[6.37, 1485.62, 1.52, 1485.62, 6.11, 1438.04, 1.52, 1438.04, 1.0]
+  metric: mcc
   activation: none
 wandb:
   mode: disabled

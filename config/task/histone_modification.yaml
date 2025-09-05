@@ -1,11 +1,11 @@
-task: chromatin_accessibility
+name: histone_modification
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
 dataset:
-  annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
-  genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
-  label_depth: 125
+  annotations_path: ${data_dir}/histone_modification/histone_modification.bed
+  genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
+  label_depth: 18
   sequence_length: 512
 dataloader:
   annotations:
@@ -14,7 +14,7 @@ dataloader:
     prefetch_factor: 2
   downstream:
     _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
-    data_dir: ${embeddings_output_dir}
+    shards_dir: ${embeddings_output_dir}
     batch_size: 256
     num_workers: 8
     prefetch_factor: 2

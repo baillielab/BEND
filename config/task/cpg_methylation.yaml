@@ -1,47 +1,45 @@
-task: enhancer_annotation
+name: cpg_methylation
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
 dataset:
-  annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
+  annotations_path: ${data_dir}/cpg_methylation/cpg_methylation.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
-  hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5
-  label_depth: 1
-  sequence_length: null # When null, indicates uneven length sequences
+  label_depth: 7
+  sequence_length: 512
 dataloader:
   annotations:
-    batch_size: 8
-    num_workers: 2
+    batch_size: 256
+    num_workers: 8
     prefetch_factor: 2
   downstream:
     _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
-    data_dir: ${embeddings_output_dir}
-    batch_size: 8
-    num_workers: 2
+    shards_dir: ${embeddings_output_dir}
+    batch_size: 256
+    num_workers: 8
     prefetch_factor: 2
     padding_value: -100
-    shuffle: 16
+    shuffle: 512
     shardshuffle: 32
-    fold_idx: null # if null, cross-validation is performed on all folds
 model:
   _target_: bend_hybrid.models.downstream.CNN
+  encoder: null
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
-  hidden_size: 2
+  hidden_size: 64
   kernel_size: 3
-  output_downsample_window: 128
+  output_downsample_window: 512
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 0.001
+  lr: 0.003
   weight_decay: 0.01
 params:
   epochs: 100
   load_checkpoint: false
   gradient_accumulation_steps: 1
   criterion: bce
-  class_weights:
-    - 82.86
-  metric: auprc
+  class_weights: null
+  metric: auroc
   activation: none
 wandb:
   mode: disabled

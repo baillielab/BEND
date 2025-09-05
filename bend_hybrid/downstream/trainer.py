@@ -1,7 +1,5 @@
 """
-task_trainer.py
-===============
-Trainer class for training downstream models on supervised tasks.
+Trainer and losses classes for training downstream models on supervised tasks.
 """
 
 import glob
@@ -12,7 +10,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import wandb
 from sklearn.feature_selection import r_regression
 from sklearn.metrics import (
     average_precision_score,
@@ -232,7 +229,7 @@ class BaseTrainer:
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.scaler = torch.amp.GradScaler()  # init scaler for mixed precision training
 
-    def get_criterion(self):
+    def get_criterion(self) -> torch.nn.Module:
         """
         Get the criterion to use for training.
 
@@ -379,7 +376,7 @@ class BaseTrainer:
                 [metric] + recall + precision
             )  # [list(i) for i in zip(recall, precision)]
         elif self.config.params.metric == "auroc":
-            if self.config.task in [
+            if self.config.name in [
                 "histone_modification",
                 "chromatin_accessibility",
                 "cpg_methylation",

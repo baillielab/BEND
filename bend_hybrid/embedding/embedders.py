@@ -1,17 +1,15 @@
 """
-embedders.py
-------------
 Wrapper classes for embedding sequences with pretrained DNA language models using a common interface.
-The wrapper classes handle loading the models and tokenizers, and embedding the sequences. As far as possible,
-models are downloaded automatically.
+The wrapper classes handle loading the models and tokenizers, and embedding even or uneven length sequences.
+As far as possible, models are downloaded automatically.
 They also handle removal of special tokens, and optionally upsample the embeddings to the original sequence length.
 
-Embedders can be used as follows. Please check the individual classes for more details on the arguments.
-
-``embedder = EmbedderClass(model_name, some_additional_config_argument=6)``
-
-``embedding = embedder(sequence, remove_special_tokens=True, upsample_embeddings=True)``
-
+- BaseEmbedder: Base class for all embedders.
+- NucleotideTransformerEmbedder: Embed using the Nucleotide Transformer (NT) model
+- AWDLSTMEmbedder: Embed using the AWD-LSTM model
+- ConvNetEmbedder: Embed using the Dilated CNN model
+- DNABert2Embedder: Embed using the DNABert2 model
+- HyenaDNAModel: Embed using the Hyena-DNA model
 """
 
 import os
@@ -466,11 +464,7 @@ class AWDLSTMEmbedder(BaseEmbedder):
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    def embed(
-        self,
-        sequences: List[str],
-        uneven_length: bool = False,
-    ):
+    def embed(self, sequences: List[str], uneven_length: bool = False, **kwargs):
         """
         Embed sequences using the AWD-LSTM baseline LM trained in BEND.
 
@@ -597,14 +591,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",
         **kwargs,
     ):
-        # '''Load the model from the checkpoint path
-        # 'hyenadna-tiny-1k-seqlen'
-        # 'hyenadna-small-32k-seqlen'
-        # 'hyenadna-medium-160k-seqlen'
-        # 'hyenadna-medium-450k-seqlen'
-        # 'hyenadna-large-1m-seqlen'
-        # '''
-        # you only need to select which model to use here, we'll do the rest!
         """
         Load the HyenaDNA model.
 
@@ -928,88 +914,3 @@ class DNABert2Embedder(BaseEmbedder):
         repetitions = np.array(repetitions, dtype=np.int32)
 
         return np.repeat(embedding, repetitions, axis=0)
-
-
-# Class for one-hot encoding.
-categories_4_letters_unknown = ["A", "C", "G", "N", "T"]
-
-
-class EncodeSequence:
-    def __init__(self, nucleotide_categories=categories_4_letters_unknown):
-
-        self.nucleotide_categories = nucleotide_categories
-
-        self.label_encoder = LabelEncoder().fit(self.nucleotide_categories)
-
-    def transform_integer(
-        self, sequence, return_onehot=False
-    ):  # integer/onehot encode sequence
-        if isinstance(sequence, np.ndarray):
-            return sequence
-        if isinstance(sequence[0], str):  # if input is str
-            sequence = np.array(list(sequence))
-
-        sequence = self.label_encoder.transform(sequence)
-
-        if return_onehot:
-            sequence = np.eye(len(self.nucleotide_categories))[sequence]
-        return sequence
-
-    def inverse_transform_integer(self, sequence):
-        if isinstance(sequence, str):  # if input is str
-            return sequence
-        sequence = EncodeSequence.reduce_last_dim(sequence)  # reduce last dim
-        sequence = self.label_encoder.inverse_transform(sequence)
-        return ("").join(sequence)
-
-    @staticmethod
-    def reduce_last_dim(sequence):
-        if isinstance(sequence, (str, list)):  # if input is str
-            return sequence
-        if len(sequence.shape) > 1:
-            sequence = np.argmax(sequence, axis=-1)
-        return sequence
-
-
-def embed_nucleotide_transformer(sequences, model_name):
-    return NucleotideTransformerEmbedder(model_name).embed(sequences)
-
-
-def embed_awdlstm(sequences, model_path, **kwargs):
-    return AWDLSTMEmbedder(model_path, **kwargs).embed(sequences)
-
-
-def embed_convnet(sequences, model_path, **kwargs):
-    return ConvNetEmbedder(model_path, **kwargs).embed(sequences)
-
-
-def embed_sequence(sequences: List[str], embedding_type: str = "categorical", **kwargs):
-    """
-    sequences : list of sequences to embed
-    """
-    if not embedding_type:
-        return sequences
-
-    if embedding_type == "categorical" or embedding_type == "onehot":
-        encode_seq = EncodeSequence()
-        # embed to categorcal
-        sequence = []
-        for seq in sequences:
-            sequence.append(torch.tensor(encode_seq.transform_integer(seq)))
-            return sequence
-    # embed with nt transformer:
-    elif embedding_type == "nt_transformer":
-        # model name "InstaDeepAI/nucleotide-transformer-2.5b-multi-species"
-        sequences, cls_token = embed_nucleotide_transformer(sequences, **kwargs)
-        return sequences, cls_token
-    # embed with GPN
-    # embed with DNAbert
-    # embed with own models.
-    elif embedding_type == "awdlstm":
-        sequences = embed_awdlstm(sequences, disable_tqdm=True, **kwargs)
-        return sequences
-    elif embedding_type == "convnet":
-        sequences = embed_convnet(sequences, disable_tqdm=True, **kwargs)
-        return sequences
-
-    return sequences

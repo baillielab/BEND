@@ -395,7 +395,7 @@ class BaseTrainer:
                 [metric] + recall + precision
             )  # [list(i) for i in zip(recall, precision)]
         elif self.config.params.metric == "auroc":
-            if self.config.task in [
+            if self.config.name in [
                 "histone_modification",
                 "chromatin_accessibility",
                 "cpg_methylation",

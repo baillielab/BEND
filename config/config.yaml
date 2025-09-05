@@ -1,6 +1,6 @@
 defaults:
   - embedding/embedders
-  - tasks@task: gene_finding
+  - task: gene_finding
   - _self_
 hydra:
   mode: MULTIRUN
@@ -17,7 +17,7 @@ hydra:
         dnabert2,
         awdlstm,
         resnetlm
-      tasks@task: gene_finding,
+      task: gene_finding,
         enhancer_annotation,
         histone_modification,
         chromatin_accessibility,
@@ -33,5 +33,4 @@ output_dir: ./results/ # scripts will add /{task}/{embedder}/
 
 embedder: nt_transformer_1000g
 compute_embeddings: true # Set to false to skip embedding computation
-train_model: true # Set to false to skip training
-
+train_downstream: true # Set to false to skip training

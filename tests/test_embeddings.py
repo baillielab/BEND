@@ -5,26 +5,25 @@ Test generated embeddings for BEND tasks using different embedder models.
 import hydra
 import numpy as np
 import pytest
-import torch
-from hydra import compose, initialize
+from conftest import BatchData, DefaultData
 from scipy.stats import pearsonr
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 EMBEDDERS = [
     "hyenadna-tiny-1k",
-    # "hyenadna-large-1m",
-    # "nt_transformer_ms",
-    # "nt_transformer_1000g",
-    # "nt_transformer_human_ref",
-    # "nt_transformer_v2_500m",
-    # "dnabert2",
-    # "awdlstm",
-    # "resnetlm",
+    "hyenadna-large-1m",
+    "nt_transformer_ms",
+    "nt_transformer_1000g",
+    "nt_transformer_human_ref",
+    "nt_transformer_v2_500m",
+    "dnabert2",
+    "awdlstm",
+    "resnetlm",
 ]
 
 # Number of embeddings to retrieve for testing
-N_EMBEDDINGS = 100
+N_EMBEDDINGS = 1
 # Minimum Pearson correlation between embeddings
 MIN_CORR = 1 - 1e-5
 # Maximum allowed difference between any two embedding values
@@ -34,16 +33,16 @@ ABS_TOL = 0
 PADDING_VALUE = -100
 
 
-def get_gt_embeddings(gt_sequences, embedder):
+def get_gt_embeddings(gt_data: DefaultData, split: str, embedder: str):
     """
     Generate embeddings for the given sequences using BEND method and the specified embedder.
     """
 
-    with initialize(version_base=None, config_path="./conf/embedding/"):
-        cfg = compose(config_name="embed")
+    cfg = gt_data.cfg
+    gt_split = gt_data.get_split_samples(split)
+    sequences_subset = [seq for seq, _ in gt_split[:N_EMBEDDINGS]]
 
     embedder = hydra.utils.instantiate(cfg[embedder])
-    sequences_subset = gt_sequences[:N_EMBEDDINGS]
 
     gt_embeddings = []
     sequences = []
@@ -56,16 +55,13 @@ def get_gt_embeddings(gt_sequences, embedder):
     return gt_embeddings, sequences
 
 
-def get_batch_embeddings(task, dataset, embedder):
+def get_batch_embeddings(batch_data: BatchData, split: str, embedder: str):
     """
     Generate embeddings for a batch of sequences using our approach and the specified embedder.
     """
 
-    with initialize(version_base=None, config_path="../config/"):
-        cfg = compose(
-            config_name="config",
-            overrides=[f"embedder={embedder}", f"tasks@task={task}"],
-        )
+    cfg = batch_data.cfg
+    dataset = batch_data.get_split_dataset(split)
 
     embedder = hydra.utils.instantiate(cfg.embedding[embedder])
 
@@ -146,16 +142,17 @@ def test_supervised_embeddings(supervised_data, embedder):
     for the specified embedder.
     """
 
-    task, split, gt_data, dataset = supervised_data
+    task, gt_data, batch_data = supervised_data
 
-    print(
-        f"\nTesting embeddings for task: {task}, split: {split}, embedder: {embedder}\n"
-    )
+    print(f"\nTesting embeddings for task: {task}, embedder: {embedder}\n")
 
-    gt_sequences, _ = gt_data
+    for split in gt_data.get_split_names():
+        print(f"Testing split: {split}")
 
-    batch_embeddings, batch_sequences = get_batch_embeddings(task, dataset, embedder)
-    gt_embeddings, gt_sequences = get_gt_embeddings(gt_sequences, embedder)
+        batch_embeddings, batch_sequences = get_batch_embeddings(
+            batch_data, split, embedder
+        )
+        gt_embeddings, gt_sequences = get_gt_embeddings(gt_data, split, embedder)
 
     assert_sequences(gt_sequences, batch_sequences)
     assert_embeddings(gt_embeddings, batch_embeddings)

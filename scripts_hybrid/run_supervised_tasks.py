@@ -1,3 +1,9 @@
+"""
+Run a supervised task experiment by embedding DNA sequences, using compute_embeddings(),
+and training a downstream model, using train_downstream().
+Configuration is set through Hydra in config/config.yaml.
+"""
+
 import os
 import time
 
@@ -9,7 +15,7 @@ from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 from bend_hybrid.downstream.trainer import BaseTrainer
-from bend_hybrid.embeddings.datasets import DataSupervised, collate_fn, get_splits
+from bend_hybrid.embedding.datasets import DataSupervised, collate_fn, get_splits
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
@@ -32,7 +38,7 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
     """
 
     print(
-        f"=== Embedding sequences for task: {cfg.task.task} with model: {cfg.embedder} ==="
+        f"=== Embedding sequences for task: {cfg.task.name} with model: {cfg.embedder} ==="
     )
 
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
@@ -75,7 +81,10 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
                 for sample_idx in tqdm(
                     range(len(embeddings)), desc="Writing samples", leave=False
                 ):
-                    sample_key = batch_idx * cfg.task.data.batch_size + sample_idx
+                    sample_key = (
+                        batch_idx * cfg.task.dataloader.annotations.batch_size
+                        + sample_idx
+                    )
                     writer.write(
                         {
                             "__key__": f"sample{sample_key:08d}",
@@ -85,7 +94,7 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
                     )
 
     record_embedding_time(
-        cfg.task.task,
+        cfg.task.name,
         cfg.embedder,
         running_time=time.time() - start_time,
         n_samples=len(dataset),
@@ -94,7 +103,7 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
     )
 
 
-def train_on_task(cfg: DictConfig) -> None:
+def train_downstream(cfg: DictConfig) -> None:
     """
     Train the downstream model of a supervised task.
 
@@ -145,25 +154,25 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    if "var" in cfg.task.task:
+    if "var" in cfg.task.name:
         print(
             "Skipping experiment for task variant_effects, as it is not a supervised task."
         )
         return
 
     cfg.embeddings_output_dir = os.path.join(
-        cfg.embeddings_output_dir, cfg.task.task, cfg.embedder
+        cfg.embeddings_output_dir, cfg.task.name, cfg.embedder
     )
-    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.task, cfg.embedder)
+    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
 
     annotations_splits = get_splits(cfg.task.dataset.annotations_path)
 
     if cfg.compute_embeddings is True:
         compute_embeddings(cfg, annotations_splits)
 
-    if cfg.train_model is True:
+    if cfg.train_downstream is True:
         print(
-            f"=== Training model for task: {cfg.task.task} with embedder: {cfg.embedder} ==="
+            f"=== Training model for task: {cfg.task.name} with embedder: {cfg.embedder} ==="
         )
         if (
             "fold_idx" in cfg.task.dataloader.downstream
@@ -177,11 +186,11 @@ def run_experiment(cfg: DictConfig) -> None:
                 print(f"=== Running fold {fold_idx + 1}/{n_folds} ===")
                 cfg.task.dataloader.downstream.fold_idx = fold_idx
                 cfg.output_dir = os.path.join(output_dir, f"fold_{fold_idx + 1}")
-                train_on_task(cfg)
+                train_downstream(cfg)
 
         # If not cross-validation, or only one fold specified, train once
-        train_on_task(cfg)
+        train_downstream(cfg)
 
 
 if __name__ == "__main__":
-    run_experiment()
+    run_experiment()  # pylint: disable=E1120

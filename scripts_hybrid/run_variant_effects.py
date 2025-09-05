@@ -1,8 +1,8 @@
 """
-This script differs from the default precompute_embeddings.py script in that it
-computes embeddings for two sequences: the reference sequence and the variant
-sequence. The variant sequence is obtained by replacing the reference nucleotide
-with the variant nucleotide at the variant position.
+This script differs from the default run_supervised_script.py script in that it
+computes embeddings for two sequences: the reference sequence and the variant sequence.
+The variant sequence is obtained by replacing the reference nucleotide with the variant
+nucleotide at the variant position.
 """
 
 import os
@@ -16,16 +16,25 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from bend_hybrid.embeddings.datasets import DataVariantEffects
+from bend_hybrid.embedding.datasets import DataVariantEffects
 from bend_hybrid.utils import set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-@hydra.main(config_path=f"../config/", config_name="config", version_base=None)
+@hydra.main(config_path="../config/", config_name="config", version_base=None)
 def run_experiment(cfg: DictConfig) -> None:
+    """
+    Run the experiment.
+    This function is called by hydra.
+    Parameters
+    ----------
+    cfg : DictConfig
+        Hydra configuration object.
+    """
 
+    cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
     print("Output directory", cfg.output_dir)
     os.makedirs(cfg.output_dir, exist_ok=True)
 
@@ -50,26 +59,24 @@ def run_experiment(cfg: DictConfig) -> None:
 
     dataloader = DataLoader(
         dataset,
-        batch_size=cfg.task.data.batch_size,
-        num_workers=cfg.task.data.num_workers,
+        batch_size=cfg.task.dataloader.batch_size,
+        num_workers=cfg.task.dataloader.num_workers,
         shuffle=False,
     )
 
     start = time.time()
-    cosine_dinstances = []
+    cosine_distances = []
 
-    for batch_idx, (dna_seqs, alt_dna_seqs) in tqdm(
+    for _, (dna_seqs, alt_dna_seqs) in tqdm(
         enumerate(dataloader), total=len(dataloader)
     ):
         ref_embeddings = embedder.embed(dna_seqs)[:, embedding_idx, :]
-        alt_embeddings = embedder.embed(alt_dna_seqs)[:, embedding_idx, :]
+        snp_embeddings = embedder.embed(alt_dna_seqs)[:, embedding_idx, :]
 
-        for ref_emb, alt_emb in zip(ref_embeddings, alt_embeddings):
-            cosine_dinstances.append(spatial.distance.cosine(ref_emb, alt_emb))
+        for ref_emb, snp_emb in zip(ref_embeddings, snp_embeddings):
+            cosine_distances.append(spatial.distance.cosine(ref_emb, snp_emb))
 
-    dataset.annotation.loc[0 : len(cosine_dinstances) - 1, "distance"] = (
-        cosine_dinstances
-    )
+    dataset.annotation.loc[0 : len(cosine_distances) - 1, "distance"] = cosine_distances
     end = time.time()
     print(f"Running time: {end - start} seconds")
 
@@ -87,4 +94,4 @@ def run_experiment(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    run_experiment()
+    run_experiment()  # pylint: disable=E1120
