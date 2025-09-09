@@ -66,21 +66,24 @@ def run_experiment(cfg: DictConfig) -> None:
 
     start = time.time()
     cosine_distances = []
+    labels = []
 
-    for _, (dna_seqs, alt_dna_seqs) in tqdm(
+    for _, (dna_seqs, alt_dna_seqs, batch_labels) in tqdm(
         enumerate(dataloader), total=len(dataloader)
     ):
         ref_embeddings = embedder.embed(dna_seqs)[:, embedding_idx, :]
         snp_embeddings = embedder.embed(alt_dna_seqs)[:, embedding_idx, :]
 
-        for ref_emb, snp_emb in zip(ref_embeddings, snp_embeddings):
+        for ref_emb, snp_emb, label in zip(
+            ref_embeddings, snp_embeddings, batch_labels
+        ):
             cosine_distances.append(spatial.distance.cosine(ref_emb, snp_emb))
+            labels.append(label)
 
-    dataset.annotation.loc[0 : len(cosine_distances) - 1, "distance"] = cosine_distances
     end = time.time()
     print(f"Running time: {end - start} seconds")
 
-    score = roc_auc_score(dataset.annotation["label"], dataset.annotation["distance"])
+    score = roc_auc_score(labels, cosine_distances)
     print(f"ROC AUC: {score} for {cfg.embedder}")
 
     # save the results

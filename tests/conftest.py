@@ -4,18 +4,26 @@ This file sets up fixtures and configurations for testing datasets in the BEND p
 """
 
 import abc
+from random import sample
+from typing import Generator
 
 import h5py
+import numpy as np
 import pandas as pd
 import pytest
 from bend.io import sequtils
 from bend.io.sequtils import Fasta, multi_hot
+from bend.utils import Annotation
 from hydra import compose, initialize
-from torch.utils.data import Subset
+from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 from bend_hybrid.embedding import datasets
-from bend_hybrid.embedding.datasets import DataSupervised
+from bend_hybrid.embedding.datasets import (
+    DataSupervised,
+    DataVariantEffects,
+    collate_fn,
+)
 
 SUPERVISED_TASKS = [
     "gene_finding",
@@ -24,26 +32,60 @@ SUPERVISED_TASKS = [
     "chromatin_accessibility",
     "enhancer_annotation",
 ]
+UNSUPERVISED_TASKS = ["var_effects_expression", "var_effects_disease"]
+
+EXTRA_CONTEXT = {True: (512, 0), False: (256, 256)}  # autoregressive: (left, right)
 
 
-class SupervisedData:
+def compose_cfg(config_path: str, config_name: str, task: str = None):
+    """
+    Load configuration using Hydra.
+    """
+    with initialize(version_base=None, config_path=config_path):
+        cfg = compose(
+            config_name=config_name,
+            overrides=[f"task={task}"] if task is not None else None,
+        )
+    return cfg
+
+
+DEFAULT_CFG = compose_cfg("./conf/embedding/", "embed")
+BATCH_CFG = {
+    task: compose_cfg("../config/", "config", task)
+    for task in SUPERVISED_TASKS + UNSUPERVISED_TASKS
+}
+
+SUPERVISED_DATASETS = (
+    "supervised_dataset",
+    [
+        pytest.param(
+            task,
+            id=f"{task}",
+        )
+        for task in SUPERVISED_TASKS
+    ],
+)
+
+VARIANT_EFFECTS_DATASETS = (
+    "var_eff_dataset",
+    [
+        pytest.param(
+            (task, autoregressive),
+            id=f"{task}-{EXTRA_CONTEXT[autoregressive]}",
+        )
+        for task in UNSUPERVISED_TASKS
+        for autoregressive in [True, False]
+    ],
+)
+
+
+class Data:
     """
     Simple class to hold sequences and label of a specific task.
     """
 
     def __init__(self, task):
         self.task = task
-        self.cfg = None
-
-    def _set_cfg(self, config_path: str, config_name: str, override_task: bool = False):
-        """
-        Load configuration using Hydra.
-        """
-        with initialize(version_base=None, config_path=config_path):
-            self.cfg = compose(
-                config_name=config_name,
-                overrides=[f"task={self.task}"] if override_task else None,
-            )
 
     @abc.abstractmethod
     def get_split_names(self) -> list[str]:
@@ -53,31 +95,26 @@ class SupervisedData:
         return []
 
     @abc.abstractmethod
-    def get_samples(self, split: str = None) -> list[tuple[str, int]]:
+    def next_sample(self, **kwargs):
         """
-        Return all samples or return the samples for a given split.
-        Each sample is a tuple of (sequence, label).
+        Generator to yield samples one by one.
         """
-        return [(None, None)]
-
-    def get_cfg(self):
-        """Return the Hydra configuration dictionary."""
-        return self.cfg
+        yield
 
 
-class DefaultSupervisedData(SupervisedData):
+class DefaultSupervisedData(Data):
     """
     Class to load sequences and labels using default BEND approach.
     """
 
-    def __init__(self, task, config_path, config_name):
+    def __init__(self, task):
         super().__init__(task)
 
-        self._set_cfg(config_path, config_name)
+        self.splits = sequtils.get_splits(DEFAULT_CFG[self.task]["bed"])
 
-        self.splits = sequtils.get_splits(self.cfg[self.task]["bed"])
-
-        self.data = {split: self._get_sequences_labels(split) for split in self.splits}
+        self.samples = {
+            split: self._fetch_sequences_labels(split) for split in self.splits
+        }
 
     def _get_data_from_bed(
         self,
@@ -164,111 +201,104 @@ class DefaultSupervisedData(SupervisedData):
 
         return samples
 
-    def _get_sequences_labels(self, split: str):
+    def _fetch_sequences_labels(self, split: str):
         """
         Convert annotations to sequences and labels.
         """
 
-        chunk_size = self.cfg["chunk_size"]
-        df = pd.read_csv(self.cfg[self.task]["bed"], sep="\t", low_memory=False)
+        chunk_size = DEFAULT_CFG["chunk_size"]
+        df = pd.read_csv(DEFAULT_CFG[self.task]["bed"], sep="\t", low_memory=False)
         df = df[df.iloc[:, -1] == split] if split is not None else df
         chunks = list(range(int(len(df) / chunk_size) + 1))
 
-        data = {}
-
-        for _, chunk in enumerate(chunks):
-            chunk_samples = self._get_data_from_bed(
-                self.cfg[self.task]["bed"],
-                self.cfg[self.task]["reference_fasta"],
-                hdf5_labels=self.cfg[self.task].get("hdf5_file", None),
-                label_depth=self.cfg[self.task].get("label_depth", None),
-                read_strand=self.cfg[self.task]["read_strand"],
-                split=split,
-                chunk_size=chunk_size,
-                chunk=chunk,
-            )
-
-            data[f"chunk_{chunk}"] = chunk_samples
-
         samples = []
 
-        for chunk, sample in tqdm(data.items(), desc="Merging chunks"):
-            samples.extend(sample)
+        for chunk_idx in chunks:
+            chunk_samples = self._get_data_from_bed(
+                DEFAULT_CFG[self.task]["bed"],
+                DEFAULT_CFG[self.task]["reference_fasta"],
+                hdf5_labels=DEFAULT_CFG[self.task].get("hdf5_file", None),
+                label_depth=DEFAULT_CFG[self.task].get("label_depth", None),
+                read_strand=DEFAULT_CFG[self.task]["read_strand"],
+                split=split,
+                chunk_size=chunk_size,
+                chunk=chunk_idx,
+            )
+
+            samples.extend(chunk_samples)
 
         return samples
 
     def get_split_names(self) -> list[str]:
         return self.splits
 
-    def get_samples(self, split: str = None) -> list[tuple[str, int]]:
+    def next_sample(self, **kwargs):
+        """
+        Generator to yield samples of a given split one by one.
+        Each sample is a tuple of (sequence, label).
+        """
+        split = kwargs.get("split", None)
         if split is None:
-            samples = []
-            for split_samples in self.data.values():
-                samples.extend(split_samples)
-            return samples
+            raise ValueError("Missing required argument: 'split'")
 
-        return self.data[split]
+        for dna, label in self.samples[split]:
+            yield (dna, label)
 
 
-class BatchSupervisedData(SupervisedData):
+class BatchSupervisedData(Data):
     """
     Class to load data using the DataSupervised dataset.
     """
 
-    def __init__(self, task, config_path, config_name):
+    def __init__(self, task):
         super().__init__(task)
 
-        self._set_cfg(config_path, config_name, override_task=True)
+        cfg = BATCH_CFG[task]
 
         self.dataset = DataSupervised(
-            self.cfg.task.dataset.annotations_path,
-            self.cfg.task.dataset.genome_path,
-            hdf5_path=self.cfg.task.dataset.get("hdf5_path", None),
-            label_depth=self.cfg.task.dataset.get("label_depth", None),
-            sequence_length=self.cfg.task.dataset.get("sequence_length", None),
+            cfg.task.dataset.annotations_path,
+            cfg.task.dataset.genome_path,
+            hdf5_path=cfg.task.dataset.get("hdf5_path", None),
+            label_depth=cfg.task.dataset.get("label_depth", None),
+            sequence_length=cfg.task.dataset.get("sequence_length", None),
         )
 
-        self.annotations_splits = datasets.get_splits(
-            self.cfg.task.dataset.annotations_path
-        )
-
-        self.samples = {}  # split -> list of (sequence, label)
+        samples_idx_by_split = self.dataset.get_samples_idx_by_split()
         self.subsets = {}  # split -> Subset(dataset, split) object
 
-        for split, annotations in self.annotations_splits.items():
-            indices = annotations.index.tolist()
-            self.samples[split] = [
-                (self.dataset.sequences[idx], self.dataset.labels[idx])
-                for idx in indices
-            ]
+        for split, indices in samples_idx_by_split.items():
             self.subsets[split] = Subset(self.dataset, indices)
 
     def get_split_names(self):
-        return list(self.annotations_splits.keys())
+        return list(self.subsets.keys())
 
-    def get_samples(self, split: str = None):
-        if split is None:
-            samples = []
-            for split_samples in self.samples.values():
-                samples.extend(split_samples)
-            return samples
-
-        return self.samples[split]
-
-    def get_dataset(self, split: str = None):
+    def next_sample(self, **kwargs):
         """
-        Return the whole dataset or a subset for a given split.
+        Generator to yield samples of a given split one by one.
+        Each sample is a tuple of (sequence, label).
         """
+        split = kwargs.get("split", None)
         if split is None:
-            return self.dataset
-        return self.subsets[split]
+            raise ValueError("Missing required argument: 'split'")
+
+        dataloader = DataLoader(
+            self.subsets[split],
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            collate_fn=collate_fn if self.dataset.is_uneven() else None,
+        )
+
+        for dna, label in dataloader:
+            yield dna[0], label[0]  # remove batch dimension
 
 
 @pytest.fixture(
-    params=[task for task in SUPERVISED_TASKS],
     scope="session",
 )
-def supervised_data(request) -> tuple[str, DefaultSupervisedData, BatchSupervisedData]:
+def supervised_dataset(
+    request,
+) -> tuple[str, DefaultSupervisedData, BatchSupervisedData]:
     """
     Fixture to provide task and split data of supervised datasets.
     """
@@ -277,6 +307,147 @@ def supervised_data(request) -> tuple[str, DefaultSupervisedData, BatchSupervise
 
     return (
         task,
-        DefaultSupervisedData(task, "./conf/embedding/", "embed"),
-        BatchSupervisedData(task, "../config/", "config"),
+        DefaultSupervisedData(task),
+        BatchSupervisedData(task),
+    )
+
+
+class DefaultVariantEffectsData(Data):
+    """
+    Class to load sequences of variant effects datasets using default BEND approach.
+    """
+
+    def __init__(
+        self,
+        task: str,
+        annotation_path: str,
+        reference_path: str,
+        extra_context_left: int = 0,
+        extra_context_right: int = 0,
+    ):
+        super().__init__(task)
+
+        self.samples = self._fetch_sequences_labels(
+            annotation_path,
+            reference_path,
+            extra_context_left,
+            extra_context_right,
+        )
+
+    def _fetch_sequences_labels(
+        self,
+        annotation_path: str,
+        reference_path: str,
+        extra_context_left: int = 0,
+        extra_context_right: int = 0,
+    ) -> list[tuple[str, str, int]]:
+        """
+        Convert annotations to reference and SNP sequences, and labels.
+        """
+
+        genome_annotation = Annotation(annotation_path, reference_genome=reference_path)
+        if extra_context_left > 0 or extra_context_right > 0:
+            genome_annotation.extend_segments(
+                extra_context_left=extra_context_left,
+                extra_context_right=extra_context_right,
+            )
+
+        samples = []
+
+        # iterate over the genome annotation
+        for index, row in tqdm(genome_annotation.annotation.iterrows()):
+
+            # get the reference and alternate dna sequences
+            dna = genome_annotation.get_dna_segment(index=index)
+            dna_alt = [x for x in dna]
+            if extra_context_left == extra_context_right:
+                dna_alt[len(dna_alt) // 2] = row["alt"]
+            elif extra_context_right == 0:
+                dna_alt[-1] = row["alt"]
+            elif extra_context_left == 0:
+                dna_alt[0] = row["alt"]
+            else:
+                raise ValueError("Not implemented")
+            dna_alt = "".join(dna_alt)
+
+            samples.append((dna, dna_alt, row["label"]))
+
+        return samples
+
+    def get_split_names(self) -> list[str]:
+        return []
+
+    def next_sample(self, **kwargs) -> Generator[str, str, int]:
+        """
+        Generator to yield samples one by one.
+        Each sample is a tuple of (reference sequence, SNP sequence, label).
+        """
+        for dna, dna_alt, label in self.samples:
+            yield dna, dna_alt, label
+
+
+class BatchVariantEffectsData(Data):
+    """
+    Class to load sequences of variant effects datasets using DataVariantEffects dataset.
+    """
+
+    def __init__(
+        self,
+        task: str,
+        extra_context_left: int = 0,
+        extra_context_right: int = 0,
+    ):
+        super().__init__(task)
+
+        cfg = BATCH_CFG[task]
+
+        self.dataset = DataVariantEffects(
+            annotation_path=cfg.task.dataset.annotations_path,
+            genome_path=cfg.task.dataset.genome_path,
+            extra_context_left=extra_context_left,
+            extra_context_right=extra_context_right,
+        )
+
+    def get_split_names(self) -> list[str]:
+        return []
+
+    def next_sample(self, **kwargs) -> Generator[str, str, int]:
+        """
+        Generator to yield samples one by one.
+        Each sample is a tuple of (reference sequence, SNP sequence, label).
+        """
+        dataloader = DataLoader(
+            self.dataset, batch_size=1, shuffle=False, num_workers=1
+        )
+
+        for ref_dna, snp_dna, label in dataloader:
+            yield ref_dna[0], snp_dna[0], label.item()  # remove batch dimension
+
+
+@pytest.fixture(scope="session")
+def var_eff_dataset(
+    request,
+) -> tuple[str, bool, DefaultVariantEffectsData, BatchVariantEffectsData]:
+    """
+    Fixture to provide DefaultVariantEffectsData and BatchVariantEffectsData instances.
+    """
+
+    task, autoregressive = request.param
+    extra_context_left, extra_context_right = EXTRA_CONTEXT[autoregressive]
+
+    return (
+        task,
+        autoregressive,
+        DefaultVariantEffectsData(
+            task,
+            annotation_path=f"./data/variant_effects/{task.replace('var', 'variant')}.bed",
+            reference_path="./data/genomes/GRCh38.primary_assembly.genome.fa",
+            extra_context_left=extra_context_left,
+            extra_context_right=extra_context_right,
+        ),
+        BatchVariantEffectsData(
+            task,
+            extra_context_left=extra_context_left,
+            extra_context_right=extra_context_right,
+        ),
     )

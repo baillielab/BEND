@@ -15,14 +15,14 @@ from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 from bend_hybrid.downstream.trainer import BaseTrainer
-from bend_hybrid.embedding.datasets import DataSupervised, collate_fn, get_splits
+from bend_hybrid.embedding.datasets import DataSupervised, collate_fn
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
+def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
     """
     Embed all sequences in the dataset.
 
@@ -30,11 +30,8 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
-    split : str
-        The dataset split to embed (e.g., 'train', 'valid', 'test').
-    frac_annotations : float, optional
-        Fraction of annotations to use for embedding. If None, use all annotations.
-        Defaults to None.
+    dataset : DataSupervised
+        The dataset to embed.
     """
 
     print(
@@ -46,21 +43,11 @@ def compute_embeddings(cfg: DictConfig, annotations_splits: dict) -> None:
 
     start_time = time.time()
 
-    dataset = DataSupervised(
-        annotations_path=cfg.task.dataset.annotations_path,
-        genome_path=cfg.task.dataset.genome_path,
-        label_depth=(
-            cfg.task.dataset.label_depth if "label_depth" in cfg.task.dataset else None
-        ),
-        hdf5_path=(
-            cfg.task.dataset.hdf5_path if "hdf5_path" in cfg.task.dataset else None
-        ),
-        sequence_length=cfg.task.dataset.sequence_length,
-    )
+    samples_idx_by_split = dataset.get_samples_idx_by_split()
 
-    for split, annotations in annotations_splits.items():
+    for split, indices in samples_idx_by_split.items():
         dataloader = DataLoader(
-            Subset(dataset, annotations.index),
+            Subset(dataset, indices),
             batch_size=cfg.task.dataloader.annotations.batch_size,
             num_workers=cfg.task.dataloader.annotations.num_workers,
             prefetch_factor=cfg.task.dataloader.annotations.prefetch_factor,
@@ -165,10 +152,20 @@ def run_experiment(cfg: DictConfig) -> None:
     )
     cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
 
-    annotations_splits = get_splits(cfg.task.dataset.annotations_path)
+    dataset = DataSupervised(
+        annotations_path=cfg.task.dataset.annotations_path,
+        genome_path=cfg.task.dataset.genome_path,
+        label_depth=(
+            cfg.task.dataset.label_depth if "label_depth" in cfg.task.dataset else None
+        ),
+        hdf5_path=(
+            cfg.task.dataset.hdf5_path if "hdf5_path" in cfg.task.dataset else None
+        ),
+        sequence_length=cfg.task.dataset.sequence_length,
+    )
 
     if cfg.compute_embeddings is True:
-        compute_embeddings(cfg, annotations_splits)
+        compute_embeddings(cfg, dataset)
 
     if cfg.train_downstream is True:
         print(
@@ -180,7 +177,7 @@ def run_experiment(cfg: DictConfig) -> None:
         ):
 
             output_dir = cfg.output_dir
-            n_folds = len(annotations_splits.keys())
+            n_folds = len(dataset.sample_idx_by_split.keys())
 
             for fold_idx in range(n_folds):
                 print(f"=== Running fold {fold_idx + 1}/{n_folds} ===")
