@@ -3,10 +3,14 @@ embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
 dataset:
+  _target_: bend_hybrid.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
   genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
   label_depth: 125
   sequence_length: 512
+  # list of indices (0-based) of samples to exclude from dataset.
+  # the following samples do not have valid sequences in the reference genome
+  samples_to_exclude: [2062128]
 dataloader:
   annotations:
     batch_size: 256

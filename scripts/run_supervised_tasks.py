@@ -152,17 +152,7 @@ def run_experiment(cfg: DictConfig) -> None:
     )
     cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
 
-    dataset = DataSupervised(
-        annotations_path=cfg.task.dataset.annotations_path,
-        genome_path=cfg.task.dataset.genome_path,
-        label_depth=(
-            cfg.task.dataset.label_depth if "label_depth" in cfg.task.dataset else None
-        ),
-        hdf5_path=(
-            cfg.task.dataset.hdf5_path if "hdf5_path" in cfg.task.dataset else None
-        ),
-        sequence_length=cfg.task.dataset.sequence_length,
-    )
+    dataset = hydra.utils.instantiate(cfg.task.dataset)
 
     if cfg.compute_embeddings is True:
         compute_embeddings(cfg, dataset)

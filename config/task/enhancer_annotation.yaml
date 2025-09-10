@@ -3,6 +3,7 @@ embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
 dataset:
+  _target_: bend_hybrid.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   hdf5_path: ${data_dir}/enhancer_annotation/enhancer_annotation.hdf5

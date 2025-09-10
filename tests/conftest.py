@@ -4,11 +4,11 @@ This file sets up fixtures and configurations for testing datasets in the BEND p
 """
 
 import abc
-from random import sample
+
 from typing import Generator
 
 import h5py
-import numpy as np
+import hydra
 import pandas as pd
 import pytest
 from bend.io import sequtils
@@ -18,9 +18,7 @@ from hydra import compose, initialize
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
-from bend_hybrid.embedding import datasets
 from bend_hybrid.embedding.datasets import (
-    DataSupervised,
     DataVariantEffects,
     collate_fn,
 )
@@ -255,13 +253,7 @@ class BatchSupervisedData(Data):
 
         cfg = BATCH_CFG[task]
 
-        self.dataset = DataSupervised(
-            cfg.task.dataset.annotations_path,
-            cfg.task.dataset.genome_path,
-            hdf5_path=cfg.task.dataset.get("hdf5_path", None),
-            label_depth=cfg.task.dataset.get("label_depth", None),
-            sequence_length=cfg.task.dataset.get("sequence_length", None),
-        )
+        self.dataset = hydra.utils.instantiate(cfg.task.dataset)
 
         samples_idx_by_split = self.dataset.get_samples_idx_by_split()
         self.subsets = {}  # split -> Subset(dataset, split) object

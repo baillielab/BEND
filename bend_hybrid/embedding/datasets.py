@@ -120,6 +120,7 @@ class DataSupervised(Dataset):
         label_depth: int = None,
         hdf5_path: str = None,
         sequence_length: int = None,
+        samples_to_exclude: list[int] = None,
         label_column_idx: int = DEFAULT_LABEL_COLUMN_IDX,
         strand_column_idx: int = DEFAULT_STRAND_COLUMN_IDX,
         split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
@@ -138,6 +139,8 @@ class DataSupervised(Dataset):
             Path to the HDF5 file containing precomputed sequences and labels.
         sequence_length : int, optional
             Length of the input sequences. If None, sequences can be of variable length.
+        samples_to_exclude : list[int], optional
+            List of sample indices to exclude from the dataset.
         label_column_idx : int, optional
             Index of the label column in the annotations file.
         strand_column_idx : int, optional
@@ -151,30 +154,37 @@ class DataSupervised(Dataset):
                 "Either hdf5_path or label_depth must be provided to initialize DatasetAnnotations."
             )
 
+        self.sequence_length = sequence_length
+
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+        if samples_to_exclude is not None:
+            annotations.drop(index=samples_to_exclude, inplace=True)
+
+        self.sample_idx_by_split = {
+            split: annotations[
+                annotations.iloc[:, split_column_idx] == split
+            ].index.tolist()
+            for split in annotations.iloc[:, split_column_idx].unique()
+        }
 
         genome = Fasta(genome_path)
 
-        self.sequence_length = sequence_length
-
         if hdf5_path:
             # if HDF5 path is provided, load labels from HDF5
-            self.samples, self.sample_idx_by_split = self._get_data_hdf5(
+            self.samples = self._get_data_hdf5(
                 annotations,
                 genome,
                 hdf5_path,
-                split_column_idx,
                 flank,
             )
         else:
             # generate labels as multi-hot encodings
-            self.samples, self.sample_idx_by_split = self._get_data_multi_hot(
+            self.samples = self._get_data_multi_hot(
                 annotations,
                 genome,
                 label_depth,
                 label_column_idx,
                 strand_column_idx,
-                split_column_idx,
                 flank,
             )
 
@@ -185,7 +195,7 @@ class DataSupervised(Dataset):
         return True if self.sequence_length is None else False
 
     def _get_data_hdf5(
-        self, annotations, genome, hdf5_path, split_column_idx, flank
+        self, annotations, genome, hdf5_path, flank
     ) -> tuple[list[str], np.ndarray]:
         """
         Convert annotations to sequences and loads labels from an HDF5 file.
@@ -200,8 +210,6 @@ class DataSupervised(Dataset):
             The genome fasta object.
         hdf5_path : str
             The path to the HDF5 file.
-        split_column_idx : int
-            The index of the split column in the annotations file.
         flank : int
             The number of flanking bases to include in the sequences.
 
@@ -216,9 +224,8 @@ class DataSupervised(Dataset):
         with h5py.File(hdf5_path, mode="r") as h5f:
             labels = h5f["labels"][()]
 
-        samples_idx_by_split = {}
         sequences = []
-        for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
+        for _, item in tqdm(annotations.iterrows(), total=len(annotations)):
 
             # fetch sequence from genome
             chrom, start, end, strand = (
@@ -230,19 +237,11 @@ class DataSupervised(Dataset):
 
             sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
 
-            # Filter based on sequence length if specified
-            if (
-                self.sequence_length is not None
-                and len(sequence) != self.sequence_length
-            ):
-                continue
-
-            samples_idx_by_split.setdefault(item.iloc[split_column_idx], []).append(idx)
             sequences.append(sequence)
 
         samples = list(zip(sequences, labels))
 
-        return samples, samples_idx_by_split
+        return samples
 
     def _get_data_multi_hot(
         self,
@@ -251,7 +250,6 @@ class DataSupervised(Dataset):
         label_depth,
         default_label_column_idx,
         default_strand_column_idx,
-        split_column_idx,
         flank,
     ) -> tuple[tuple[list[str], np.ndarray], dict[str, list[int]]]:
         """
@@ -271,8 +269,6 @@ class DataSupervised(Dataset):
             The default index of the label column in the annotations file.
         default_strand_column_idx : int
             The default index of the strand column in the annotations file.
-        split_column_idx : int
-            The index of the split column in the annotations file.
         flank : int
             The number of flanking bases to include in the sequences.
 
@@ -296,10 +292,9 @@ class DataSupervised(Dataset):
             else default_strand_column_idx
         )
 
-        samples_idx_by_split = {}
         samples = []
 
-        for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
+        for _, item in tqdm(annotations.iterrows(), total=len(annotations)):
 
             # fetch sequence from genome
             chrom, start, end, strand = (
@@ -310,13 +305,6 @@ class DataSupervised(Dataset):
             )
             sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
 
-            # Filter based on sequence length if specified
-            if (
-                self.sequence_length is not None
-                and len(sequence) != self.sequence_length
-            ):
-                continue
-
             # compute labels
             label = item.iloc[label_column_idx]
             label = (
@@ -324,10 +312,9 @@ class DataSupervised(Dataset):
             )  # if no label for sample
             label = self._multi_hot(label, label_depth)
 
-            samples_idx_by_split.setdefault(item.iloc[split_column_idx], []).append(idx)
             samples.append((sequence, label))
 
-        return samples, samples_idx_by_split
+        return samples
 
     def _multi_hot(self, labels: list, num_labels: int) -> np.ndarray:
         """
