@@ -4,186 +4,178 @@
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Documentation Status](https://readthedocs.org/projects/bend/badge/?version=latest)](https://bend.readthedocs.io/en/latest/?badge=latest)
 
-The BEND paper (ICLR 2024) is available here: 
+The BEND paper (ICLR 2024) is available here:
 
 "[BEND: BENCHMARKING DNA LANGUAGE MODELS ON BIOLOGICALLY MEANINGFUL TASKS](https://arxiv.org/abs/2311.12570)"
 
 Frederikke Isa Marin, Felix Teufel, Marc Horlacher, Dennis Madsen, Dennis Pultz, Ole Winther, Wouter Boomsma
 
-## Documentation
-[Documentation for the BEND code repository](https://bend.readthedocs.io/en/latest/?badge=latest)
+# BEND pipeline
 
-## Data
+![BEND pipeline](./notebooks/bend_pipeline.png)
 
-All data is available for download [here](https://sid.erda.dk/cgi-sid/ls.py?share_id=aNQa0Oz2lY)
+## BEND tasks
 
-The data can be downloaded via a script, see [section 2.5](#2-setup)
-
-## Tutorial
-
-### 1. Data format
+#### Data format
 
 The data for each task is stored as a `bed` file. This file includes the genomic coordinates for each sample, as well as its split membership and potentially a label. Together with a reference genome, the file is used to extract the DNA sequences for training. Labels that are too complex to be stored in a column in the text-based `bed` file are stored in a `hdf5` file. The two files share their index, so that sample `i` in the `bed` file matches record `i` in the `hdf5` file.
 
-
 `bed` is a tab-separated format that can be read like a regular table. All our task files include a column `split`, and optionally `label`. If `label` is missing, the labels are found in the `hdf5` file of the same name.
+
 ```
 chromosome	start	end     split	label
 chr1	    1055037	1055849	train	1
 chr3	    1070026	1070436	valid	0
 ```
 
-### 2. Setup
+#### Unsupervised tasks
 
-We recommend installing BEND in a conda environment with Python 3.10.
-1. Clone the BEND repository: `git clone https://github.com/frederikkemarin/BEND.git`
-2. Change to the BEND directory: `cd BEND`
-3. Install the requirements: `pip install -r requirements.txt`
-4. Install BEND in development mode: `pip install -e .`
-5. Download the data: `python scripts/download_bend.py`
+The following is a the list of unsupervised tasks and their goals:
 
-### 3. Computing embeddings
+- `var_effects_expression` - Predict if the given SNP influences gene expression or not
+- `var_effects_disease` - Predict if the given SNP is benign or pathogenic.
 
-For training downstream models, it is practical to precompute and save the embeddings to avoid recomputing them at each epoch. As embeddings can grow large when working with genomes, we use [Webdataset](https://github.com/webdataset/webdataset) `tar.gz` files as the format.
-Firstly download the desired data from the [data folder](https://sid.erda.dk/cgi-sid/ls.py?share_id=aNQa0Oz2lY&current_dir=data&flags=f) and place it in BEND/ (for ease of use maintain the same folder structure). 
-To precompute the embeddings for all models and tasks, run : 
-```
-python scripts/precompute_embeddings.py 
-```
-This script automatically calls the hydra config file at ```/../conf/embedding/embed.yaml```. 
+An unsupervised task involves:
 
-By default all embeddings are generated for all tasks. To alter the tasks/model for which to compute the embeddings, please alter the ```tasks``` and/or the ```models``` list in the config file (under ```hydra.sweeper``) or override the behaviour from the commandline in the following manner: 
+1. Computing the embeddings of a reference DNA sequence and of a DNA sequence containing the SNP.
+2. Computing the `cosine distance` of the reference and SNP embeddings.
+3. Comparing the cosine distance to the grounf truth label, where 0 indicates that the SNP has no effect (or is benign) and 1 indicates that the SNP influences gene expression (or is pathogenic).
 
-```
-python scripts/precompute_embeddings.py model=resnetlm,awdlstm task=gene_finding,enhancer_annotation
-```
-Train, validation and test embeddings are saved in chunks of (default) 50,000. To parallelize embeddings generation, you can call `precompute_embeddings.py` as above multiple times, but add additional arguments of the form `chunk=[10,11,12] splits=[train,valid]` to the individual calls in order to only compute specific chunks in a given call. If these arguments are not provided, the command will default to computing all chunks and splits.
+#### Supervised tasks
 
-#### Embedders overview
+The full list of supervised tasks are:
 
-If you need to make embeddings for other purposes than preparing downstream task data, [`bend.embedders`](bend/utils/embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.   
-Embedders have a default-true argument `remove_special_tokens=True` in `embed()` that removes any `[CLS]`, `[SEP]` tokens from the returned embeddings. For models that return less embedding vectors than their number of input nucleotides, [embeddings can be upsampled](#how-are-embeddings-upsampled) to the original input sequence length using the `upsample_embeddings=True` argument in `embed()`.   
+- `gene_finding` - Classify nucleotides as introns, exons, splice sites and non-coding.
+- `enhancer_annotation` - Classify nucleotides as enhancer or non-enhancer.
+- `histone_modification` - Predict which histone modification are present in the sequence.
+- `chromatin_accessibility` - Predict if the CpG site is methylated or not in a given cell line.
+- `cpg_methylation` - Predict if the sequence is in open or closed chromatin in a given cell type.
+
+While each task has different input data and gorund truth labels, the process of evaluating an embedder is the same for all tasks:
+
+1. Computing the embeddings of the input DNA sequences of a specified task.
+   For efficiency, embedding are stored using [WebDataset](https://github.com/webdataset/webdataset).
+2. Train a downstream model using the computed embeddings and the task specific labels.
+3. Evaluate the downstram model predictions' onthe ground truth labels of the given task.
+
+## Embedders overview
+
+If you need to make embeddings for other purposes than preparing downstream task data, [`bend.embedders`](bend/utils/embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.
+For models that return less embedding vectors than their number of input nucleotides, [embeddings can be upsampled](#how-are-embeddings-upsampled) to the original input sequence length using the `upsample_embeddings=True` argument in `config/embedding/embedders.yml`.
 Some of the embedders currently also support computing logits and cross entropy losses, see the documentation for more information.
 
-| Embedder | Reference | Models | Info |
-| --- | --- | --- | ---|
-| [DNABertEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.DNABertEmbedder) | [Ji et al.](https://academic.oup.com/bioinformatics/article/37/15/2112/6128680) | [4 different k-mer tokenizations available](https://github.com/jerryji1993/DNABERT#32-download-pre-trained-dnabert)  | has an additional argument `kmer=6` to specify the k-mer size.|
-|[NucleotideTransformerEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.NucleotideTransformerEmbedder)| [Dalla-Torre et al.](https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2) | [8 different models available](https://huggingface.co/InstaDeepAI) | |
-|[ConvNetEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.ConvNetEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.
-|[AWDLSTMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.AWDLSTMEmbedder)| BEND | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.
-|[GPNEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GPNEmbedder)| [Benegas et al.](https://www.biorxiv.org/content/10.1101/2022.08.22.504706v2) | Models trained on [*A. thaliana*](https://huggingface.co/songlab/gpn-arabidopsis) and [Brassicales](https://huggingface.co/songlab/gpn-brassicales) available | This LM was not evaluated in BEND as it was not trained on the human genome. |
-|[GENALMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GENALMEmbedder) | [Fishman et al.](https://www.biorxiv.org/content/10.1101/2023.06.12.544594v1) |[8 different models available](https://huggingface.co/AIRI-Institute) | |
-|[HyenaDNAEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.HyenaDNAEmbedder) | [Nguyen et al.](https://arxiv.org/abs/2306.15794) | [5 different models available](https://huggingface.co/LongSafari) | Experimental integration. Requires Git LFS to be installed to automatically download checkpoints. Instead of the HF checkpoint name, the argument when instantiating needs to be of the format `path/to/save/checkpoints/checkpoint_name` |
-|[DNABert2Embedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.DNABert2Embedder) | [Zhou et al.](https://arxiv.org/pdf/2306.15006v1.pdf) | [1 model available](https://huggingface.co/zhihan1996/DNABERT-2-117M) | |
-|[GROVEREmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.GROVEREmbedder) | [Sanabria et al.](https://www.nature.com/articles/s42256-024-00872-0) | [1 model available](https://zenodo.org/records/8373117) | The original BPE tokenizer is not available, so we apply MaxMatch for segmentation of the input sequence into tokens.|
-|[CaduceusEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.CaduceusEmbedder) | [Schiff et al.](https://arxiv.org/abs/2403.03234) | [2 different models available](https://github.com/kuleshov-group/caduceus/) | Requires `mamba-ssm==1.2.0.post1` to be installed in the environment. |
+| Embedder                                                                                                                                         | Reference                                                                      | Models                                                                                                        | Info                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [NucleotideTransformerEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.NucleotideTransformerEmbedder) | [Dalla-Torre et al.](https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2) | [8 different models available](https://huggingface.co/InstaDeepAI)                                               |                                                                                                                                                                                                                                             |
+| [ConvNetEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.ConvNetEmbedder)                             | BEND                                                                           | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.                                                                                                                                                                                                                 |
+| [AWDLSTMEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.AWDLSTMEmbedder)                             | BEND                                                                           | [1 model available](https://sid.erda.dk/cgi-sid/ls.py?share_id=eXAmVvbRSW&current_dir=pretrained_models&flags=f) | A baseline LM used in BEND.                                                                                                                                                                                                                 |
+| [HyenaDNAEmbedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.HyenaDNAEmbedder)                           | [Nguyen et al.](https://arxiv.org/abs/2306.15794)                                 | [5 different models available](https://huggingface.co/LongSafari)                                                | Experimental integration. Requires Git LFS to be installed to automatically download checkpoints. Instead of the HF checkpoint name, the argument when instantiating needs to be of the format `path/to/save/checkpoints/checkpoint_name` |
+| [DNABert2Embedder](https://bend.readthedocs.io/en/latest/bend.utils.embedders.html#bend.utils.embedders.DNABert2Embedder)                           | [Zhou et al.](https://arxiv.org/pdf/2306.15006v1.pdf)                             | [1 model available](https://huggingface.co/zhihan1996/DNABERT-2-117M)                                            |                                                                                                                                                                                                                                             |
 
-All embedders can be used as follows:
-```python
-from bend.utils.embedders import NucleotideTransformerEmbedder
-
-# load the embedder with a valid checkpoint name or path
-embedder = NucleotideTransformerEmbedder('InstaDeepAI/nucleotide-transformer-2.5b-multi-species')
-
-# embed a list of sequences
-embeddings = embedder.embed(['AGGATGCCGAGAGTATATGGGA', 'CCCAACCGAGAGTATATGTTAT'])
-# or just call directly to embed a single sequence
-embedding = embedder('AGGATGCCGAGAGTATATGGGA') 
-
-# This requires git LFS and will automatically download the checkpoint, if not already present
-from bend.utils.embedders import HyenaDNAEmbedder
-embedder = HyenaDNAEmbedder('pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen')
-```
-
-
-### 4. Evaluating models
-
-#### Training and evaluating supervised models
-
-It is first required that the [above step (computing the embeddings)](#2-computing-embeddings) is completed.
-The embeddings should afterwards be located in `BEND/data/{task_name}/{embedder}/*tar.gz`
-
-To run a downstream task run (from `BEND/`):
-```
-python scripts/train_on_task.py --config-name {tasl}
-```
-By default the task is run on all embeddings. To alter this either modify the config file or change the settings from the commandline 
-E.g. to run gene finding on all embeddings the commandline is:
-```
-python scripts/train_on_task.py --config-name gene_finding
-```
-To run only on resnetlm and awdlstm embeddings:
-```
-python scripts/train_on_task.py --config-name gene_finding embedder=resnetlm,awdlstm
-```
-The full list of current task names are : 
-
-- `gene_finding`
-- `enhancer_annotation`
-- `variant_effects`
-- `histone_modification`
-- `chromatin_accessibility`
-- `cpg_methylation`
-
-And the list of available embedders/models used for training on the tasks are : 
+And the list of available embedders/models used for training on the tasks are :
 
 - `awdlstm`
 - `resnetlm`
 - `nt_transformer_ms`
 - `nt_transformer_human_ref`
-- `dnabert6` 
-- `resnet_supervised`
-- `onehot`
 - `nt_transformer_1000g`
 - `dnabert2`
-- `gena-lm-bigbird-base-t2t`
-- `gena-lm-bert-large-t2`
 - `hyenadna-large-1m`
 - `hyenadna-tiny-1k`
-- `hyenadna-small-32k`
-- `hyenadna-medium-160k`
-- `grover`
+
+#### How are embeddings upsampled?
+
+Due to tokenization strategies, some models by default return less embedding vectors than their number of input nucleotides. As we still require nucleotide-level input for nucleotide-level prediction tasks, we implement upsampling strategies to match the number of returned embeddings to the number of input nucleotides.
+
+| Model                  | Upsampling strategy                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DNABert                | The overlapping k-mer tokenization strategy of DNABert causes some "missing embeddings" at the start and the end of the input sequence, as there is no context to build the k-mer tokens from. For `k=3`, we repeat the first and the last embedding vectors once. For `k=4`, we repeat the first once and the last twice. For `k=5`, we repeat the first and the last twice. For `k=6`, we repeat the first twice and the last three times. |
+| Nucleotide Transformer | Due to 6-mer tokenization, each embedding is repeated 6 times. Remainder tokens are single nucleotides and left as-is.                                                                                                                                                                                                                                                                                                                               |
 
 
-The `train_on_task.py` script calls a trainer class `bend.utils.task_trainer`. All configurations required to adapt these 2 scripts to train on a specific task (input data, downstream model, parameters, evaluation metric etc.) are specified in the task specific [hydra](https://hydra.cc/docs/intro/) config files stored in the [conf](../conf/) directory. This minimizes the changes required to the scripts in order to introduce a potential new task. 
+## Hydra configuration
 
-The results of a run can be found at :
-```
-BEND/downstream_tasks/{task_name}/{embedder}/
-```
+All hyperparameters are specified using [Hydra](https://hydra.cc/) configuration files, stored in the `config/` folder.
+
+* `config/config.yml` is used to indicate directories for retrieving data, using embedders, and storing embeddings or evaluation results.
+* `config/task/<task_name>.yml` indicates the specific task hyperparameters.
+* `config/embedding/embedders.yml` contains the list of supported embedders and their hyperparameters
 
 If desired, the config files can be modified to change parameters, output/input directory etc.
 
-#### Unsupervised tasks
+---
 
-For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored. Embeddings are generated and directly evaluated using
 
-```bash
-python3 scripts/predict_variant_effects.py {variant_file_name}.bed {output_file_name}.csv {model_type} {path_to_checkpoint} {path_to_reference_genome_fasta} --embedding_idx {position_of_embedding}
+
+# Setup
+
+We recommend installing BEND in a conda environment with Python 3.10.
+
+1. Clone the BEND repository: `git clone https://github.com/frederikkemarin/BEND.git`
+2. Change to the BEND directory: `cd BEND`
+3. Install the requirements: `pip install -r requirements.txt`
+4. Install BEND in development mode: `pip install -e .`
+5. Download the data and baseline models: `python scripts/download_bend.py  `
+   Alternatively, all data and models are available for download [here](https://sid.erda.dk/cgi-sid/ls.py?share_id=aNQa0Oz2lY).
+
+### Supervised tasks
+
+For training downstream models, it is practical to precompute and save the embeddings to avoid recomputing them at each epoch. As embeddings can grow large when working with genomes, we use [Webdataset](https://github.com/webdataset/webdataset) `tar.gz` files as the format.
+
+To evaluate a given embedder on given supervised task, which involves precomputing the embeddings and using them to training the dowsntream model, simply run:
+
+```
+python scripts/run_supervised_tasks.py embedder=<embedder_name> task=<supervised_task_name>
 ```
 
-There are two variant effect prediction tasks available for `{variant_file_name}`: Variants with expression effect (eQTLs) in `variant_effects_expression.bed` and disease-causing variants in `variant_effects_disease.bed`.
+For example, to evaluate the `resnetlm` model on the `gene_finding` task:
 
-A notebook with an example of how to run the script and evaluate the results can be found in [examples/unsupervised_variant_effects.ipynb](examples/unsupervised_variant_effects.ipynb). To run all models, you can use the script [scripts/run_variant_effects.sh](scripts/run_variant_effects.sh).
+```
+python scripts/run_supervised_tasks.py embedder=resnetlm task=gene_finding
 
-------------
-## Extending BEND
+```
+
+### Unsupervised tasks
+
+For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored, as there is no additional model to train using them. 
+
+To evaluate a given embedder on given supervised task, simply run:
+
+```
+python scripts/run_variant_effectd.py embedder=<embedder_name> task=<supervised_task_name>
+```
+
+---
+
+
+
+# Extending BEND
 
 ### Adding a new embedder
 
-All embedders are defined in [bend/utils/embedders.py](bend/utils/embedders.py) and inherit `BaseEmbedder`. A new embedder needs to implement `load_model`, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed`, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
+All embedders are defined in `bend_hybrid/embedding/embedders.py` and inherit `BaseEmbedder `. A new embedder needs to implement `load_model `, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed `, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
+
+Hence, to add a new embedder:
+
+1. Define the new embedder model to `bend_hybrid/models/`
+2. Store model weights into `pretrained_models/`
+3. Inherit from `BaseEmbedder` and implement `load_model()` and `embed()` functions
+4. Update `config/embedding/embedders.yaml` with your model name and hyperparameters.
 
 ### Adding a new task
-As the first step, the data for a new task needs to be formatted in the [bed-based format](#1-data-format). If necessary, a `split` and `label` column should be included. The next step is to add new config files to `../conf/supervised_tasks`. You should create a new directory named after the task, and add a config file for each embedder you want to evaluate. The config files should be named after the embedder.
 
+1. Create custom, modify or use existing PytTorch datasets (found in `bend_hybrid/embedding/datasets.py`) to load annotations and generate sequences and labels.
+2. If using an entirely new dataset, create a new script file or modify `run_supervised_tasks.py` or `run_variant_effects.py` to use the custom dataset.
+3. Create a new config under  `config/task/` named after the task.
 
--------------
+---
 
-## Citation Guidelines
+# Citation Guidelines
 
 The datasets included in BEND were collected from a variety of sources. When you use any of the datasets, please ensure to correctly cite the respective original publications describing each dataset.
 
 ### BEND
+
     @inproceedings{
     marin2024bend,
     title={{BEND}: Benchmarking {DNA} Language Models on Biologically Meaningful Tasks},
@@ -211,7 +203,9 @@ The datasets included in BEND were collected from a variety of sources. When you
     }
 
 ### Chromatin accessibility ([ENCODE](https://www.encodeproject.org/))
+
 ### Histone modification ([ENCODE](https://www.encodeproject.org/))
+
 ### CpG methylation ([ENCODE](https://www.encodeproject.org/))
 
     @article{noauthor_integrated_2012,
@@ -229,7 +223,6 @@ The datasets included in BEND were collected from a variety of sources. When you
 	pmcid = {PMC3439153},
 	pages = {57--74},
     }
-
 
 ### Enhancer annotation ([Fulco et al.](https://www.nature.com/articles/s41588-019-0538-0), [Gasperini et al.](https://www.sciencedirect.com/science/article/pii/S009286741831554X), [Avsec et al.](https://www.nature.com/articles/s41592-021-01252-x) )
 
@@ -274,7 +267,6 @@ The datasets included in BEND were collected from a variety of sources. When you
     pages = {377--390.e19},
     }
 
-
 **Transcription start sites**
 
     @article{avsec_effective_2021,
@@ -297,8 +289,8 @@ The datasets included in BEND were collected from a variety of sources. When you
     pages = {1196--1203},
     }
 
-
 ### Noncoding Variant Effects (Expression) ([DeepSEA](https://www.nature.com/articles/nmeth.3547))
+
 DeepSEA's data was sourced from [GRASP](https://grasp.nhlbi.nih.gov/Overview.aspx) and the [1000 Genomes Project](https://www.internationalgenome.org/), which should also be attributed accordingly.
 
     @article{zhou_predicting_2015,
@@ -314,6 +306,7 @@ DeepSEA's data was sourced from [GRASP](https://grasp.nhlbi.nih.gov/Overview.asp
     }
 
 ### Noncoding variant effects (Disease) ([ClinVar](https://www.encodeproject.org/))
+
 In case the variant consequences categories are used, [Ensembl VEP](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-0974-4) should be attributed.
 
     @article{10.1093/nar/gkz972,
@@ -330,19 +323,3 @@ In case the variant consequences categories are used, [Ensembl VEP](https://geno
     url = {https://doi.org/10.1093/nar/gkz972},
     eprint = {https://academic.oup.com/nar/article-pdf/48/D1/D835/31698033/gkz972.pdf},
     }
-
-
-
-
-
-## FAQ
-
-### How are embeddings upsampled?
-Due to tokenization strategies, some models by default return less embedding vectors than their number of input nucleotides. As we still require nucleotide-level input for nucleotide-level prediction tasks, we implement upsampling strategies to match the number of returned embeddings to the number of input nucleotides.
-
-Model | Upsampling strategy
---- | ---
-DNABert | The overlapping k-mer tokenization strategy of DNABert causes some "missing embeddings" at the start and the end of the input sequence, as there is no context to build the k-mer tokens from. For `k=3`, we repeat the first and the last embedding vectors once. For `k=4`, we repeat the first once and the last twice. For `k=5`, we repeat the first and the last twice. For `k=6`, we repeat the first twice and the last three times. 
-Nucleotide Transformer | Due to 6-mer tokenization, each embedding is repeated 6 times. Remainder tokens are single nucleotides and left as-is.
-GENA-LM, DNABERT-2, GROVER | BPE tokens have variable length. We repeat each embedding vector to the length of the sequence represented by its token.
-

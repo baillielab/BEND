@@ -13,5 +13,6 @@ einops
 webdataset
 beautifulsoup4
 pysam
+pytest
 h5py
 lxml
