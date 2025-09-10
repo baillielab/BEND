@@ -10,11 +10,53 @@ The BEND paper (ICLR 2024) is available here:
 
 Frederikke Isa Marin, Felix Teufel, Marc Horlacher, Dennis Madsen, Dennis Pultz, Ole Winther, Wouter Boomsma
 
+---
+
+# Setup
+
+We recommend installing BEND in a conda environment with Python 3.10.
+
+1. Clone the BEND repository: `git clone https://github.com/frederikkemarin/BEND.git`
+2. Change to the BEND directory: `cd BEND`
+3. Install the requirements: `pip install -r requirements.txt`
+4. Install BEND in development mode: `pip install -e .`
+5. Download the data and baseline models: `python scripts/download_bend.py`.
+   Alternatively, all data and models are available for download [here](https://sid.erda.dk/cgi-sid/ls.py?share_id=aNQa0Oz2lY).
+
+### Supervised tasks
+
+For training downstream models, it is practical to precompute and save the embeddings to avoid recomputing them at each epoch. As embeddings can grow large when working with genomes, we use [Webdataset](https://github.com/webdataset/webdataset) `tar.gz` files as the format.
+
+To evaluate a given embedder on given supervised task, which involves precomputing the embeddings and using them to training the dowsntream model, simply run:
+
+```
+python scripts/run_supervised_tasks.py embedder=<embedder_name> task=<supervised_task_name>
+```
+
+For example, to evaluate the `resnetlm` model on the `gene_finding` task:
+
+```
+python scripts/run_supervised_tasks.py embedder=resnetlm task=gene_finding
+
+```
+
+### Unsupervised tasks
+
+For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored, as there is no additional model to train using them.
+
+To evaluate a given embedder on given supervised task, simply run:
+
+```
+python scripts/run_variant_effectd.py embedder=<embedder_name> task=<supervised_task_name>
+```
+
+---
+
 # BEND pipeline
 
 ![BEND pipeline](./notebooks/bend_pipeline.png)
 
-## BEND tasks
+## Tasks overview
 
 #### Data format
 
@@ -60,9 +102,8 @@ While each task has different input data and gorund truth labels, the process of
 
 ## Embedders overview
 
-If you need to make embeddings for other purposes than preparing downstream task data, [`bend.embedders`](bend/utils/embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.
+If you need to make embeddings for other purposes than preparing downstream task data, [`bend_hybrid.embedding.embedders`](bend_hybrid.embedding.embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.
 For models that return less embedding vectors than their number of input nucleotides, [embeddings can be upsampled](#how-are-embeddings-upsampled) to the original input sequence length using the `upsample_embeddings=True` argument in `config/embedding/embedders.yml`.
-Some of the embedders currently also support computing logits and cross entropy losses, see the documentation for more information.
 
 | Embedder                                                                                                                                         | Reference                                                                      | Models                                                                                                        | Info                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -92,7 +133,6 @@ Due to tokenization strategies, some models by default return less embedding vec
 | DNABert                | The overlapping k-mer tokenization strategy of DNABert causes some "missing embeddings" at the start and the end of the input sequence, as there is no context to build the k-mer tokens from. For `k=3`, we repeat the first and the last embedding vectors once. For `k=4`, we repeat the first once and the last twice. For `k=5`, we repeat the first and the last twice. For `k=6`, we repeat the first twice and the last three times. |
 | Nucleotide Transformer | Due to 6-mer tokenization, each embedding is repeated 6 times. Remainder tokens are single nucleotides and left as-is.                                                                                                                                                                                                                                                                                                                               |
 
-
 ## Hydra configuration
 
 All hyperparameters are specified using [Hydra](https://hydra.cc/) configuration files, stored in the `config/` folder.
@@ -104,50 +144,6 @@ All hyperparameters are specified using [Hydra](https://hydra.cc/) configuration
 If desired, the config files can be modified to change parameters, output/input directory etc.
 
 ---
-
-
-
-# Setup
-
-We recommend installing BEND in a conda environment with Python 3.10.
-
-1. Clone the BEND repository: `git clone https://github.com/frederikkemarin/BEND.git`
-2. Change to the BEND directory: `cd BEND`
-3. Install the requirements: `pip install -r requirements.txt`
-4. Install BEND in development mode: `pip install -e .`
-5. Download the data and baseline models: `python scripts/download_bend.py  `
-   Alternatively, all data and models are available for download [here](https://sid.erda.dk/cgi-sid/ls.py?share_id=aNQa0Oz2lY).
-
-### Supervised tasks
-
-For training downstream models, it is practical to precompute and save the embeddings to avoid recomputing them at each epoch. As embeddings can grow large when working with genomes, we use [Webdataset](https://github.com/webdataset/webdataset) `tar.gz` files as the format.
-
-To evaluate a given embedder on given supervised task, which involves precomputing the embeddings and using them to training the dowsntream model, simply run:
-
-```
-python scripts/run_supervised_tasks.py embedder=<embedder_name> task=<supervised_task_name>
-```
-
-For example, to evaluate the `resnetlm` model on the `gene_finding` task:
-
-```
-python scripts/run_supervised_tasks.py embedder=resnetlm task=gene_finding
-
-```
-
-### Unsupervised tasks
-
-For unsupervised prediction of variant effects, embeddings don't have to be precomputed and stored, as there is no additional model to train using them. 
-
-To evaluate a given embedder on given supervised task, simply run:
-
-```
-python scripts/run_variant_effectd.py embedder=<embedder_name> task=<supervised_task_name>
-```
-
----
-
-
 
 # Extending BEND
 
