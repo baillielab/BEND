@@ -38,7 +38,7 @@ def run_experiment(cfg: DictConfig) -> None:
     print("Output directory", cfg.output_dir)
     os.makedirs(cfg.output_dir, exist_ok=True)
 
-    print(f"Computing embeddings for {cfg.task} using {cfg.embedder}")
+    print(f"Computing embeddings for {cfg.task.name} using {cfg.embedder}")
     embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
 
     embedding_idx = 256
