@@ -13,9 +13,15 @@ import webdataset as wds
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
+import time
 
+from bend_hybrid.downstream.dataloaders import undersample_dataloaders
 from bend_hybrid.downstream.trainer import BaseTrainer
-from bend_hybrid.embedding.datasets import DataSupervised, collate_fn
+from bend_hybrid.embedding.datasets import (
+    DataSupervised,
+    collate_fn,
+    undersample_splits,
+)
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
@@ -45,9 +51,16 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
 
     samples_idx_by_split = dataset.get_samples_idx_by_split()
 
+    n_samples = cfg.get("n_samples", None)
+    if n_samples is not None:
+        samples_idx_by_split = undersample_splits(samples_idx_by_split, n_samples)
+
     for split, indices in samples_idx_by_split.items():
+
+        split_dataset = Subset(dataset, indices)
+
         dataloader = DataLoader(
-            Subset(dataset, indices),
+            split_dataset,
             batch_size=cfg.task.dataloader.annotations.batch_size,
             num_workers=cfg.task.dataloader.annotations.num_workers,
             prefetch_factor=cfg.task.dataloader.annotations.prefetch_factor,
@@ -90,7 +103,11 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
     )
 
 
-def train_downstream(cfg: DictConfig) -> None:
+def train_downstream(
+    cfg: DictConfig,
+    samples_idx_by_split: dict[str, list[int]] = None,
+    test_valid_folds: tuple[str, str] | None = None,
+) -> None:
     """
     Train the downstream model of a supervised task.
 
@@ -118,7 +135,19 @@ def train_downstream(cfg: DictConfig) -> None:
 
     OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
-    dataloaders = hydra.utils.instantiate(cfg.task.dataloader.downstream)
+    dataloaders = hydra.utils.instantiate(
+        cfg.task.dataloader.downstream, test_valid_folds=test_valid_folds
+    )
+
+    n_samples = cfg.get("n_samples", None)
+    if n_samples is not None and samples_idx_by_split is not None:
+        dataloaders = undersample_dataloaders(
+            dataloaders,
+            samples_idx_by_split,
+            n_samples=n_samples,
+            batch_size=cfg.task.dataloader.downstream.batch_size,
+            test_valid_folds=test_valid_folds,
+        )
 
     trainer.train(
         dataloaders["train"],
@@ -161,22 +190,28 @@ def run_experiment(cfg: DictConfig) -> None:
         print(
             f"=== Training model for task: {cfg.task.name} with embedder: {cfg.embedder} ==="
         )
-        if (
-            "fold_idx" in cfg.task.dataloader.downstream
-            and cfg.task.dataloader.downstream.fold_idx is None
-        ):
+
+        samples_idx_by_split = dataset.get_samples_idx_by_split()
+
+        cross_validation = cfg.task.dataloader.downstream.get("cross_validation", None)
+        if cross_validation is True:
 
             output_dir = cfg.output_dir
-            n_folds = len(dataset.sample_idx_by_split.keys())
 
-            for fold_idx in range(n_folds):
-                print(f"=== Running fold {fold_idx + 1}/{n_folds} ===")
-                cfg.task.dataloader.downstream.fold_idx = fold_idx
-                cfg.output_dir = os.path.join(output_dir, f"fold_{fold_idx + 1}")
-                train_downstream(cfg)
+            fold_names = samples_idx_by_split.keys()
 
-        # If not cross-validation, or only one fold specified, train once
-        train_downstream(cfg)
+            for fold_idx, fold_test in enumerate(fold_names):
+                print(f"=== Running fold {fold_idx + 1}/{len(fold_names)} ===")
+
+                cfg.output_dir = os.path.join(output_dir, fold_test)
+
+                val_idx = fold_idx + 1 if fold_idx + 1 < len(fold_names) else 0
+                fold_valid = fold_names[val_idx]
+
+                train_downstream(cfg, samples_idx_by_split, (fold_test, fold_valid))
+
+        # If not cross-validation train once
+        train_downstream(cfg, samples_idx_by_split)
 
 
 if __name__ == "__main__":

@@ -20,3 +20,5 @@ embedder: nt_transformer_1000g
 # supervised tasks only
 compute_embeddings: true # Set to false to skip embedding computation
 train_downstream: true # Set to false to skip training
+
+n_samples: null # set to an integer for undersampling the dataset

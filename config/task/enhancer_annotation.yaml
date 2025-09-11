@@ -23,7 +23,7 @@ dataloader:
     padding_value: -100
     shuffle: 16
     shardshuffle: 32
-    fold_idx: null # if null, cross-validation is performed on all folds
+    cross_validation: True
 model:
   _target_: bend_hybrid.models.downstream.CNN
   input_size: ${embedding.${embedder}.embeddings_dim}

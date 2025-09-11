@@ -6,7 +6,7 @@ import glob
 import os
 from functools import partial
 from typing import List, Union
-
+import math
 import torch
 import webdataset as wds
 
@@ -158,7 +158,7 @@ def get_dataloaders(
     padding_value=-100,
     shuffle: int = None,
     shardshuffle: Union[bool, int] = False,
-    fold_idx: int = None,
+    test_valid_folds: tuple[str, str] = None,
     **kwargs,
 ) -> dict[str, torch.utils.data.DataLoader]:
     """
@@ -181,8 +181,9 @@ def get_dataloaders(
     shardshuffle : Union[bool, int], optional
         Whether to shuffle the shards of the dataset.
         If an int, it will shuffle the first n shards. The default is False (no shuffling).
-    fold_idx : int, optional
-        If not None, use this fold index for cross-validation.
+    test_valid_folds : tuple[str, str], optional
+        Tuple containing the fold names to use as test and validation sets. The default is None.
+        Example: ('part0', 'part1') will use all tar files containing 'part0' as test set and all tar files containing 'part1' as validation set.
 
     Returns
     -------
@@ -201,16 +202,11 @@ def get_dataloaders(
     if len(tars) == 0:
         raise SystemExit("No embedding shards found.\nExiting script")
 
-    if fold_idx is not None:
-        fold_names = list(
-            set([os.path.split(shard)[-1].split("_")[0] for shard in tars])
-        )
-        fold_names = sorted(fold_names, key=lambda x: int(x.replace("part", "")))
+    if test_valid_folds is not None:
+        fold_test, fold_valid = test_valid_folds
 
-        test_shards = [shard for shard in tars if f"{fold_names[fold_idx]}_" in shard]
-
-        val_idx = fold_idx + 1 if fold_idx + 1 < len(fold_names) else 0
-        valid_shards = [shard for shard in tars if f"{fold_names[val_idx]}_" in shard]
+        test_shards = [shard for shard in tars if f"{fold_test}_" in shard]
+        valid_shards = [shard for shard in tars if f"{fold_valid}_" in shard]
 
         train_shards = [
             shard
@@ -236,5 +232,71 @@ def get_dataloaders(
             shuffle=shuffle if split == "train" else None,
             shardshuffle=shardshuffle if split == "train" else False,
         )
+
+    return dataloaders
+
+
+def undersample_dataloaders(
+    dataloaders: dict[str, wds.DataPipeline],
+    samples_idx_by_split: dict[str, list[int]],
+    n_samples: int,
+    batch_size: int,
+    test_valid_folds=None,
+) -> dict[str, wds.DataPipeline]:
+    """
+    Undersample the training and validation dataloaders to have at most n_samples in the training set.
+    Parameters
+    ----------
+    dataloaders : dict[str, wds.DataPipeline]
+        Dictionary with split names as keys and dataloaders as values.
+    samples_idx_by_split : dict
+        Dictionary with split names as keys and list of sample indices as values.
+    n_samples : int
+        Maximum number of samples to keep in the training set.
+    batch_size: int
+        Dataloader's batch size.
+    test_valid_folds : tuple[str, str], optional
+        Tuple containing the fold names to use as test and validation sets. The default is None.
+        Example: ('part0', 'part1') will use all tar files containing 'part0' as test set and all tar files containing 'part1' as validation set.
+    Returns
+    -------
+    dict[str, wds.DataPipeline]
+        Undersampled dataloaders dictionary.
+    """
+
+    # calculate the number of samples for each split
+    if test_valid_folds is not None:
+        fold_test, fold_valid = test_valid_folds
+
+        total_samples = sum(len(indices) for indices in samples_idx_by_split.values())
+
+        samples_number_by_split = {
+            "valid": len(samples_idx_by_split[fold_valid]),
+            "test": len(samples_idx_by_split[fold_test]),
+        }
+        samples_number_by_split["train"] = (
+            total_samples
+            - samples_number_by_split["valid"]
+            - samples_number_by_split["test"]
+        )
+    else:
+        samples_number_by_split = {
+            split: len(indices) for split, indices in samples_idx_by_split.items()
+        }
+
+    # undersample training and validation sets
+    undersampling_factor = n_samples / samples_number_by_split["train"]
+
+    if undersampling_factor < 1.0:
+        for split, dataloader in dataloaders.items():
+            if split == "test" or split not in samples_number_by_split.keys():
+                continue
+
+            dataloaders[split] = dataloader.with_epoch(
+                math.ceil(
+                    int(samples_number_by_split[split] * undersampling_factor)
+                    / batch_size
+                )
+            )
 
     return dataloaders

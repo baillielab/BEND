@@ -12,14 +12,13 @@ import hydra
 import pandas as pd
 from omegaconf import DictConfig
 from scipy import spatial
-import numpy as np
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-
-from bend_hybrid.embedding.datasets import DataVariantEffects
+from bend_hybrid.embedding.datasets import DataVariantEffects, undersample_dataset
 from bend_hybrid.utils import set_seed
+
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
@@ -59,14 +58,9 @@ def run_experiment(cfg: DictConfig) -> None:
         extra_context_right=extra_context_right,
     )
 
-    if cfg.n_samples is not None and cfg.n_samples > 1:
-        print(
-            f"Undersampling from {len(dataset.annotation)} to {cfg.n_samples} samples"
-        )
-        subset_indices = np.random.choice(
-            np.arange(len(dataset)), cfg.n_samples, replace=False
-        )
-        dataset = Subset(dataset, subset_indices)
+    n_samples = cfg.get("n_samples", None)
+    if n_samples is not None:
+        dataset = undersample_dataset(dataset, n_samples=n_samples)
 
     dataloader = DataLoader(
         dataset,

@@ -6,16 +6,14 @@ Dataset classes and utility functions for loading sequences and labels of superv
 - DatasetVariantEffect: Class for loading sequences and labels for variant effect prediction tasks.
 """
 
-import math
-from typing import Union
-
 import h5py
 import numpy as np
 import pandas as pd
 import pysam
 from Bio import SeqIO
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from tqdm.auto import tqdm
+
 
 DEFAULT_FLANK = 0  # Default flank size for sequence fetching
 DEFAULT_LABEL_COLUMN_IDX = 6  # Default index for label column in BED file
@@ -30,6 +28,70 @@ def collate_fn(batch) -> tuple:
     sequences, labels = zip(*batch)
 
     return sequences, labels
+
+
+def undersample_splits(samples_idx_by_split, n_samples) -> dict[str, list[int]]:
+    """
+    Undersample train and validation splits to have at most n_samples in each split.
+
+    Parameters
+    ----------
+    samples_idx_by_split : dict
+        Dictionary with split names as keys and list of sample indices as values.
+    n_samples : int
+        Maximum number of samples to keep in each split.
+
+    Returns
+    -------
+    dict[str, list[int]]
+        Undersampled samples_idx_by_split dictionary.
+    """
+
+    if n_samples is not None and n_samples > 1:
+
+        train_samples = samples_idx_by_split.get("train", None)
+
+        if train_samples is not None and len(train_samples) > n_samples:
+            undersample_ratio = n_samples / len(train_samples)
+
+            for split, indices in samples_idx_by_split.items():
+                if split != "test":
+                    n_samples = int(len(indices) * undersample_ratio)
+                    samples_idx_by_split[split] = np.random.choice(
+                        indices, n_samples, replace=False
+                    )
+                    print(
+                        f"Undersampling '{split}' split from {len(indices)} to {n_samples} samples"
+                    )
+        else:
+            print(
+                'Warning: Cannot undersample as "train" split it is null or has fewer samples than n_samples'
+            )
+
+    return samples_idx_by_split
+
+
+def undersample_dataset(dataset, n_samples: int) -> Subset:
+    """
+    Undersample the dataset to have at most n_samples.
+
+    Parameters
+    ----------
+    n_samples : int
+        The number of samples to keep in the dataset.
+    Returns
+    -------
+    Subset
+        The undersampled dataset.
+    """
+
+    if n_samples is not None and n_samples > 1 and len(dataset) > n_samples:
+        print(f"Undersampling from {len(dataset)} to {n_samples} samples")
+        dataset = Subset(
+            dataset, np.random.choice(np.arange(len(dataset)), n_samples, replace=False)
+        )
+
+    return dataset
 
 
 class Fasta(pysam.FastaFile):
@@ -160,7 +222,7 @@ class DataSupervised(Dataset):
         if samples_to_exclude is not None:
             annotations.drop(index=samples_to_exclude, inplace=True)
 
-        self.sample_idx_by_split = {
+        self.samples_idx_by_split = {
             split: annotations[
                 annotations.iloc[:, split_column_idx] == split
             ].index.tolist()
@@ -344,7 +406,7 @@ class DataSupervised(Dataset):
         dict[str, list[int]]
             A dictionary mapping split names to lists of sample indices.
         """
-        return self.sample_idx_by_split
+        return self.samples_idx_by_split
 
     def __len__(self) -> int:
         """
@@ -400,7 +462,6 @@ class DataVariantEffects(Dataset):
             )
 
         self.annotation = pd.read_csv(annotation_path, sep="\t")
-
         if not {"chromosome", "start", "end", "alt"}.issubset(self.annotation.columns):
             raise ValueError(
                 "Annotation dataframe must contain columns: chromosome, start, end, alt"
