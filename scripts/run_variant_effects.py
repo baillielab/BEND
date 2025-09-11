@@ -72,7 +72,11 @@ def run_experiment(cfg: DictConfig) -> None:
         dataset,
         batch_size=cfg.task.dataloader.batch_size,
         num_workers=cfg.task.dataloader.num_workers,
-        prefetch_factor=cfg.task.dataloader.prefetch_factor,
+        prefetch_factor=(
+            cfg.task.dataloader.prefetch_factor
+            if cfg.task.dataloader.prefetch_factor > 0
+            else None
+        ),
         shuffle=False,
     )
 
