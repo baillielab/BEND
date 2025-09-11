@@ -17,3 +17,5 @@ hydra:
     params:
       task.dataloader.num_workers: choice(1, 2, 4, 8)
       task.dataloader.prefetch_factor: choice(1, 2, 4)
+
+n_samples: 50000 # Set to an integer to undersample the dataset for quicker runs

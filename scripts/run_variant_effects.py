@@ -59,6 +59,15 @@ def run_experiment(cfg: DictConfig) -> None:
         extra_context_right=extra_context_right,
     )
 
+    if cfg.n_samples is not None and cfg.n_samples > 1:
+        print(
+            f"Undersampling from {len(dataset.annotation)} to {cfg.n_samples} samples"
+        )
+        subset_indices = np.random.choice(
+            np.arange(len(dataset)), cfg.n_samples, replace=False
+        )
+        dataset = Subset(dataset, subset_indices)
+
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.task.dataloader.batch_size,
