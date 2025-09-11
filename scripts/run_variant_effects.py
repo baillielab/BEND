@@ -12,9 +12,11 @@ import hydra
 import pandas as pd
 from omegaconf import DictConfig
 from scipy import spatial
+import numpy as np
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
+
 
 from bend_hybrid.embedding.datasets import DataVariantEffects
 from bend_hybrid.utils import set_seed
@@ -61,6 +63,7 @@ def run_experiment(cfg: DictConfig) -> None:
         dataset,
         batch_size=cfg.task.dataloader.batch_size,
         num_workers=cfg.task.dataloader.num_workers,
+        prefetch_factor=cfg.task.dataloader.prefetch_factor,
         shuffle=False,
     )
 
@@ -91,9 +94,7 @@ def run_experiment(cfg: DictConfig) -> None:
         {"model": [cfg.embedder], "roc_auc": [score], "time": [end - start]}
     ).to_csv(os.path.join(cfg.output_dir, "roc_auc_scores.csv"), index=False)
 
-    dataset.annotation.to_csv(
-        os.path.join(cfg.output_dir, "distances.csv"), index=False
-    )
+    return end - start
 
 
 if __name__ == "__main__":

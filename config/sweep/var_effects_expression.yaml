@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - override /task: var_effects_expression
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    sampler:
+      seed: 42
+    direction: minimize
+    study_name: multi-objective
+    storage: null
+    n_trials: 2
+    n_jobs: 1
+    params:
+      task.dataloader.num_workers: choice(1, 2, 4, 8)
+      task.dataloader.prefetch_factor: choice(1, 2, 4)

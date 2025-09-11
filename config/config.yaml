@@ -1,29 +1,13 @@
 defaults:
   - embedding/embedders
   - task: gene_finding
+  - override /hydra/sweeper: optuna
+  - override /hydra/sweeper/sampler: tpe
   - _self_
+
 hydra:
-  mode: MULTIRUN
   searchpath:
     - file://config
-  sweeper:
-    params:
-      embedder: hyenadna-tiny-1k,
-        hyenadna-large-1m,
-        nt_transformer_ms,
-        nt_transformer_1000g,
-        nt_transformer_human_ref,
-        nt_transformer_v2_500m,
-        dnabert2,
-        awdlstm,
-        resnetlm
-      task: gene_finding,
-        enhancer_annotation,
-        histone_modification,
-        chromatin_accessibility,
-        cpg_methylation,
-        var_effects_expression,
-        var_effects_disease
 
 # Specify only root directories
 data_dir: ./data/ # Full data path specified in tasks/{task}.yml
@@ -32,5 +16,7 @@ embeddings_output_dir: ./data/embeddings/ # scripts will add /{task}/{embedder}
 output_dir: ./results/ # scripts will add /{task}/{embedder}/
 
 embedder: nt_transformer_1000g
+
+# supervised tasks only
 compute_embeddings: true # Set to false to skip embedding computation
 train_downstream: true # Set to false to skip training
