@@ -16,7 +16,7 @@ shards_*/
 shuffle_experiment/
 .vscode/
 wandb/
-.sweeps/
+sweeps/
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

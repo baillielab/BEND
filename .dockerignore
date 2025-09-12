@@ -17,7 +17,7 @@ shards_*/
 shuffle_experiment/
 .vscode/
 wandb/
-.sweeps/
+sweeps/
 
 # Git
 .git
