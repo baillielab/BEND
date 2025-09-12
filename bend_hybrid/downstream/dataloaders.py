@@ -228,9 +228,8 @@ def get_dataloaders(
     ):
         if len(shards) == 0:
             print(
-                f"No {split} shards found in {shards_dir}, setting {split} dataloader to None"
+                f"No {split} shards found in {shards_dir}, skipping {split} dataloader"
             )
-            dataloaders[split] = None
             continue
 
         dataloaders[split] = make_dataloader(

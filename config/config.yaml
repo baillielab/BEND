@@ -13,7 +13,8 @@ embedders_dir: ./pretrained_models/ # Full embedding path specified in embedding
 embeddings_output_dir: ./data/embeddings/ # scripts will add /{task}/{embedder}
 output_dir: ./results/ # scripts will add /{task}/{embedder}/
 
-embedder: nt_transformer_1000g
+embedder: hyenadna-tiny-1k
+max_shard_size: 3000000000 # max size of each shard in bytes
 
 # supervised tasks only
 compute_embeddings: true # Set to false to skip embedding computation

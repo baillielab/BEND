@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 
 from torch.utils.data import DataLoader
 
-from bend_hybrid.embedding.datasets import DataVariantEffects, undersample_dataset
+from bend_hybrid.embedding.datasets import DataVariantEffects
 from bend_hybrid.utils import set_seed
 
 
@@ -46,11 +46,8 @@ def run_experiment(cfg: DictConfig) -> None:
         genome_path=cfg.task.dataset.genome_path,
         extra_context_left=extra_context_left,
         extra_context_right=extra_context_right,
+        n_samples=cfg.get("n_samples", None),
     )
-
-    n_samples = cfg.get("n_samples", None)
-    if n_samples is not None:
-        dataset = undersample_dataset(dataset, n_samples=n_samples)
 
     dataloader = DataLoader(
         dataset,
