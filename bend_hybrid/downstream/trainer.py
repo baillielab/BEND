@@ -247,7 +247,7 @@ class BaseTrainer:
         match self.config.params.criterion:
             case "cross_entropy":
                 criterion = CrossEntropyLoss(
-                    ignore_index=self.config.dataloader.downstream.padding_value,
+                    ignore_index=self.config.dataloaders.padding_value,
                     weight=(
                         torch.tensor(self.config.params.class_weights).to(self.device)
                         if self.config.params.class_weights is not None
@@ -358,8 +358,8 @@ class BaseTrainer:
         """
 
         # check if any padding in the target
-        if torch.any(y_true == self.config.dataloader.downstream.padding_value):
-            mask = y_true != self.config.dataloader.downstream.padding_value
+        if torch.any(y_true == self.config.dataloaders.padding_value):
+            mask = y_true != self.config.dataloaders.padding_value
             y_true = y_true[mask]
             y_pred = y_pred[mask]
 

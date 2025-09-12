@@ -5,6 +5,9 @@ Data loading and processing for training downstream tasks on embeddings saved in
 import glob
 import os
 from functools import partial
+from omegaconf import DictConfig
+import pandas as pd
+from bend_hybrid.embedding.datasets import DEFAULT_SPLIT_COLUMN_IDX
 from typing import List, Union
 import math
 import torch
@@ -223,6 +226,13 @@ def get_dataloaders(
     for split, shards in zip(
         ["train", "valid", "test"], [train_shards, valid_shards, test_shards]
     ):
+        if len(shards) == 0:
+            print(
+                f"No {split} shards found in {shards_dir}, setting {split} dataloader to None"
+            )
+            dataloaders[split] = None
+            continue
+
         dataloaders[split] = make_dataloader(
             shards,
             batch_size=batch_size,
@@ -236,25 +246,57 @@ def get_dataloaders(
     return dataloaders
 
 
+def get_samples_idx_by_split(
+    annotations_path: str, split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX
+) -> dict[str, int]:
+    """
+    Get the number of samples by split from the annotations file.
+
+    Parameters
+    ----------
+    annotations_path : str
+        Path to the annotations file.
+    split_column_idx : int
+        Index of the column containing the split information.
+
+    Returns
+    -------
+    dict[str, int]
+        A dictionary containing the number of samples for each split.
+    """
+
+    if not os.path.exists(annotations_path):
+        raise SystemExit(
+            f"The annotations file {annotations_path} does not exist\nExiting script"
+        )
+    annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+
+    samples_idx_by_split = {
+        split: annotations[
+            annotations.iloc[:, split_column_idx] == split
+        ].index.tolist()
+        for split in annotations.iloc[:, split_column_idx].unique()
+    }
+
+    return samples_idx_by_split
+
+
 def undersample_dataloaders(
+    cfg: DictConfig,
     dataloaders: dict[str, wds.DataPipeline],
-    samples_idx_by_split: dict[str, list[int]],
     n_samples: int,
-    batch_size: int,
-    test_valid_folds=None,
+    test_valid_folds: tuple[str, str] = None,
 ) -> dict[str, wds.DataPipeline]:
     """
     Undersample the training and validation dataloaders to have at most n_samples in the training set.
     Parameters
     ----------
+    cfg : DictConfig
+        Hydra configuration object.
     dataloaders : dict[str, wds.DataPipeline]
         Dictionary with split names as keys and dataloaders as values.
-    samples_idx_by_split : dict
-        Dictionary with split names as keys and list of sample indices as values.
     n_samples : int
         Maximum number of samples to keep in the training set.
-    batch_size: int
-        Dataloader's batch size.
     test_valid_folds : tuple[str, str], optional
         Tuple containing the fold names to use as test and validation sets. The default is None.
         Example: ('part0', 'part1') will use all tar files containing 'part0' as test set and all tar files containing 'part1' as validation set.
@@ -263,6 +305,8 @@ def undersample_dataloaders(
     dict[str, wds.DataPipeline]
         Undersampled dataloaders dictionary.
     """
+
+    samples_idx_by_split = get_samples_idx_by_split(cfg.task.dataset.annotations_path)
 
     # calculate the number of samples for each split
     if test_valid_folds is not None:
@@ -284,7 +328,7 @@ def undersample_dataloaders(
             split: len(indices) for split, indices in samples_idx_by_split.items()
         }
 
-    # undersample training and validation sets
+    # undersample training and validation dataloaders
     undersampling_factor = n_samples / samples_number_by_split["train"]
 
     if undersampling_factor < 1.0:
@@ -295,7 +339,7 @@ def undersample_dataloaders(
             dataloaders[split] = dataloader.with_epoch(
                 math.ceil(
                     int(samples_number_by_split[split] * undersampling_factor)
-                    / batch_size
+                    / cfg.task.dataloaders.batch_size
                 )
             )
 

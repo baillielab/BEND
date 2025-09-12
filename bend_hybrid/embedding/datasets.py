@@ -6,12 +6,14 @@ Dataset classes and utility functions for loading sequences and labels of superv
 - DatasetVariantEffect: Class for loading sequences and labels for variant effect prediction tasks.
 """
 
+import os
 import h5py
 import numpy as np
 import pandas as pd
 import pysam
 from Bio import SeqIO
-from torch.utils.data import Dataset, Subset
+from torch.utils.data import Dataset
+from bend_hybrid.utils import SEED
 from tqdm.auto import tqdm
 
 
@@ -28,70 +30,6 @@ def collate_fn(batch) -> tuple:
     sequences, labels = zip(*batch)
 
     return sequences, labels
-
-
-def undersample_splits(samples_idx_by_split, n_samples) -> dict[str, list[int]]:
-    """
-    Undersample train and validation splits to have at most n_samples in each split.
-
-    Parameters
-    ----------
-    samples_idx_by_split : dict
-        Dictionary with split names as keys and list of sample indices as values.
-    n_samples : int
-        Maximum number of samples to keep in each split.
-
-    Returns
-    -------
-    dict[str, list[int]]
-        Undersampled samples_idx_by_split dictionary.
-    """
-
-    if n_samples is not None and n_samples > 1:
-
-        train_samples = samples_idx_by_split.get("train", None)
-
-        if train_samples is not None and len(train_samples) > n_samples:
-            undersample_ratio = n_samples / len(train_samples)
-
-            for split, indices in samples_idx_by_split.items():
-                if split != "test":
-                    n_samples = int(len(indices) * undersample_ratio)
-                    samples_idx_by_split[split] = np.random.choice(
-                        indices, n_samples, replace=False
-                    )
-                    print(
-                        f"Undersampling '{split}' split from {len(indices)} to {n_samples} samples"
-                    )
-        else:
-            print(
-                'Warning: Cannot undersample as "train" split it is null or has fewer samples than n_samples'
-            )
-
-    return samples_idx_by_split
-
-
-def undersample_dataset(dataset, n_samples: int) -> Subset:
-    """
-    Undersample the dataset to have at most n_samples.
-
-    Parameters
-    ----------
-    n_samples : int
-        The number of samples to keep in the dataset.
-    Returns
-    -------
-    Subset
-        The undersampled dataset.
-    """
-
-    if n_samples is not None and n_samples > 1 and len(dataset) > n_samples:
-        print(f"Undersampling from {len(dataset)} to {n_samples} samples")
-        dataset = Subset(
-            dataset, np.random.choice(np.arange(len(dataset)), n_samples, replace=False)
-        )
-
-    return dataset
 
 
 class Fasta(pysam.FastaFile):
@@ -183,6 +121,7 @@ class DataSupervised(Dataset):
         hdf5_path: str = None,
         sequence_length: int = None,
         samples_to_exclude: list[int] = None,
+        n_samples: int = None,
         label_column_idx: int = DEFAULT_LABEL_COLUMN_IDX,
         strand_column_idx: int = DEFAULT_STRAND_COLUMN_IDX,
         split_column_idx: int = DEFAULT_SPLIT_COLUMN_IDX,
@@ -203,6 +142,8 @@ class DataSupervised(Dataset):
             Length of the input sequences. If None, sequences can be of variable length.
         samples_to_exclude : list[int], optional
             List of sample indices to exclude from the dataset.
+        n_samples : int, optional
+            Number of samples to keep in the dataset. If None, all samples are kept.
         label_column_idx : int, optional
             Index of the label column in the annotations file.
         strand_column_idx : int, optional
@@ -216,11 +157,20 @@ class DataSupervised(Dataset):
                 "Either hdf5_path or label_depth must be provided to initialize DatasetAnnotations."
             )
 
-        self.sequence_length = sequence_length
-
+        if not os.path.exists(annotations_path):
+            raise SystemExit(
+                f"The annotations file {annotations_path} does not exist\nExiting script"
+            )
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
+
         if samples_to_exclude is not None:
             annotations.drop(index=samples_to_exclude, inplace=True)
+
+        undersampled_indices = None
+        if n_samples is not None:
+            annotations, undersampled_indices = self._undersample(
+                annotations, split_column_idx, n_samples=n_samples
+            )
 
         self.samples_idx_by_split = {
             split: annotations[
@@ -230,14 +180,12 @@ class DataSupervised(Dataset):
         }
 
         genome = Fasta(genome_path)
+        self.sequence_length = sequence_length
 
         if hdf5_path:
             # if HDF5 path is provided, load labels from HDF5
             self.samples = self._get_data_hdf5(
-                annotations,
-                genome,
-                hdf5_path,
-                flank,
+                annotations, genome, hdf5_path, flank, undersampled_indices
             )
         else:
             # generate labels as multi-hot encodings
@@ -250,14 +198,69 @@ class DataSupervised(Dataset):
                 flank,
             )
 
-    def is_uneven(self) -> bool:
+    def _undersample(self, annotations, split_column_idx, n_samples) -> pd.DataFrame:
         """
-        Check if the dataset has uneven sequence lengths.
+        Undersample train and validation splits to have at most n_samples in each split.
+
+        Parameters
+        ----------
+        annotations : pd.DataFrame
+            The annotations dataframe.
+        split_column_idx : int
+            The index of the split column.
+        n_samples : int
+            The number of samples to keep in each split.
+
+        Returns
+        -------
+        pd.DataFrame
+            The undersampled annotations dataframe.
         """
-        return True if self.sequence_length is None else False
+
+        undersampled_indices = None
+
+        if n_samples is not None and n_samples > 1:
+            splits = annotations.iloc[:, split_column_idx].unique()
+
+            if "train" in splits:
+
+                train_samples = annotations[
+                    annotations.iloc[:, split_column_idx] == "train"
+                ]
+
+                undersample_ratio = n_samples / len(train_samples)
+                if undersample_ratio < 1.0:
+                    undersampled_df_splits = []
+                    for split in splits:
+                        df_split = annotations[
+                            annotations.iloc[:, split_column_idx] == split
+                        ]
+
+                        if split == "test":
+                            undersampled_df_splits.append(df_split)
+                            continue
+                        undersampled_df_splits.append(
+                            df_split.sample(
+                                frac=undersample_ratio, random_state=SEED, replace=False
+                            )
+                        )
+
+                    annotations = pd.concat(undersampled_df_splits)
+                    undersampled_indices = annotations.index.to_numpy()
+                    annotations = annotations.reset_index(drop=True)
+                else:
+                    print(
+                        f"Warning: Cannot undersample as the number of training samples is less than n_samples ({len(train_samples)} < {n_samples})."
+                    )
+            else:
+                print(
+                    'Warning: Cannot undersample as "train" split is not present in the annotations.'
+                )
+
+        return annotations, undersampled_indices
 
     def _get_data_hdf5(
-        self, annotations, genome, hdf5_path, flank
+        self, annotations, genome, hdf5_path, flank, undersampled_indices=None
     ) -> tuple[list[str], np.ndarray]:
         """
         Convert annotations to sequences and loads labels from an HDF5 file.
@@ -285,6 +288,9 @@ class DataSupervised(Dataset):
 
         with h5py.File(hdf5_path, mode="r") as h5f:
             labels = h5f["labels"][()]
+
+        if undersampled_indices is not None:
+            labels = labels[undersampled_indices]
 
         sequences = []
         for _, item in tqdm(annotations.iterrows(), total=len(annotations)):
@@ -397,6 +403,12 @@ class DataSupervised(Dataset):
         encoded = np.eye(num_labels, dtype=np.int64)[labels].sum(axis=0)
         return encoded
 
+    def is_uneven(self) -> bool:
+        """
+        Check if the dataset has uneven sequence lengths.
+        """
+        return True if self.sequence_length is None else False
+
     def get_samples_idx_by_split(self) -> dict[str, list[int]]:
         """
         Get the sample indices by split.
@@ -436,6 +448,7 @@ class DataVariantEffects(Dataset):
         genome_path: str,
         extra_context_left: int = 0,
         extra_context_right: int = 0,
+        n_samples: int = None,
     ):
         """
         Parameters
@@ -448,6 +461,8 @@ class DataVariantEffects(Dataset):
             The number of extra context bases to include on the left.
         extra_context_right : int
             The number of extra context bases to include on the right.
+        n_samples : int, optional
+            The number of samples to keep in the dataset. If None, all samples are kept.
         """
 
         super().__init__()
@@ -466,6 +481,8 @@ class DataVariantEffects(Dataset):
             raise ValueError(
                 "Annotation dataframe must contain columns: chromosome, start, end, alt"
             )
+        if n_samples is not None:
+            self.annotation = self._undersample(n_samples)
 
         self.genome_dict = SeqIO.to_dict(SeqIO.parse(genome_path, "fasta"))
 
@@ -485,6 +502,29 @@ class DataVariantEffects(Dataset):
         if extra_context_right == 0:
             # if no right context, alt nucleotide is at the end of the sequence
             self.idx_alt = extra_context_left - 1
+
+    def _undersample(self, n_samples: int) -> pd.DataFrame:
+        """
+        Undersample the annotations to have at most n_samples.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to keep in the dataset.
+
+        Returns
+        -------
+        pd.DataFrame
+            The undersampled dataset.
+        """
+
+        if n_samples is not None and n_samples > 1 and len(self.annotation) > n_samples:
+            print(f"Undersampling from {len(self.annotation)} to {n_samples} samples")
+            self.annotation = self.annotation.sample(
+                n=n_samples, random_state=SEED, replace=False
+            ).reset_index(drop=True)
+
+        return self.annotation
 
     def __len__(self) -> int:
         """
