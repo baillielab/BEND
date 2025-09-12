@@ -16,7 +16,7 @@ from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from bend_hybrid.embedding.datasets import DataVariantEffects, undersample_dataset
+from bend_hybrid.embedding.datasets import DataVariantEffects
 from bend_hybrid.utils import set_seed
 
 
@@ -58,10 +58,6 @@ def run_experiment(cfg: DictConfig) -> None:
         extra_context_right=extra_context_right,
     )
 
-    n_samples = cfg.get("n_samples", None)
-    if n_samples is not None:
-        dataset = undersample_dataset(dataset, n_samples=n_samples)
-
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.task.dataloader.batch_size,
@@ -96,12 +92,9 @@ def run_experiment(cfg: DictConfig) -> None:
     score = roc_auc_score(labels, cosine_distances)
     print(f"ROC AUC: {score} for {cfg.embedder}")
 
-    # save the results
     pd.DataFrame(
         {"model": [cfg.embedder], "roc_auc": [score], "time": [end - start]}
     ).to_csv(os.path.join(cfg.output_dir, "roc_auc_scores.csv"), index=False)
-
-    return end - start
 
 
 if __name__ == "__main__":

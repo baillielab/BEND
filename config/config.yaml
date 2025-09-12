@@ -1,8 +1,6 @@
 defaults:
   - embedding/embedders
   - task: gene_finding
-  - override /hydra/sweeper: optuna
-  - override /hydra/sweeper/sampler: tpe
   - _self_
 
 hydra:
@@ -20,5 +18,3 @@ embedder: nt_transformer_1000g
 # supervised tasks only
 compute_embeddings: true # Set to false to skip embedding computation
 train_downstream: true # Set to false to skip training
-
-n_samples: null # set to an integer for undersampling the dataset
