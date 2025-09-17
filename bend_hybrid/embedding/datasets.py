@@ -239,10 +239,14 @@ class DataSupervised(Dataset):
                         if split == "test":
                             undersampled_df_splits.append(df_split)
                             continue
+
                         undersampled_df_splits.append(
                             df_split.sample(
                                 frac=undersample_ratio, random_state=SEED, replace=False
                             )
+                        )
+                        print(
+                            f"Undersampled {split} split from {len(df_split)} to {len(undersampled_df_splits[-1])} samples"
                         )
 
                     annotations = pd.concat(undersampled_df_splits)

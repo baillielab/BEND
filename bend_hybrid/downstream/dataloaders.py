@@ -335,11 +335,14 @@ def undersample_dataloaders(
             if split == "test" or split not in samples_number_by_split.keys():
                 continue
 
-            dataloaders[split] = dataloader.with_epoch(
-                math.ceil(
-                    int(samples_number_by_split[split] * undersampling_factor)
-                    / cfg.task.dataloaders.batch_size
-                )
+            n_batches = math.ceil(
+                int(samples_number_by_split[split] * undersampling_factor)
+                / cfg.task.dataloaders.batch_size
             )
+            print(
+                f"Undersampling {split} dataloader from {samples_number_by_split[split]} to {int(samples_number_by_split[split] * undersampling_factor)} samples ({n_batches} batches)"
+            )
+
+            dataloaders[split] = dataloader.with_epoch(n_batches)
 
     return dataloaders
