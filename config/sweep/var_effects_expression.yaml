@@ -18,7 +18,7 @@ hydra:
       task.dataloader.num_workers: choice(1, 2, 4, 8)
       task.dataloader.prefetch_factor: choice(0, 1, 2, 4)
   sweep:
-    dir: ./sweeps/${hydra.sweeper.study_name}
+    dir: ${output_dir}/sweep_${hydra.sweeper.study_name}
     subdir: ${now:%Y-%m-%d}_${hydra.job.num}
 
 # Parameter only used in sweep, as var_effects tasks only have test set and undersampling would compromise results
