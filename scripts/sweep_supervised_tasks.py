@@ -43,13 +43,16 @@ def compute_embeddings(cfg: DictConfig) -> None:
     samples_idx_by_split = dataset.get_samples_idx_by_split()
 
     split = "train"
-    split_dataset = Subset(dataset, samples_idx_by_split[split])
 
     dataloader = DataLoader(
-        split_dataset,
+        Subset(dataset, samples_idx_by_split[split]),
         batch_size=cfg.task.dataloaders.batch_size,
         num_workers=cfg.task.dataloaders.num_workers,
-        prefetch_factor=cfg.task.dataloaders.prefetch_factor,
+        prefetch_factor=(
+            cfg.task.dataloaders.prefetch_factor
+            if cfg.task.dataloaders.prefetch_factor > 0
+            else None
+        ),
         shuffle=True if split == "train" else False,
         collate_fn=collate_fn if dataset.is_uneven() else None,
     )
