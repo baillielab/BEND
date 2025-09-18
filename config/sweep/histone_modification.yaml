@@ -15,10 +15,10 @@ hydra:
     n_trials: 5
     n_jobs: 1
     params:
-      task.dataloaders.num_workers: choice(1, 2, 4) # up to 120 workers (20 shards if 3GB but 120 if 0.5GB)
-      task.dataloaders.prefetch_factor: choice(0, 2, 4)
-      task.dataset.n_samples: 25000 # Set to an integer to undersample the dataset
-      max_shard_size: choice(50000000, 300000000, 1800000000, 6000000000) # max size of each shard in bytes (0.05GB, 0.3GB, 1.8GB, 6GB)
+      task.dataloaders.num_workers: choice(1, 4, 8, 16) # up to 120 workers (20 shards if 3GB but 120 if 0.5GB)
+      task.dataloaders.prefetch_factor: choice(0, 2, 4, 8)
+      task.dataset.n_samples: 50000 # Set to an integer to undersample the dataset
+      max_shard_size: choice(500000000, 3000000000, 18000000000) # max size of each shard in bytes (0.5GB, 3GB, 18GB)
   sweep:
     dir: ${output_dir}/sweep_${hydra.sweeper.study_name}
     subdir: ${now:%Y-%m-%d}_${hydra.job.num}
