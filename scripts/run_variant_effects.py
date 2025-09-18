@@ -19,6 +19,7 @@ from tqdm.auto import tqdm
 from bend_hybrid.embedding.datasets import DataVariantEffects
 from bend_hybrid.utils import set_seed
 
+
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
@@ -61,6 +62,11 @@ def run_experiment(cfg: DictConfig) -> None:
         dataset,
         batch_size=cfg.task.dataloader.batch_size,
         num_workers=cfg.task.dataloader.num_workers,
+        prefetch_factor=(
+            cfg.task.dataloader.prefetch_factor
+            if cfg.task.dataloader.prefetch_factor > 0
+            else None
+        ),
         shuffle=False,
     )
 
@@ -86,14 +92,9 @@ def run_experiment(cfg: DictConfig) -> None:
     score = roc_auc_score(labels, cosine_distances)
     print(f"ROC AUC: {score} for {cfg.embedder}")
 
-    # save the results
     pd.DataFrame(
         {"model": [cfg.embedder], "roc_auc": [score], "time": [end - start]}
     ).to_csv(os.path.join(cfg.output_dir, "roc_auc_scores.csv"), index=False)
-
-    dataset.annotation.to_csv(
-        os.path.join(cfg.output_dir, "distances.csv"), index=False
-    )
 
 
 if __name__ == "__main__":

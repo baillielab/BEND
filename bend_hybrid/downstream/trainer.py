@@ -247,7 +247,7 @@ class BaseTrainer:
         match self.config.params.criterion:
             case "cross_entropy":
                 criterion = CrossEntropyLoss(
-                    ignore_index=self.config.dataloader.downstream.padding_value,
+                    ignore_index=self.config.dataloaders.padding_value,
                     weight=(
                         torch.tensor(self.config.params.class_weights).to(self.device)
                         if self.config.params.class_weights is not None
@@ -276,8 +276,8 @@ class BaseTrainer:
         # if load checkpoints is false and overwrite dir is true, delete previous checkpoints
         if self.overwrite_dir and not self.config.params.load_checkpoint:
             print("Deleting all previous checkpoints")
-            print(self.overwrite_dir)
-            print(self.config.params.load_checkpoint)
+            print("Override directory:", self.overwrite_dir)
+            print("Load checkpoint:", self.config.params.load_checkpoint)
             # delete all checkpoints from previous runs
             for f in glob.glob(f"{path}/**", recursive=True):
                 if os.path.isfile(f):
@@ -358,8 +358,8 @@ class BaseTrainer:
         """
 
         # check if any padding in the target
-        if torch.any(y_true == self.config.dataloader.downstream.padding_value):
-            mask = y_true != self.config.dataloader.downstream.padding_value
+        if torch.any(y_true == self.config.dataloaders.padding_value):
+            mask = y_true != self.config.dataloaders.padding_value
             y_true = y_true[mask]
             y_pred = y_pred[mask]
 

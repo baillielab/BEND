@@ -14,15 +14,19 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
+from bend_hybrid.downstream.dataloaders import (
+    undersample_dataloaders,
+    get_samples_idx_by_split,
+)
 from bend_hybrid.downstream.trainer import BaseTrainer
-from bend_hybrid.embedding.datasets import DataSupervised, collate_fn
+from bend_hybrid.embedding.datasets import collate_fn
 from bend_hybrid.utils import get_device, record_embedding_time, set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
+def compute_embeddings(cfg: DictConfig) -> None:
     """
     Embed all sequences in the dataset.
 
@@ -30,8 +34,6 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
-    dataset : DataSupervised
-        The dataset to embed.
     """
 
     print(
@@ -43,14 +45,22 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
 
     start_time = time.time()
 
+    dataset = hydra.utils.instantiate(cfg.task.dataset)
     samples_idx_by_split = dataset.get_samples_idx_by_split()
 
     for split, indices in samples_idx_by_split.items():
+
+        split_dataset = Subset(dataset, indices)
+
         dataloader = DataLoader(
-            Subset(dataset, indices),
-            batch_size=cfg.task.dataloader.annotations.batch_size,
-            num_workers=cfg.task.dataloader.annotations.num_workers,
-            prefetch_factor=cfg.task.dataloader.annotations.prefetch_factor,
+            split_dataset,
+            batch_size=cfg.task.dataloaders.batch_size,
+            num_workers=cfg.task.dataloaders.num_workers,
+            prefetch_factor=(
+                cfg.task.dataloaders.prefetch_factor
+                if cfg.task.dataloaders.prefetch_factor > 0
+                else None
+            ),
             shuffle=True if split == "train" else False,
             collate_fn=collate_fn if dataset.is_uneven() else None,
         )
@@ -69,8 +79,7 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
                     range(len(embeddings)), desc="Writing samples", leave=False
                 ):
                     sample_key = (
-                        batch_idx * cfg.task.dataloader.annotations.batch_size
-                        + sample_idx
+                        batch_idx * cfg.task.dataloaders.batch_size + sample_idx
                     )
                     writer.write(
                         {
@@ -90,7 +99,10 @@ def compute_embeddings(cfg: DictConfig, dataset: DataSupervised) -> None:
     )
 
 
-def train_downstream(cfg: DictConfig) -> None:
+def train_downstream(
+    cfg: DictConfig,
+    test_valid_folds: tuple[str, str] | None = None,
+) -> None:
     """
     Train the downstream model of a supervised task.
 
@@ -98,6 +110,10 @@ def train_downstream(cfg: DictConfig) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
+    test_valid_folds : tuple[str, str], optional
+        Tuple containing the fold names to use as test and validation sets. The default is None.
+        Example: ('part0', 'part1') will use all tar files containing 'part0' as test set
+        and all tar files containing 'part1' as validation set.
     """
 
     cfg.output_dir = os.path.join(cfg.output_dir, "downstream")
@@ -118,7 +134,18 @@ def train_downstream(cfg: DictConfig) -> None:
 
     OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
-    dataloaders = hydra.utils.instantiate(cfg.task.dataloader.downstream)
+    dataloaders = hydra.utils.instantiate(
+        cfg.task.dataloaders, test_valid_folds=test_valid_folds
+    )
+
+    n_samples = cfg.task.dataset.get("n_samples", None)
+    if n_samples is not None:
+        dataloaders = undersample_dataloaders(
+            cfg,
+            dataloaders,
+            n_samples,
+            test_valid_folds=test_valid_folds,
+        )
 
     trainer.train(
         dataloaders["train"],
@@ -141,41 +168,48 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    if "var" in cfg.task.name:
-        print(
-            "Skipping experiment for task variant_effects, as it is not a supervised task."
-        )
-        return
-
     cfg.embeddings_output_dir = os.path.join(
         cfg.embeddings_output_dir, cfg.task.name, cfg.embedder
     )
     cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
 
-    dataset = hydra.utils.instantiate(cfg.task.dataset)
-
     if cfg.compute_embeddings is True:
-        compute_embeddings(cfg, dataset)
+        compute_embeddings(cfg)
 
     if cfg.train_downstream is True:
         print(
             f"=== Training model for task: {cfg.task.name} with embedder: {cfg.embedder} ==="
         )
-        if (
-            "fold_idx" in cfg.task.dataloader.downstream
-            and cfg.task.dataloader.downstream.fold_idx is None
-        ):
 
-            output_dir = cfg.output_dir
-            n_folds = len(dataset.sample_idx_by_split.keys())
+        if "fold_idx" in cfg.task.dataloaders:
+            fold_names = list(
+                get_samples_idx_by_split(cfg.task.dataset.annotations_path).keys()
+            )
 
-            for fold_idx in range(n_folds):
-                print(f"=== Running fold {fold_idx + 1}/{n_folds} ===")
-                cfg.task.dataloader.downstream.fold_idx = fold_idx
-                cfg.output_dir = os.path.join(output_dir, f"fold_{fold_idx + 1}")
-                train_downstream(cfg)
+            if cfg.task.dataloaders.fold_idx is None:
+                # When fold_idx is None, perform cross-validation across all folds
+                output_dir = cfg.output_dir
+                for fold_idx, fold_test in enumerate(fold_names):
+                    print(f"=== Running fold {fold_idx + 1}/{len(fold_names)} ===")
 
-        # If not cross-validation, or only one fold specified, train once
+                    cfg.output_dir = os.path.join(output_dir, fold_test)
+
+                    val_idx = fold_idx + 1 if fold_idx + 1 < len(fold_names) else 0
+                    fold_valid = fold_names[val_idx]
+
+                    train_downstream(cfg, (fold_test, fold_valid))
+            else:
+                # When fold_idx is specified, use the specified fold for testing
+                fold_idx = cfg.task.dataloaders.fold_idx
+                if fold_idx < 0 or fold_idx >= len(fold_names):
+                    raise ValueError(f"fold_idx {fold_idx} is out of range.")
+                fold_test = fold_names[fold_idx]
+                val_idx = fold_idx + 1 if fold_idx + 1 < len(fold_names) else 0
+                fold_valid = fold_names[val_idx]
+
+                train_downstream(cfg, (fold_test, fold_valid))
+
+        # If not cross-validation train once
         train_downstream(cfg)
 
 
