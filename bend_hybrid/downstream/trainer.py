@@ -276,8 +276,8 @@ class BaseTrainer:
         # if load checkpoints is false and overwrite dir is true, delete previous checkpoints
         if self.overwrite_dir and not self.config.params.load_checkpoint:
             print("Deleting all previous checkpoints")
-            print(self.overwrite_dir)
-            print(self.config.params.load_checkpoint)
+            print("Override directory:", self.overwrite_dir)
+            print("Load checkpoint:", self.config.params.load_checkpoint)
             # delete all checkpoints from previous runs
             for f in glob.glob(f"{path}/**", recursive=True):
                 if os.path.isfile(f):
