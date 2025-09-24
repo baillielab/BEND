@@ -37,6 +37,8 @@ do
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir/$n_samples \
         task.dataset.n_samples=$n_samples \
+        task.dataloaders.shuffle=null \
+        task.dataloaders.shardshuffle=null \
         compute_embeddings=false \
         train_downstream=true
 done
