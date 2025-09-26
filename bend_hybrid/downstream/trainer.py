@@ -4,6 +4,7 @@ Trainer and losses classes for training downstream models on supervised tasks.
 
 import glob
 import os
+import time
 from typing import List, Union
 
 import numpy as np
@@ -227,7 +228,9 @@ class BaseTrainer:
             self.config.output_dir
         )  # create the output dir for the model
         self.gradient_accumulation_steps = gradient_accumulation_steps
-        self.scaler = torch.amp.GradScaler()  # init scaler for mixed precision training
+        self.scaler = torch.amp.GradScaler(
+            "cuda", enabled=True
+        )  # init scaler for mixed precision training
 
     def get_criterion(self) -> torch.nn.Module:
         """
@@ -289,6 +292,7 @@ class BaseTrainer:
                     "train_loss",
                     "val_loss",
                     f"val_{self.config.params.metric}",
+                    "training_time",
                 ]
             ).to_csv(f"{path}/losses.csv", index=False)
 
@@ -325,18 +329,19 @@ class BaseTrainer:
         )
         return
 
-    def _log_loss(self, epoch, train_loss, val_loss, val_metric):
+    def _log_loss(self, epoch, train_loss, val_loss, val_metric, training_time):
         df = pd.read_csv(f"{self.config.output_dir}/losses.csv")
         df = pd.concat(
             [
                 df,
                 pd.DataFrame(
-                    [[epoch, train_loss, val_loss, val_metric]],
+                    [[epoch, train_loss, val_loss, val_metric, training_time]],
                     columns=[
                         "Epoch",
                         "train_loss",
                         "val_loss",
                         f"val_{self.config.params.metric}",
+                        "training_time",
                     ],
                 ),
             ],
@@ -518,15 +523,20 @@ class BaseTrainer:
 
         for epoch in range(1 + start_epoch, epochs + 1):
             print(f"Epoch {epoch}/{epochs}")
+
+            start_time_epoch = time.time()
+
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
-
+            # test_loss, test_metric = self.test(test_loader, overwrite=False)
+            # print('TEST:', test_loss, test_metric, checkpoint = epoch)
             # save epoch in output dir
             self._save_checkpoint(epoch, train_loss, val_loss, val_metric)
             # log losses to csv
-            self._log_loss(epoch, train_loss, val_loss, val_metric)
-            # log to wandb
+            self._log_loss(
+                epoch, train_loss, val_loss, val_metric, time.time() - start_time_epoch
+            )
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )
@@ -552,14 +562,7 @@ class BaseTrainer:
         self.model.train()
 
         data, target = batch
-
-        device_type = (
-            "mps"
-            if self.device == torch.device("mps")
-            else "cuda" if self.device == torch.device("cuda") else "cpu"
-        )
-
-        with torch.autocast(device_type=device_type, dtype=torch.float16):
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
             output = self.model(
                 x=data.to(self.device, non_blocking=True),
                 length=target.shape[-1],
@@ -608,10 +611,7 @@ class BaseTrainer:
                     data.to(self.device), activation=self.config.params.activation
                 )
 
-                if self.device == torch.device("mps"):
-                    target = target.to(self.device, dtype=torch.float32).long()
-                else:
-                    target = target.to(self.device).long()
+                target = target.to(self.device).long()
                 loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":
