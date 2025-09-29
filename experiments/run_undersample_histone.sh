@@ -21,7 +21,7 @@ if [ $compute_embeddings = "true" ]; then
         embedders_dir=$embedders_dir \
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir \
-        task.dataset.n_samples=$n_samples \
+        task.dataset.n_samples=$max_samples \
         compute_embeddings=true \
         train_downstream=false
 fi
