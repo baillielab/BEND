@@ -13,7 +13,7 @@ dataloaders:
   _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
   shards_dir: ${embeddings_output_dir}
   batch_size: 256
-  num_workers: 8
+  num_workers: 32
   prefetch_factor: 2
   padding_value: -100
   shuffle: 512
