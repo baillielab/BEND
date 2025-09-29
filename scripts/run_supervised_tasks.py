@@ -15,8 +15,8 @@ from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 from bend_hybrid.downstream.dataloaders import (
-    undersample_dataloaders,
     get_samples_idx_by_split,
+    undersample_dataloaders,
 )
 from bend_hybrid.downstream.trainer import BaseTrainer
 from bend_hybrid.embedding.datasets import collate_fn
@@ -208,9 +208,9 @@ def run_experiment(cfg: DictConfig) -> None:
                 fold_valid = fold_names[val_idx]
 
                 train_downstream(cfg, (fold_test, fold_valid))
-
-        # If not cross-validation train once
-        train_downstream(cfg)
+        else:
+            # If not cross-validation train once
+            train_downstream(cfg)
 
 
 if __name__ == "__main__":
