@@ -121,7 +121,19 @@ def train_downstream(
     print("output_dir", cfg.output_dir)
 
     device = get_device()
-    model = hydra.utils.instantiate(cfg.task.model).to(device).float()
+
+    output_downsample_window = cfg.task.model.get("output_downsample_window", None)
+    pooling = cfg.task.get("pooling", None)
+    if pooling is not None and pooling["location"] == "downstream":
+        output_downsample_window = cfg.task.dataset.get("sequence_length", None)
+
+    model = (
+        hydra.utils.instantiate(
+            cfg.task.model, output_downsample_window=output_downsample_window
+        )
+        .to(device)
+        .float()
+    )
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 
     trainer = BaseTrainer(

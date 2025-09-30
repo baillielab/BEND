@@ -25,7 +25,13 @@ model:
   output_size: ${task.dataset.label_depth}
   hidden_size: 64
   kernel_size: 3
-  output_downsample_window: 512
+pooling:
+  location: input # Options: "input", "downstream"
+  # If location is "input", pooling is applied to the embeddings before being passed to the downstream model.
+  # If location is "downstream", pooling is applied in the downstream model, after the convolutional layers.
+  type: mean # Options: mean, max
+  # If mean or max, the embeddings will be pooled across the sequence length dimension.
+  # max is only supported when location is "input"
 optimizer:
   _target_: torch.optim.AdamW
   lr: 0.003

@@ -144,6 +144,7 @@ class CNN(nn.Module):
         self.encoder = encoder
         self.output_size = output_size
         self.onehot_embedding = OneHotEmbedding(input_size)
+
         if upsample_factor:
             self.upsample = UpsampleLayer(scale_factor=upsample_factor)
 
@@ -202,23 +203,30 @@ class CNN(nn.Module):
             output_length is determined by the input length, the upsampling factor, and the output downsampling window.
 
         """
+        print(f"Input shape: {x.shape}")
         x = self.onehot_embedding(x)
+
         if hasattr(self, "upsample"):
             x = self.upsample(x)[:, :length]
         if self.encoder is not None:
             x = self.encoder(input_ids=x, **kwargs).last_hidden_state
-        # 1st conv layer
+
         x = self.conv1(x)
-        # 2nd conv layer
+        # print(f"After conv1 shape: {x.shape}")
+
         x = self.conv2(x)
+        # print(f"After conv2 shape: {x.shape}")
+
         if self.downsample is not None:
             x = self.downsample(x)
-        # linear layer
+            # print(f"After downsample shape: {x.shape}")
+
         x = self.linear(x)
-        # reshape output if necessary
-        if self.output_size == 1 and x.dim() > 2 or self.downsample:
-            x = torch.flatten(x, 1)
-        #    x = torch.reshape(x, (x.shape[0], x.shape[1], *self.output_size))
+        # print(f"After linear layer shape: {x.shape}")
+
+        x = torch.squeeze(x)
+        # print(f"After reshape shape: {x.shape}")
+
         # softmax
         if activation == "softmax":
             x = self.softmax(x)
@@ -226,6 +234,8 @@ class CNN(nn.Module):
             x = self.softplus(x)
         elif activation == "sigmoid":
             x = self.sigmoid(x)
+
+        # print(f"After activation shape: {x.shape}")
         return x
 
 

@@ -542,6 +542,36 @@ class BaseTrainer:
             )
         return
 
+    def merge_embeddings(self, data):
+        """
+        Merges the embeddings by averaging over the nucleotide bases.
+        Parameters
+        ----------
+        data : torch.Tensor
+            The input tensor of shape (batch_size, sequence_length, embedding_size).
+        Returns
+        -------
+        torch.Tensor
+            The merged embeddings of shape (batch_size, 1, embedding_size).
+        """
+        # print("Data shape before merging embeddings:", data.shape)
+
+        pooling = self.config.get("pooling", None)
+        if pooling is not None and pooling["location"] == "input":
+            match pooling["type"]:
+                case "mean":
+                    data = torch.mean(data, dim=1)
+                case "max":
+                    data, _ = torch.max(data, dim=1)
+                case _:
+                    raise ValueError(f"Unknown pooling method: {pooling}")
+
+            # print("Data shape after merging embeddings:", data.shape)
+            data = data.unsqueeze(1)  # add a dimension for the sequence length
+            # print("Data shape after unsqueeze:", data.shape)
+
+        return data
+
     def train_step(self, batch, idx=0):
         """
         Performs a single training step.
@@ -563,13 +593,21 @@ class BaseTrainer:
 
         data, target = batch
         with torch.autocast(device_type="cuda", dtype=torch.float16):
+
+            data = self.merge_embeddings(data)
+
             output = self.model(
                 x=data.to(self.device, non_blocking=True),
                 length=target.shape[-1],
                 activation=self.config.params.activation,
             )
 
-            target = target.to(self.device, non_blocking=True).long()
+            if self.device == torch.device("mps"):
+                target = target.to(
+                    self.device, non_blocking=True, dtype=torch.float32
+                ).long()
+            else:
+                target = target.to(self.device, non_blocking=True).long()
 
             loss = self.criterion(output, target)
 
@@ -607,11 +645,17 @@ class BaseTrainer:
         targets_all = []
         with torch.no_grad():
             for idx, (data, target) in enumerate(data_loader):
+
+                data = self.merge_embeddings(data)
+
                 output = self.model(
                     data.to(self.device), activation=self.config.params.activation
                 )
 
-                target = target.to(self.device).long()
+                if self.device == torch.device("mps"):
+                    target = target.to(self.device, dtype=torch.float32).long()
+                else:
+                    target = target.to(self.device).long()
                 loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":
