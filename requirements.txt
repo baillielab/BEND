@@ -4,7 +4,6 @@ hydra-joblib-launcher
 numpy==1.26.4
 biopython>=1.81
 tqdm>=4.65.0
-wandb==0.13.5
 einops
 webdataset
 beautifulsoup4

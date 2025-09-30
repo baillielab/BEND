@@ -1,24 +1,25 @@
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import torch
 import os
-import bend.io.sequtils as sequtils
-import pandas as pd
-import numpy as np
-import sys
-from bend.utils.set_seed import set_seed, SEED
 import time
+
+import hydra
+import pandas as pd
+from omegaconf import DictConfig, OmegaConf
+
+import bend.io.sequtils as sequtils
+from bend.utils.set_seed import SEED, set_seed
 
 set_seed()
 
 
-def record_embedding_time(cfg, start_time: float):
+def record_embedding_time(cfg, start_time: float, total_samples: int):
     """
     Record the time taken for embedding in a CSV file.
     Parameters
     ----------
     start_time : float
         The start time of the embedding process.
+    total_samples : int
+        The total number of samples processed.
     """
 
     end_time = time.time()
@@ -45,7 +46,7 @@ def record_embedding_time(cfg, start_time: float):
                 "task": [cfg.task],
                 "model": [cfg.model],
                 "time": [end_time - start_time],
-                "n_samples": cfg.chunk_size,
+                "n_samples": total_samples,
             }
         ).to_csv(file_path, index=False)
 
@@ -63,6 +64,14 @@ def run_experiment(cfg: DictConfig) -> None:
     """
     print("Embedding data for", cfg.task)
 
+    if cfg.shuffle:
+        cfg[cfg.task].bed = cfg[cfg.task].bed.replace(".bed", "_shuffled.bed")
+
+        if cfg[cfg.task].hdf5_file is not None:
+            cfg[cfg.task].hdf5_file = cfg[cfg.task].hdf5_file.replace(
+                ".hdf5", "_shuffled.hdf5"
+            )
+
     # read the bed file and get the splits :
     if not "splits" in cfg or cfg.splits is None:
         splits = sequtils.get_splits(cfg[cfg.task].bed)
@@ -73,10 +82,13 @@ def run_experiment(cfg: DictConfig) -> None:
     embedder = hydra.utils.instantiate(cfg[cfg.model])
 
     start_time = time.time()
+    total_samples = 0
 
     for split in splits:
         print(f"Embedding split: {split}")
-        output_dir = f"{cfg.output_dir}/{cfg.task}/{cfg.model}/"
+
+        task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+        output_dir = os.path.join(cfg.output_dir, task_dir, cfg.model)
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -84,10 +96,14 @@ def run_experiment(cfg: DictConfig) -> None:
         # get length of bed file and divide by chunk size, if a spcific chunk is not set
         df = pd.read_csv(cfg[cfg.task].bed, sep="\t", low_memory=False)
         df = df[df.iloc[:, -1] == split] if split is not None else df
+        total_samples += len(df)
         possible_chunks = list(range(int(len(df) / cfg.chunk_size) + 1))
-        if cfg.chunk is None:
+
+        is_chunk_none = cfg.chunk is None
+        if is_chunk_none:
             cfg.chunk = possible_chunks
         cfg.chunk = [cfg.chunk] if isinstance(cfg.chunk, int) else cfg.chunk
+
         # embed in chunks
         for n, chunk in enumerate(cfg.chunk):
             if chunk not in possible_chunks:
@@ -110,7 +126,11 @@ def run_experiment(cfg: DictConfig) -> None:
                 ),
             )
 
-    record_embedding_time(cfg, start_time)
+        # if chunk was not provided, set it to None so that the next split does not use this split's chunk
+        if is_chunk_none:
+            cfg.chunk = None
+
+    record_embedding_time(cfg, start_time, total_samples)
 
 
 if __name__ == "__main__":

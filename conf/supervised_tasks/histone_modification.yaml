@@ -29,7 +29,8 @@ hydra:
         # hyenadna-medium-450k
 embedder: onehot
 task: histone_modification
-output_dir: ./downstream_tasks/${task}/${embedder}/
+shuffle: false
+output_dir: ./shuffle_experiment/shuffle_${shuffle}/ # Specify only the root output directory, script will add task and model subdirectories
 model:
   _target_: bend.models.downstream.CNN
   encoder: null
@@ -44,11 +45,10 @@ optimizer:
   weight_decay: 0.01
 data:
   _target_: bend.utils.data_downstream.get_data
-  parent_dir: ./data/
-  data_dir: ${data.parent_dir}/${task}/${embedder}/
+  data_dir: ./data/shuffle_${shuffle}/ # Specify only the root data directory, script will generate the full path
   cross_validation: false
   batch_size: 256
-  num_workers: 32
+  num_workers: 9
   padding_value: -100
   shuffle: 200
 params:
@@ -60,5 +60,3 @@ params:
   class_weights: null
   metric: auroc
   activation: none
-wandb:
-  mode: disabled

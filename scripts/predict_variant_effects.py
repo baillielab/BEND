@@ -24,9 +24,7 @@ set_seed()
 def main():
 
     parser = argparse.ArgumentParser("Compute embeddings")
-    parser.add_argument(
-        "--work_dir", type=str, help="Path to the data directory", default="./"
-    )
+
     parser.add_argument(
         "--type",
         choices=["expression", "disease"],
@@ -39,31 +37,25 @@ def main():
         help="Model architecture for computing embeddings",
     )
 
-    cfg = yaml.safe_load(
-        open(
-            os.path.join(
-                parser.parse_args().work_dir, "conf", "embedding", "embed.yaml"
-            )
-        )
-    )
+    cfg = yaml.safe_load(open(os.path.join("./conf", "embedding", "embed.yaml")))
 
     args = parser.parse_args()
 
     experiment_name = f"variant_effects_{args.type}"
 
     annotation_path = os.path.join(
-        args.work_dir, "data", "variant_effects", f"{experiment_name}.bed"
+        "./data", "variant_effects", f"{experiment_name}.bed"
     )
     reference_path = os.path.join(
-        args.work_dir, "data", "genomes", "GRCh38.primary_assembly.genome.fa"
+        "./data", "genomes", "GRCh38.primary_assembly.genome.fa"
     )
 
-    output_dir = os.path.join(args.work_dir, "results", experiment_name)
+    output_dir = os.path.join("./results", experiment_name)
     os.makedirs(output_dir, exist_ok=True)
 
     if "model_path" in cfg[args.model].keys():
         cfg[args.model]["model_path"] = cfg[args.model]["model_path"].replace(
-            "${embedders_dir}", os.path.join(args.work_dir, cfg["embedders_dir"])
+            "${embedders_dir}", os.path.join("./", cfg["embedders_dir"])
         )
     print("Loading embedder", args.model)
 
