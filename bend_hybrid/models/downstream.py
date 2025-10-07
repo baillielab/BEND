@@ -203,7 +203,7 @@ class CNN(nn.Module):
             output_length is determined by the input length, the upsampling factor, and the output downsampling window.
 
         """
-        print(f"Input shape: {x.shape}")
+        # print(f"Input shape: {x.shape}")
         x = self.onehot_embedding(x)
 
         if hasattr(self, "upsample"):
@@ -224,7 +224,7 @@ class CNN(nn.Module):
         x = self.linear(x)
         # print(f"After linear layer shape: {x.shape}")
 
-        x = torch.squeeze(x)
+        x = torch.squeeze(x, dim=1)  # remove the length dimension if it's 1
         # print(f"After reshape shape: {x.shape}")
 
         # softmax
