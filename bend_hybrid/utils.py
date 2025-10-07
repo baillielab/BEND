@@ -4,10 +4,14 @@ Utility functions for the BEND project.
 
 import os
 import random
+from contextlib import contextmanager
+from time import process_time_ns
 
 import numpy as np
 import pandas as pd
 import torch
+
+import wandb
 
 SEED = 42
 
@@ -51,57 +55,36 @@ def get_device():
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def record_embedding_time(
-    task: str,
-    model: str,
-    running_time: float,
-    n_samples: int,
-    tar_path: str,
-    output_dir: str,
-) -> None:
+@contextmanager
+def log_time(process_name: str, step: int | None = None, log_type: str = "log"):
     """
-    Record the time taken for embedding in a CSV file.
+    Context manager to log the time taken by a task to wandb.
 
     Parameters
     ----------
-    task : str
-        The name of the task.
-    model : str
-        The name of the model used for embedding.
-    running_time : float
-        The time taken to run the embedding.
-    n_samples : int
-        The number of samples embedded.
-    tar_path : str
-        The path where the tar files are stored.
-    output_dir : str
-        The directory where the output CSV file will be saved.
+    process_name : str
+        Name of the process to log.
+    step : int, optional
+        Step number to log. The default is None.
     """
 
-    print(f"Embedding completed in {running_time:.2f} seconds")
+    start_time = process_time_ns()
+    yield
+    end_time = process_time_ns()
+    if log_type == "log":
+        wandb.log({f"{process_name}_ns": (end_time - start_time)}, step=step)
+    elif log_type == "summary":
+        wandb.summary[f"{process_name}_ns"] = end_time - start_time
 
-    tar_size = sum(
-        os.path.getsize(os.path.join(tar_path, f))
-        for f in os.listdir(tar_path)
-        if f.endswith(".tar.gz")
-    )
 
-    file_path = os.path.join(output_dir, "embeddings_stats.csv")
+def wandb_login():
+    """
+    Login to wandb using the WANDB_API_KEY environment variable.
+    If the variable is not set, print a warning.
+    """
 
-    new_df = pd.DataFrame.from_dict(
-        {
-            "task": [task],
-            "model": [model],
-            "time": [running_time],
-            "n_samples": [n_samples],
-            "size (bytes)": [tar_size],
-        }
-    )
-
-    if not os.path.exists(file_path):
-        os.makedirs(output_dir, exist_ok=True)
-        new_df.to_csv(file_path, index=False)
-
-    old_df = pd.read_csv(file_path)
-    new_df = pd.concat([old_df, new_df], ignore_index=True)
-    new_df.to_csv(file_path, index=False)
+    wandb_key = os.environ.get("WANDB_API_KEY", None)
+    if wandb_key:
+        wandb.login(key=wandb_key)
+    else:
+        print("No Wandb API key found")

@@ -7,15 +7,16 @@ Dataset classes and utility functions for loading sequences and labels of superv
 """
 
 import os
+
 import h5py
 import numpy as np
 import pandas as pd
 import pysam
 from Bio import SeqIO
 from torch.utils.data import Dataset
-from bend_hybrid.utils import SEED
 from tqdm.auto import tqdm
 
+from bend_hybrid.utils import SEED
 
 DEFAULT_FLANK = 0  # Default flank size for sequence fetching
 DEFAULT_LABEL_COLUMN_IDX = 6  # Default index for label column in BED file
@@ -236,9 +237,9 @@ class DataSupervised(Dataset):
                             annotations.iloc[:, split_column_idx] == split
                         ]
 
-                        if split == "test":
-                            undersampled_df_splits.append(df_split)
-                            continue
+                        # if split == "test":
+                        #     undersampled_df_splits.append(df_split)
+                        #     continue
 
                         undersampled_df_splits.append(
                             df_split.sample(

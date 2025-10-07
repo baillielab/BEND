@@ -17,5 +17,4 @@ embedder: hyenadna-tiny-1k
 max_shard_size: 3000000000 # max size of each shard in bytes
 
 # supervised tasks only
-compute_embeddings: true # Set to false to skip embedding computation
-train_downstream: true # Set to false to skip training
+pooling_mode: "none" # Options: "none", "mean", "max", "min-max", "mean_no_upsample"

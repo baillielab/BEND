@@ -204,6 +204,12 @@ class CNN(nn.Module):
 
         """
         # print(f"Input shape: {x.shape}")
+
+        # if input is 2D (batch_size, embedding_size), add sequence dimension -> (batch_size, 1, embedding_size)
+        if x.ndim == 2:
+            x = torch.unsqueeze(x, dim=1)
+            # print(f"After unsqueeze shape: {x.shape}")
+
         x = self.onehot_embedding(x)
 
         if hasattr(self, "upsample"):
@@ -224,7 +230,7 @@ class CNN(nn.Module):
         x = self.linear(x)
         # print(f"After linear layer shape: {x.shape}")
 
-        x = torch.squeeze(x, dim=1)  # remove the length dimension if it's 1
+        x = torch.squeeze(x, dim=1)  # remove sequence dimension as it's 1
         # print(f"After reshape shape: {x.shape}")
 
         # softmax

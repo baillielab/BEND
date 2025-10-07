@@ -20,6 +20,9 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+import wandb
+from bend_hybrid.utils import log_time
+
 
 class CrossEntropyLoss(nn.Module):
     """
@@ -341,12 +344,13 @@ class BaseTrainer:
                         "train_loss",
                         "val_loss",
                         f"val_{self.config.params.metric}",
-                        "training_time",
+                        "training_time_ns",
                     ],
                 ),
             ],
             ignore_index=True,
         )
+
         df.to_csv(f"{self.config.output_dir}/losses.csv", index=False)
         return
 
@@ -523,11 +527,14 @@ class BaseTrainer:
 
         for epoch in range(1 + start_epoch, epochs + 1):
             print(f"Epoch {epoch}/{epochs}")
+            start_time_epoch = time.process_time_ns()
 
-            start_time_epoch = time.time()
+            with log_time("downstream/train/time", step=epoch):
+                train_loss = self.train_epoch(train_loader)
 
-            train_loss = self.train_epoch(train_loader)
-            val_loss, val_metrics = self.validate(val_loader)
+            with log_time("downstream/val/time", step=epoch):
+                val_loss, val_metrics = self.validate(val_loader)
+
             val_metric = val_metrics[0]
             # test_loss, test_metric = self.test(test_loader, overwrite=False)
             # print('TEST:', test_loss, test_metric, checkpoint = epoch)
@@ -535,42 +542,25 @@ class BaseTrainer:
             self._save_checkpoint(epoch, train_loss, val_loss, val_metric)
             # log losses to csv
             self._log_loss(
-                epoch, train_loss, val_loss, val_metric, time.time() - start_time_epoch
+                epoch,
+                train_loss,
+                val_loss,
+                0,
+                time.process_time_ns() - start_time_epoch,
+            )
+
+            wandb.log(
+                {
+                    "downstream/train/loss": train_loss,
+                    "downstream/val/loss": val_loss,
+                    "downstream/val/metric": val_metric,
+                },
+                step=epoch,
             )
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )
         return
-
-    def merge_embeddings(self, data):
-        """
-        Merges the embeddings by averaging over the nucleotide bases.
-        Parameters
-        ----------
-        data : torch.Tensor
-            The input tensor of shape (batch_size, sequence_length, embedding_size).
-        Returns
-        -------
-        torch.Tensor
-            The merged embeddings of shape (batch_size, 1, embedding_size).
-        """
-        # print("Data shape before merging embeddings:", data.shape)
-
-        pooling = self.config.get("pooling", None)
-        if pooling is not None and pooling["location"] == "input":
-            match pooling["type"]:
-                case "mean":
-                    data = torch.mean(data, dim=1)
-                case "max":
-                    data, _ = torch.max(data, dim=1)
-                case _:
-                    raise ValueError(f"Unknown pooling method: {pooling}")
-
-            # print("Data shape after merging embeddings:", data.shape)
-            data = data.unsqueeze(1)  # add a dimension for the sequence length
-            # print("Data shape after unsqueeze:", data.shape)
-
-        return data
 
     def train_step(self, batch, idx=0):
         """
@@ -594,13 +584,12 @@ class BaseTrainer:
         data, target = batch
         with torch.autocast(device_type="cuda", dtype=torch.float16):
 
-            data = self.merge_embeddings(data)
-
             output = self.model(
                 x=data.to(self.device, non_blocking=True),
                 length=target.shape[-1],
                 activation=self.config.params.activation,
             )
+            # print(f"Output shape: {output.shape}, Target shape: {target.shape}")
 
             if self.device == torch.device("mps"):
                 target = target.to(
@@ -646,8 +635,6 @@ class BaseTrainer:
         with torch.no_grad():
             for idx, (data, target) in enumerate(data_loader):
 
-                data = self.merge_embeddings(data)
-
                 output = self.model(
                     data.to(self.device), activation=self.config.params.activation
                 )
@@ -656,6 +643,8 @@ class BaseTrainer:
                     target = target.to(self.device, dtype=torch.float32).long()
                 else:
                     target = target.to(self.device).long()
+
+                # print(f"Output shape: {output.shape}, Target shape: {target.shape}")
                 loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":
@@ -721,7 +710,13 @@ class BaseTrainer:
         # print('before test', )
         # print(self.model.state_dict()['conv2.1.bias'])
         # test
-        loss, metric = self.validate(test_loader)
+        with log_time("downstream/test/time", step=epoch):
+            loss, metric = self.validate(test_loader)
+
+        wandb.summary["downstream/test/loss"] = loss
+        wandb.summary["downstream/test/metric"] = (
+            metric[0] if isinstance(metric, (list, np.ndarray)) else metric
+        )
         # print('after test', )
         # print(self.model.state_dict()['conv2.1.bias'])
         print(
