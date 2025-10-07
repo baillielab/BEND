@@ -173,7 +173,7 @@ def run_experiment(cfg: DictConfig) -> None:
     wandb.init(
         anonymous="allow",
         project="bend-pooling",
-        name=f"{cfg.task.name}_{cfg.pooling_mode}",
+        name=f"{cfg.task.name}_{cfg.embedder}_{cfg.pooling_mode}",
         config=OmegaConf.to_container(cfg),
     )
     wandb.summary["task"] = cfg.task.name

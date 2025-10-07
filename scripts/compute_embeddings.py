@@ -39,6 +39,9 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
 
     wandb.summary["dataset/n_samples"] = len(dataset)
 
+    sample_step = 0
+    batch_step = 0
+
     for split, indices in samples_idx_by_split.items():
 
         dataloader = DataLoader(
@@ -68,10 +71,11 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
         for batch_idx, (sequences, labels) in tqdm(
             enumerate(dataloader), total=len(dataloader), desc=f"Embedding {split}"
         ):
-            with log_time("dataset/batch_embed_time"):
+            with log_time("dataset/batch_embed_time", step=batch_step):
                 embeddings = embedder(sequences, uneven_length=dataset.is_uneven())
 
             for mode in wandb.summary["dataset/pooling_modes"]:
+                mode_sample_step = sample_step
 
                 for sample_idx in tqdm(
                     range(len(embeddings)),
@@ -83,7 +87,9 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                         batch_idx * cfg.task.dataloaders.batch_size + sample_idx
                     )
 
-                    with log_time(f"dataset/{mode}/sample_store_time"):
+                    with log_time(
+                        f"dataset/{mode}/sample_store_time", step=mode_sample_step
+                    ):
                         writers[mode].write(
                             {
                                 "__key__": f"sample{sample_key:08d}",
@@ -93,6 +99,10 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                                 ),
                             }
                         )
+                    mode_sample_step += 1
+
+            sample_step += len(embeddings)
+            batch_step += 1
 
         for writer in writers.values():
             writer.close()
