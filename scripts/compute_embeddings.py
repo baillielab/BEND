@@ -5,6 +5,7 @@ Configuration is set through Hydra in config/config.yaml.
 """
 
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import hydra
 import numpy as np
@@ -23,6 +24,52 @@ set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
+def write_batch(shard_dir, split, mode, batch_idx, embeddings, labels):
+    """
+    Write a batch of embeddings and labels to a tar file using webdataset.
+    Parameters
+    ----------
+    shard_dir : str
+        Directory in which to store the shards.
+    split : str
+        Dataset split (train, val, test).
+    mode : str
+        Pooling mode used.
+    batch_idx : int
+        Batch index.
+    embeddings : np.ndarray
+        Batch embeddings to store.
+    labels : list[int]
+        Batch labels to store.
+    """
+
+    writer = wds.TarWriter(
+        os.path.join(
+            shard_dir,
+            mode,
+            f"{split}_%06d.tar.gz" % batch_idx,
+        ),
+        compress="gz",
+    )
+
+    # print(f"Writing batch {batch_idx} with mode {mode} at {time.time()}")
+
+    for sample_idx, (embedding, label) in enumerate(zip(embeddings, labels)):
+
+        sample_key = batch_idx * len(embeddings) + sample_idx
+
+        with log_time(f"dataset/{mode}/sample_store_time"):
+            writer.write(
+                {
+                    "__key__": f"sample{sample_key:08d}",
+                    "input.npy": embedding,
+                    "output.npy": np.array(label, dtype=np.int32),
+                }
+            )
+
+    writer.close()
+
+
 def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
     """
     Embed all sequences in the dataset and stores them using all pooling modes.
@@ -31,6 +78,8 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
     ----------
     cfg : DictConfig
         Hydra configuration object.
+    embedder : BaseEmbedder
+        Embedder to use.
     """
 
     with log_time("dataset/init_time", log_type="summary"):
@@ -39,7 +88,6 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
 
     wandb.summary["dataset/n_samples"] = len(dataset)
 
-    sample_step = 0
     batch_step = 0
 
     for split, indices in samples_idx_by_split.items():
@@ -57,55 +105,45 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             collate_fn=collate_fn if dataset.is_uneven() else None,
         )
 
-        writers = {}
         for mode in wandb.summary["dataset/pooling_modes"]:
             shard_dir = os.path.join(cfg.embeddings_output_dir, mode)
             os.makedirs(shard_dir, exist_ok=True)
 
-            writers[mode] = wds.ShardWriter(
-                os.path.join(shard_dir, f"{split}_%06d.tar.gz"),
-                verbose=0,
-                compress="gz",
-            )
+        futures = []
+        with ProcessPoolExecutor(
+            max_workers=cfg.task.dataloaders.num_workers
+        ) as executor:
 
-        for batch_idx, (sequences, labels) in tqdm(
-            enumerate(dataloader), total=len(dataloader), desc=f"Embedding {split}"
-        ):
-            with log_time("dataset/batch_embed_time", step=batch_step):
-                embeddings = embedder(sequences, uneven_length=dataset.is_uneven())
+            for batch_idx, (sequences, labels) in tqdm(
+                enumerate(dataloader),
+                total=len(dataloader),
+                desc=f"Embedding {split}",
+            ):
 
-            for mode in wandb.summary["dataset/pooling_modes"]:
-                mode_sample_step = sample_step
+                with log_time("dataset/batch_embed_time", step=batch_step):
+                    embeddings = embedder(sequences, uneven_length=dataset.is_uneven())
 
-                for sample_idx in tqdm(
-                    range(len(embeddings)),
-                    desc=f"Writing {mode} batch",
-                    leave=False,
-                ):
-                    sample = pool_embeddings(embeddings[sample_idx], PoolingMode(mode))
-                    sample_key = (
-                        batch_idx * cfg.task.dataloaders.batch_size + sample_idx
+                for mode in wandb.summary["dataset/pooling_modes"]:
+                    samples = pool_embeddings(embeddings, PoolingMode(mode))
+
+                    futures.append(
+                        executor.submit(
+                            write_batch,
+                            cfg.embeddings_output_dir,
+                            split,
+                            mode,
+                            batch_idx,
+                            samples,
+                            labels,
+                        )
                     )
 
-                    with log_time(
-                        f"dataset/{mode}/sample_store_time", step=mode_sample_step
-                    ):
-                        writers[mode].write(
-                            {
-                                "__key__": f"sample{sample_key:08d}",
-                                "input.npy": sample,
-                                "output.npy": np.array(
-                                    labels[sample_idx], dtype=np.int32
-                                ),
-                            }
-                        )
-                    mode_sample_step += 1
+                batch_step += 1
 
-            sample_step += len(embeddings)
-            batch_step += 1
-
-        for writer in writers.values():
-            writer.close()
+            for future in tqdm(
+                as_completed(futures), total=len(futures), desc="Completing writes"
+            ):
+                future.result()
 
     for mode in wandb.summary["dataset/pooling_modes"]:
         tar_path = os.path.join(cfg.embeddings_output_dir, mode)
@@ -134,7 +172,7 @@ def run_experiment(cfg: DictConfig) -> None:
     wandb_login()
     wandb.init(
         anonymous="allow",
-        project="bend-pooling",
+        project="bend-pooling-parallel",
         name=f"{cfg.task.name}_{cfg.embedder}_embeddings",
         config=OmegaConf.to_container(cfg),
     )
