@@ -37,5 +37,3 @@ params:
   class_weights: null
   metric: auroc
   activation: none
-wandb:
-  mode: disabled

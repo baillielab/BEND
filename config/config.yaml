@@ -16,5 +16,8 @@ output_dir: ./results/ # scripts will add /{task}/{embedder}/
 embedder: hyenadna-tiny-1k
 max_shard_size: 3000000000 # max size of each shard in bytes
 
+wandb:
+  project: bend-pooling-testing
+
 # supervised tasks only
-pooling_mode: "none" # Options: "none", "mean", "max", "min-max", "mean_no_upsample"
+pooling_mode: "none" # Options: "none", "mean", "max", "mean_no_upsample"
