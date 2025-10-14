@@ -17,9 +17,9 @@ from typing import List
 
 import numpy as np
 import torch
-from sklearn.preprocessing import LabelEncoder
 from transformers import AutoModelForMaskedLM, AutoTokenizer, logging
 
+from bend_hybrid.embedding.pooling import PoolingMode, pool_embeddings
 from bend_hybrid.models.awd_lstm import AWDLSTMModelForInference
 from bend_hybrid.models.dilated_cnn import ConvNetModel
 from bend_hybrid.models.dnabert2 import BertForMaskedLM as DNABert2BertForMaskedLM
@@ -268,7 +268,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return embeddings
+                return [pool_embeddings(embeddings, PoolingMode.NONE)]
 
             # if sequences are of the same length, we can batch process without chunking
 
@@ -285,7 +285,10 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             input_ids = input_ids.numpy()
             attention_masks = attention_masks.numpy().astype(bool)
 
+            output = [pool_embeddings(embeddings, PoolingMode.CLS)]
+
             list_embeddings = []
+            list_embeddings_no_upsample = []
 
             for idx, _ in enumerate(embeddings):
                 emb = embeddings[idx]
@@ -296,13 +299,24 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 )
 
                 emb, token_ids = self._remove_cls_tokens(emb, token_ids)
+                list_embeddings_no_upsample.append(emb)
 
-                if self.upsample_embeddings:
-                    emb = self._upsample(token_ids, emb)
-
+                emb = self._upsample(token_ids, emb)
                 list_embeddings.append(emb)
 
-            return np.array(list_embeddings)
+            embeddings = np.array(list_embeddings)
+            embeddings_no_upsample = np.array(list_embeddings_no_upsample)
+
+            output.extend(
+                [
+                    pool_embeddings(embeddings, mode)
+                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                ]
+            )
+            output.append(
+                pool_embeddings(embeddings_no_upsample, PoolingMode.MEAN_NO_UPSAMPLE)
+            )
+            return output
 
     def get_embedding(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor = None
@@ -502,10 +516,13 @@ class AWDLSTMEmbedder(BaseEmbedder):
                     masked_embeddings.append(embeddings[idx][attention_mask[idx]])
 
                 # List of uneven length embeddings cannot be converted to a numpy array
-                return masked_embeddings
+                return [pool_embeddings(masked_embeddings, PoolingMode.NONE)]
 
         # If uneven_length is False, return a numpy array of embeddings
-        return embeddings
+        return [
+            pool_embeddings(embeddings, mode)
+            for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+        ]
 
 
 class ConvNetEmbedder(BaseEmbedder):
@@ -577,10 +594,12 @@ class ConvNetEmbedder(BaseEmbedder):
                     masked_embeddings.append(embeddings[idx][attention_mask[idx]])
 
                 # List of uneven length embeddings cannot be converted to a numpy array
-                return masked_embeddings
-
+                return [pool_embeddings(masked_embeddings, PoolingMode.NONE)]
         # If uneven_length is False, return a numpy array of embeddings
-        return embeddings
+        return [
+            pool_embeddings(embeddings, mode)
+            for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+        ]
 
 
 class HyenaDNAEmbedder(BaseEmbedder):
@@ -714,7 +733,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return embeddings
+                return [pool_embeddings(embeddings, PoolingMode.NONE)]
 
             input_ids = self.tokenizer(
                 sequences,
@@ -726,7 +745,17 @@ class HyenaDNAEmbedder(BaseEmbedder):
                 self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
             )
 
-            return self._remove_cls_sep_embeddings(embeddings)
+            output = [pool_embeddings(embeddings, PoolingMode.EOS)]
+
+            embeddings = self._remove_cls_sep_embeddings(embeddings)
+
+            output.extend(
+                [
+                    pool_embeddings(embeddings, mode)
+                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                ]
+            )
+            return output
 
 
 class DNABert2Embedder(BaseEmbedder):
@@ -818,7 +847,7 @@ class DNABert2Embedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return embeddings
+                return [pool_embeddings(embeddings, PoolingMode.NONE)]
 
             output = self.tokenizer(sequences, return_tensors="pt", padding="longest")
             input_ids = output["input_ids"]
@@ -838,7 +867,10 @@ class DNABert2Embedder(BaseEmbedder):
             input_ids = input_ids.numpy()
             attention_mask = attention_mask.numpy().astype(bool)
 
+            output = [pool_embeddings(embeddings, PoolingMode.CLS)]
+
             list_embeddings = []
+            list_upsampled = []
 
             for idx, _ in enumerate(embeddings):
                 emb = embeddings[idx]
@@ -847,14 +879,25 @@ class DNABert2Embedder(BaseEmbedder):
                 emb, token_ids = self._remove_pad_tokens(
                     emb, token_ids, attention_mask=attention_mask[idx]
                 )
+
                 emb, token_ids = self._remove_cls_sep_tokens(emb, token_ids)
-
-                if self.upsample_embeddings:
-                    emb = self._upsample(token_ids, emb)
-
                 list_embeddings.append(emb)
 
-            return np.array(list_embeddings)
+                emb = self._upsample(token_ids, emb)
+                list_upsampled.append(emb)
+
+            embeddings = np.array(list_embeddings)
+            upsampled = np.array(list_upsampled)
+
+            output.extend(
+                [
+                    pool_embeddings(embeddings, mode)
+                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                ]
+            )
+            output.append(pool_embeddings(upsampled, PoolingMode.MEAN_NO_UPSAMPLE))
+
+            return output
 
     def _remove_cls_sep_tokens(
         self, embeddings: np.ndarray, input_ids: np.ndarray

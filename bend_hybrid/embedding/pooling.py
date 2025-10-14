@@ -1,5 +1,5 @@
 """
-Pooling functions for embeddings.
+Pooling functions and mode enum for embeddings.
 """
 
 import enum
@@ -8,15 +8,17 @@ import numpy as np
 
 
 class PoolingMode(enum.Enum):
-    """
-    Enum for pooling modes.
+    """Enumeration of supported pooling output modes.
+
+    Values are used as directory names and identifiers downstream.
     """
 
     NONE = "none"
     MEAN = "mean"
     MEAN_NO_UPSAMPLE = "mean_no_upsample"
     MAX = "max"
-    MIN_MAX = "min-max"
+    CLS = "cls"
+    EOS = "eos"
 
 
 def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
@@ -36,16 +38,16 @@ def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
 
     match mode:
         case PoolingMode.NONE:
-            return embeddings
-        case PoolingMode.MEAN:
-            return np.mean(embeddings, axis=0, keepdims=True)
-        case PoolingMode.MEAN_NO_UPSAMPLE:
-            unique_emb = np.unique(embeddings, axis=0)
-            return np.mean(unique_emb, axis=0, keepdims=True)
+            emb = embeddings
+        case PoolingMode.CLS:
+            emb = embeddings[:, 0:1, :]
+        case PoolingMode.EOS:
+            emb = embeddings[:, -1:, :]
+        case PoolingMode.MEAN | PoolingMode.MEAN_NO_UPSAMPLE:
+            emb = np.mean(embeddings, axis=0, keepdims=True)
         case PoolingMode.MAX:
-            return np.max(embeddings, axis=0, keepdims=True)
-        case PoolingMode.MIN_MAX:
-            idx_max_abs = np.argmax(np.abs(embeddings), axis=0, keepdims=True)
-            return embeddings[idx_max_abs, np.arange(embeddings.shape[1])]
+            emb = np.max(embeddings, axis=0, keepdims=True)
         case _:
             raise ValueError(f"Unknown pooling mode: {mode}")
+
+    return emb, mode.value

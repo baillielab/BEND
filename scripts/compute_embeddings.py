@@ -17,7 +17,6 @@ from tqdm.auto import tqdm
 import wandb
 from bend_hybrid.embedding.datasets import collate_fn
 from bend_hybrid.embedding.embedders import BaseEmbedder
-from bend_hybrid.embedding.pooling import PoolingMode, pool_embeddings
 from bend_hybrid.utils import log_time, set_seed, wandb_login
 
 set_seed()
@@ -43,6 +42,8 @@ def write_batch(shard_dir, split, mode, batch_idx, embeddings, labels):
         Batch labels to store.
     """
 
+    os.makedirs(os.path.join(shard_dir, mode), exist_ok=True)
+
     writer = wds.TarWriter(
         os.path.join(
             shard_dir,
@@ -58,14 +59,13 @@ def write_batch(shard_dir, split, mode, batch_idx, embeddings, labels):
 
         sample_key = batch_idx * len(embeddings) + sample_idx
 
-        with log_time(f"dataset/{mode}/sample_store_time"):
-            writer.write(
-                {
-                    "__key__": f"sample{sample_key:08d}",
-                    "input.npy": embedding,
-                    "output.npy": np.array(label, dtype=np.int32),
-                }
-            )
+        writer.write(
+            {
+                "__key__": f"sample{sample_key:08d}",
+                "input.npy": embedding,
+                "output.npy": np.array(label, dtype=np.int32),
+            }
+        )
 
     writer.close()
 
@@ -85,8 +85,9 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
     with log_time("dataset/init_time", log_type="summary"):
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         samples_idx_by_split = dataset.get_samples_idx_by_split()
-
     wandb.summary["dataset/n_samples"] = len(dataset)
+
+    embeddings_modes = set()
 
     batch_step = 0
 
@@ -105,10 +106,6 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             collate_fn=collate_fn if dataset.is_uneven() else None,
         )
 
-        for mode in wandb.summary["dataset/pooling_modes"]:
-            shard_dir = os.path.join(cfg.embeddings_output_dir, mode)
-            os.makedirs(shard_dir, exist_ok=True)
-
         futures = []
         with ProcessPoolExecutor(
             max_workers=cfg.task.dataloaders.num_workers
@@ -121,10 +118,10 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             ):
 
                 with log_time("dataset/batch_embed_time", step=batch_step):
-                    embeddings = embedder(sequences, uneven_length=dataset.is_uneven())
+                    output = embedder(sequences, uneven_length=dataset.is_uneven())
 
-                for mode in wandb.summary["dataset/pooling_modes"]:
-                    samples = pool_embeddings(embeddings, PoolingMode(mode))
+                for embeddings, mode in output:
+                    embeddings_modes.add(mode)
 
                     futures.append(
                         executor.submit(
@@ -133,7 +130,7 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                             split,
                             mode,
                             batch_idx,
-                            samples,
+                            embeddings,
                             labels,
                         )
                     )
@@ -145,7 +142,9 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             ):
                 future.result()
 
-    for mode in wandb.summary["dataset/pooling_modes"]:
+    wandb.summary["dataset/embeddings_modes"] = list(embeddings_modes)
+
+    for mode in wandb.summary["dataset/embeddings_modes"]:
         tar_path = os.path.join(cfg.embeddings_output_dir, mode)
 
         if os.path.exists(tar_path):
@@ -185,14 +184,6 @@ def run_experiment(cfg: DictConfig) -> None:
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
 
     embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
-
-    wandb.summary["dataset/pooling_modes"] = [
-        mode.value
-        for mode in PoolingMode
-        if not (
-            mode == PoolingMode.MEAN_NO_UPSAMPLE and not embedder.upsample_embeddings
-        )
-    ]
 
     print(
         f"=== Embedding sequences for task: {cfg.task.name} with model: {cfg.embedder} ==="
