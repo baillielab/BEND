@@ -13,7 +13,7 @@ class PoolingMode(enum.Enum):
     Values are used as directory names and identifiers downstream.
     """
 
-    NONE = "none"
+    DEFAULT = "default"
     MEAN = "mean"
     MEAN_NO_UPSAMPLE = "mean_no_upsample"
     MAX = "max"
@@ -37,7 +37,7 @@ def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
     """
 
     match mode:
-        case PoolingMode.NONE:
+        case PoolingMode.DEFAULT:
             emb = embeddings
         case PoolingMode.CLS:
             emb = embeddings[:, 0:1, :]

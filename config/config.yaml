@@ -20,4 +20,4 @@ wandb:
   project: bend-pooling-testing
 
 # supervised tasks only
-pooling_mode: "none" # Options: "none", "mean", "max", "mean_no_upsample"
+pooling_mode: "default" # Options: "default", "mean", "max", "mean_no_upsample"

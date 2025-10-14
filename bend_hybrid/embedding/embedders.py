@@ -268,7 +268,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return [pool_embeddings(embeddings, PoolingMode.NONE)]
+                return [pool_embeddings(embeddings, PoolingMode.DEFAULT)]
 
             # if sequences are of the same length, we can batch process without chunking
 
@@ -310,7 +310,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             output.extend(
                 [
                     pool_embeddings(embeddings, mode)
-                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                    for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
                 ]
             )
             output.append(
@@ -516,12 +516,12 @@ class AWDLSTMEmbedder(BaseEmbedder):
                     masked_embeddings.append(embeddings[idx][attention_mask[idx]])
 
                 # List of uneven length embeddings cannot be converted to a numpy array
-                return [pool_embeddings(masked_embeddings, PoolingMode.NONE)]
+                return [pool_embeddings(masked_embeddings, PoolingMode.DEFAULT)]
 
         # If uneven_length is False, return a numpy array of embeddings
         return [
             pool_embeddings(embeddings, mode)
-            for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+            for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
         ]
 
 
@@ -594,11 +594,11 @@ class ConvNetEmbedder(BaseEmbedder):
                     masked_embeddings.append(embeddings[idx][attention_mask[idx]])
 
                 # List of uneven length embeddings cannot be converted to a numpy array
-                return [pool_embeddings(masked_embeddings, PoolingMode.NONE)]
+                return [pool_embeddings(masked_embeddings, PoolingMode.DEFAULT)]
         # If uneven_length is False, return a numpy array of embeddings
         return [
             pool_embeddings(embeddings, mode)
-            for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+            for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
         ]
 
 
@@ -733,7 +733,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return [pool_embeddings(embeddings, PoolingMode.NONE)]
+                return [pool_embeddings(embeddings, PoolingMode.DEFAULT)]
 
             input_ids = self.tokenizer(
                 sequences,
@@ -752,7 +752,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
             output.extend(
                 [
                     pool_embeddings(embeddings, mode)
-                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                    for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
                 ]
             )
             return output
@@ -847,7 +847,7 @@ class DNABert2Embedder(BaseEmbedder):
 
                     embeddings.append(np.concatenate(chunks_embeddings, axis=0))
 
-                return [pool_embeddings(embeddings, PoolingMode.NONE)]
+                return [pool_embeddings(embeddings, PoolingMode.DEFAULT)]
 
             output = self.tokenizer(sequences, return_tensors="pt", padding="longest")
             input_ids = output["input_ids"]
@@ -892,7 +892,7 @@ class DNABert2Embedder(BaseEmbedder):
             output.extend(
                 [
                     pool_embeddings(embeddings, mode)
-                    for mode in [PoolingMode.NONE, PoolingMode.MEAN, PoolingMode.MAX]
+                    for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
                 ]
             )
             output.append(pool_embeddings(upsampled, PoolingMode.MEAN_NO_UPSAMPLE))

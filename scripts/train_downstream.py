@@ -40,7 +40,7 @@ def set_pooling_mode(cfg: DictConfig) -> str:
     """
 
     pooling_mode = (
-        PoolingMode.NONE.value if cfg.pooling_mode is None else cfg.pooling_mode
+        PoolingMode.DEFAULT.value if cfg.pooling_mode is None else cfg.pooling_mode
     )
 
     if pooling_mode not in [mode.value for mode in PoolingMode]:
@@ -110,7 +110,10 @@ def train_downstream(
     # Gene finding and enhancer tasks downsample in the downstream model and do not support pooling.
     # Other tasks will downsample in the downstream model by their sequence length, if pooling mode is NONE.
     output_downsample_window = cfg.task.model.get("output_downsample_window", None)
-    if cfg.pooling_mode == PoolingMode.NONE.value and output_downsample_window is None:
+    if (
+        cfg.pooling_mode == PoolingMode.DEFAULT.value
+        and output_downsample_window is None
+    ):
         output_downsample_window = cfg.task.dataset.get("sequence_length", None)
 
     model = (
