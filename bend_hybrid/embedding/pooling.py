@@ -44,9 +44,9 @@ def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
         case PoolingMode.EOS:
             emb = embeddings[:, -1:, :]
         case PoolingMode.MEAN | PoolingMode.MEAN_NO_UPSAMPLE:
-            emb = np.mean(embeddings, axis=0, keepdims=True)
+            emb = np.mean(embeddings, axis=1, keepdims=True)
         case PoolingMode.MAX:
-            emb = np.max(embeddings, axis=0, keepdims=True)
+            emb = np.max(embeddings, axis=1, keepdims=True)
         case _:
             raise ValueError(f"Unknown pooling mode: {mode}")
 
