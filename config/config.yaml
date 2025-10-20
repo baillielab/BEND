@@ -18,6 +18,3 @@ max_shard_size: 3000000000 # max size of each shard in bytes
 
 wandb:
   project: bend-pooling-testing
-
-# supervised tasks only
-pooling_mode: "default" # Options: "default", "mean", "max", "mean_no_upsample"

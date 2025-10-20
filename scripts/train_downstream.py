@@ -22,43 +22,6 @@ set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
 
 
-def set_pooling_mode(cfg: DictConfig) -> str:
-    """
-    Set and validate the pooling mode in the configuration.
-    Parameters
-    ----------
-    cfg : DictConfig
-        Hydra configuration object.
-    Returns
-    -------
-    str
-        Validated pooling mode.
-    Raises
-    ------
-    ValueError
-        If the pooling mode is unknown or incompatible with the embedder.
-    """
-
-    pooling_mode = (
-        PoolingMode.DEFAULT.value if cfg.pooling_mode is None else cfg.pooling_mode
-    )
-
-    if pooling_mode not in [mode.value for mode in PoolingMode]:
-        raise ValueError(
-            f"Unknown pooling mode: {cfg.pooling_mode}. Valid modes are {[mode.value for mode in PoolingMode]}"
-        )
-
-    if (
-        pooling_mode == PoolingMode.MEAN_NO_UPSAMPLE.value
-        and not cfg.embedding[cfg.embedder].upsample_embeddings
-    ):
-        raise ValueError(
-            "Pooling mode 'mean_no_upsample' is not compatible with an embedder that does not upsample embeddings."
-        )
-
-    cfg.pooling_mode = pooling_mode
-
-
 def train_cross_validation(cfg: DictConfig) -> None:
     fold_names = list(
         get_samples_idx_by_split(cfg.task.dataset.annotations_path).keys()
@@ -107,22 +70,7 @@ def train_downstream(
 
     device = get_device()
 
-    # Gene finding and enhancer tasks downsample in the downstream model and do not support pooling.
-    # Other tasks will downsample in the downstream model by their sequence length, if pooling mode is NONE.
-    output_downsample_window = cfg.task.model.get("output_downsample_window", None)
-    if (
-        cfg.pooling_mode == PoolingMode.DEFAULT.value
-        and output_downsample_window is None
-    ):
-        output_downsample_window = cfg.task.dataset.get("sequence_length", None)
-
-    model = (
-        hydra.utils.instantiate(
-            cfg.task.model, output_downsample_window=output_downsample_window
-        )
-        .to(device)
-        .float()
-    )
+    model = hydra.utils.instantiate(cfg.task.model).to(device).float()
     optimizer = hydra.utils.instantiate(cfg.task.optimizer, params=model.parameters())
 
     trainer = BaseTrainer(
@@ -169,28 +117,34 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    set_pooling_mode(cfg)
-    print("Using pooling mode:", cfg.pooling_mode)
+    pooling_mode = cfg.task.model.get("pooling", "default")
 
     wandb_login()
     wandb.init(
         anonymous="allow",
         project=cfg.wandb.project,
-        name=f"{cfg.task.name}_{cfg.embedder}_{cfg.pooling_mode}",
+        name=f"{cfg.task.name}_{cfg.embedder}_{pooling_mode}",
         config=OmegaConf.to_container(cfg),
     )
     wandb.summary["task"] = cfg.task.name
     wandb.summary["embedder"] = cfg.embedder
-    wandb.summary["downstream/pooling_mode"] = cfg.pooling_mode
+    wandb.summary["downstream/pooling"] = pooling_mode
 
     cfg.embeddings_output_dir = os.path.join(
-        cfg.embeddings_output_dir, cfg.task.name, cfg.embedder, cfg.pooling_mode
+        cfg.embeddings_output_dir,
+        cfg.task.name,
+        cfg.embedder,
+        (
+            pooling_mode
+            if pooling_mode in [mode.value for mode in PoolingMode]
+            else PoolingMode.DEFAULT.value
+        ),
     )
     cfg.output_dir = os.path.join(
         cfg.output_dir,
         cfg.task.name,
         cfg.embedder,
-        cfg.pooling_mode,
+        pooling_mode,
         "downstream",
     )
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)

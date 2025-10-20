@@ -22,12 +22,17 @@ dataloaders:
   shuffle: 512
   shardshuffle: 32
 model:
-  _target_: bend_hybrid.models.downstream.CNN
-  encoder: null
+  _target_: bend_hybrid.downstream.model.Classifier
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64
+  pooling: "swe" # Options: "default", "swe", "mean", "max", "mean_no_upsample"
+  # only used for "default" pooling
   kernel_size: 3
+  output_downsample_window: ${task.dataset.sequence_length}
+  # only used for "swe" pooling
+  freeze_swe: true
+  num_ref_points: 1024
 optimizer:
   _target_: torch.optim.AdamW
   lr: 0.003
