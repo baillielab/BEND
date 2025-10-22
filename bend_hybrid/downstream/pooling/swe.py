@@ -178,7 +178,7 @@ class Interp1d(torch.autograd.Function):
 
 
 class SWE_Pooling(nn.Module):
-    def __init__(self, d_in, num_slices, num_ref_points, freeze_swe=False):
+    def __init__(self, d_in, num_slices, num_ref_points, freeze_swe=True):
         """
         Produces fixed-dimensional permutation-invariant embeddings for input sets of arbitrary size based on sliced-Wasserstein embedding.
         Inputs:

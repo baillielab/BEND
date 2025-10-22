@@ -29,7 +29,7 @@ model:
   output_downsample_window: ${task.dataset.sequence_length}
   # only used for "swe" pooling
   freeze_swe: true
-  num_ref_points: 1024
+  num_ref_points: 100
 optimizer:
   _target_: torch.optim.AdamW
   lr: 0.003
