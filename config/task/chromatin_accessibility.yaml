@@ -8,9 +8,6 @@ dataset:
   genome_path: ${data_dir}/genomes/GRCh37.no-chr.fa
   label_depth: 125
   sequence_length: 512
-  # list of indices (0-based) of samples to exclude from dataset.
-  # the following samples do not have valid sequences in the reference genome
-  samples_to_exclude: [2062128]
   n_samples: null # Set to an integer to undersample the dataset
 dataloaders:
   _target_: bend_hybrid.downstream.dataloaders.get_dataloaders

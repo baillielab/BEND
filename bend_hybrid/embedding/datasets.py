@@ -121,7 +121,6 @@ class DataSupervised(Dataset):
         label_depth: int = None,
         hdf5_path: str = None,
         sequence_length: int = None,
-        samples_to_exclude: list[int] = None,
         n_samples: int = None,
         label_column_idx: int = DEFAULT_LABEL_COLUMN_IDX,
         strand_column_idx: int = DEFAULT_STRAND_COLUMN_IDX,
@@ -141,8 +140,6 @@ class DataSupervised(Dataset):
             Path to the HDF5 file containing precomputed sequences and labels.
         sequence_length : int, optional
             Length of the input sequences. If None, sequences can be of variable length.
-        samples_to_exclude : list[int], optional
-            List of sample indices to exclude from the dataset.
         n_samples : int, optional
             Number of samples to keep in the dataset. If None, all samples are kept.
         label_column_idx : int, optional
@@ -163,9 +160,6 @@ class DataSupervised(Dataset):
                 f"The annotations file {annotations_path} does not exist\nExiting script"
             )
         annotations = pd.read_csv(annotations_path, sep="\t", low_memory=False)
-
-        if samples_to_exclude is not None:
-            annotations.drop(index=samples_to_exclude, inplace=True)
 
         undersampled_indices = None
         if n_samples is not None:
@@ -237,9 +231,9 @@ class DataSupervised(Dataset):
                             annotations.iloc[:, split_column_idx] == split
                         ]
 
-                        # if split == "test":
-                        #     undersampled_df_splits.append(df_split)
-                        #     continue
+                        if split == "test":
+                            undersampled_df_splits.append(df_split)
+                            continue
 
                         undersampled_df_splits.append(
                             df_split.sample(
@@ -377,6 +371,10 @@ class DataSupervised(Dataset):
                 item.iloc[strand_column_idx],
             )
             sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
+
+            if self.sequence_length is not None:
+                if len(sequence) != self.sequence_length:
+                    continue  # skip sequences that do not match the desired length
 
             # compute labels
             label = item.iloc[label_column_idx]
