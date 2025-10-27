@@ -64,6 +64,17 @@ class BaseEmbedder:
                 "Model is not initialized. Please check the `load_model` method."
             )
 
+        self.max_tokens = (
+            self.max_tokens - 1
+            if self.tokenizer.eos_token_id is not None
+            else self.max_tokens
+        )
+        self.max_tokens = (
+            self.max_tokens - 1
+            if self.tokenizer.cls_token_id is not None
+            else self.max_tokens
+        )
+
     def load_model(self, *args, **kwargs):
         """Load the model and tokenizer. Should be implemented by the inheriting class."""
         raise NotImplementedError
@@ -96,13 +107,6 @@ class BaseEmbedder:
 
         chunk_ids = []
         chunk_inputs = []
-
-        max_tokens = (
-            max_tokens - 1 if self.tokenizer.eos_token_id is not None else max_tokens
-        )
-        max_tokens = (
-            max_tokens - 1 if self.tokenizer.cls_token_id is not None else max_tokens
-        )
 
         for seq_idx, seq in enumerate(input_ids):
             for input_ids_chunk in [
