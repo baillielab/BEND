@@ -97,6 +97,13 @@ class BaseEmbedder:
         chunk_ids = []
         chunk_inputs = []
 
+        max_tokens = (
+            max_tokens - 1 if self.tokenizer.eos_token_id is not None else max_tokens
+        )
+        max_tokens = (
+            max_tokens - 1 if self.tokenizer.cls_token_id is not None else max_tokens
+        )
+
         for seq_idx, seq in enumerate(input_ids):
             for input_ids_chunk in [
                 seq[i : i + self.max_tokens]
@@ -170,14 +177,11 @@ class BaseEmbedder:
             mask_special = (concat_tokens != self.tokenizer.eos_token_id) & (
                 concat_tokens != self.tokenizer.cls_token_id
             )
-            concat_emb = np.concatenate(
-                [
-                    cls_emb if cls_emb is not None else np.array([]),
-                    concat_emb[mask_special],
-                    eos_emb if eos_emb is not None else np.array([]),
-                ],
-                axis=0,
-            )
+            concat_emb = concat_emb[mask_special]
+            if cls_emb is not None:
+                concat_emb = np.concatenate([cls_emb, concat_emb], axis=0)
+            if eos_emb is not None:
+                concat_emb = np.concatenate([concat_emb, eos_emb], axis=0)
             all_concat_emb.append(concat_emb)
 
             if self.tokenizer.cls_token_id is not None:

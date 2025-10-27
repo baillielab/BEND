@@ -10,14 +10,14 @@ hyenadna-large-1m:
   model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
   upsample_embeddings: false
   embeddings_dim: 256
-  max_sequence_length: 1_000_000
+  max_sequence_length: 1_000_002 # + 2 for special tokens
   autoregressive: true
 hyenadna-tiny-1k:
   _target_: bend_hybrid.embedding.embedders.hyenadna.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
   upsample_embeddings: false
   embeddings_dim: 128
-  max_sequence_length: 1024
+  max_sequence_length: 1026 # + 2 for special tokens
   autoregressive: true
 resnetlm:
   _target_: bend_hybrid.embedding.embedders.ConvNetEmbedder
