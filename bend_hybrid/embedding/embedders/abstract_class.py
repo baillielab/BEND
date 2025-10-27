@@ -64,16 +64,18 @@ class BaseEmbedder:
                 "Model is not initialized. Please check the `load_model` method."
             )
 
+        self.start_token_id, self.end_token_id = self.get_start_end_token_ids()
+
         self.max_tokens = (
-            self.max_tokens - 1
-            if self.tokenizer.eos_token_id is not None
-            else self.max_tokens
+            self.max_tokens - 1 if self.end_token_id is not None else self.max_tokens
         )
         self.max_tokens = (
-            self.max_tokens - 1
-            if self.tokenizer.cls_token_id is not None
-            else self.max_tokens
+            self.max_tokens - 1 if self.start_token_id is not None else self.max_tokens
         )
+
+    def get_start_end_token_ids(self):
+        """Get the start and end token ids. Should be implemented by the inheriting class."""
+        raise NotImplementedError
 
     def load_model(self, *args, **kwargs):
         """Load the model and tokenizer. Should be implemented by the inheriting class."""
@@ -114,10 +116,10 @@ class BaseEmbedder:
                 for i in range(0, len(seq), self.max_tokens)
             ]:
 
-                if self.tokenizer.cls_token_id is not None:
-                    input_ids_chunk = [self.tokenizer.cls_token_id] + input_ids_chunk
-                if self.tokenizer.eos_token_id is not None:
-                    input_ids_chunk = input_ids_chunk + [self.tokenizer.eos_token_id]
+                if self.start_token_id is not None:
+                    input_ids_chunk = [self.start_token_id] + input_ids_chunk
+                if self.end_token_id is not None:
+                    input_ids_chunk = input_ids_chunk + [self.end_token_id]
 
                 chunk_inputs.append(torch.tensor(input_ids_chunk))
                 chunk_ids.append(seq_idx)
@@ -166,20 +168,20 @@ class BaseEmbedder:
 
             # average eos/cls embeddings if multiple chunks
             cls_emb = None
-            if self.tokenizer.cls_token_id is not None:
-                cls_emb = concat_emb[concat_tokens == self.tokenizer.cls_token_id].mean(
+            if self.start_token_id is not None:
+                cls_emb = concat_emb[concat_tokens == self.start_token_id].mean(
                     axis=0, keepdims=True
                 )
 
             eos_emb = None
-            if self.tokenizer.eos_token_id is not None:
-                eos_emb = concat_emb[concat_tokens == self.tokenizer.eos_token_id].mean(
+            if self.end_token_id is not None:
+                eos_emb = concat_emb[concat_tokens == self.end_token_id].mean(
                     axis=0, keepdims=True
                 )
 
             # remove in-between special tokens from embeddings and tokens
-            mask_special = (concat_tokens != self.tokenizer.eos_token_id) & (
-                concat_tokens != self.tokenizer.cls_token_id
+            mask_special = (concat_tokens != self.end_token_id) & (
+                concat_tokens != self.start_token_id
             )
             concat_emb = concat_emb[mask_special]
             if cls_emb is not None:
@@ -188,9 +190,9 @@ class BaseEmbedder:
                 concat_emb = np.concatenate([concat_emb, eos_emb], axis=0)
             all_concat_emb.append(concat_emb)
 
-            if self.tokenizer.cls_token_id is not None:
+            if cls_emb is not None:
                 mask_special[0] = True
-            if self.tokenizer.eos_token_id is not None:
+            if eos_emb is not None:
                 mask_special[-1] = True
             concat_tokens = concat_tokens[mask_special]
             all_concat_tokens.append(concat_tokens)
@@ -241,16 +243,16 @@ class BaseEmbedder:
         if isinstance(embeddings, list):
             new_embeddings = []
             for emb in embeddings:
-                if self.tokenizer.cls_token_id is not None:
+                if self.start_token_id is not None:
                     emb = emb[1:, :]
-                if self.tokenizer.eos_token_id is not None:
+                if self.end_token_id is not None:
                     emb = emb[:-1, :]
                 new_embeddings.append(emb)
             return new_embeddings
 
-        if self.tokenizer.cls_token_id is not None:
+        if self.start_token_id is not None:
             embeddings = embeddings[:, 1:, :]
-        if self.tokenizer.eos_token_id is not None:
+        if self.end_token_id is not None:
             embeddings = embeddings[:, :-1, :]
 
         return embeddings

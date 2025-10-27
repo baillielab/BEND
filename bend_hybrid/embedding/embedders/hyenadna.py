@@ -36,6 +36,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 class HyenaDNAEmbedder(BaseEmbedder):
     """Embed using the HyenaDNA model https://arxiv.org/abs/2306.15794"""
 
+    def get_start_end_token_ids(self):
+        return self.tokenizer.cls_token_id, self.tokenizer.eos_token_id
+
     def load_model(
         self,
         model_path="pretrained_models/hyenadna/hyenadna-tiny-1k-seqlen",

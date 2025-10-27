@@ -79,6 +79,9 @@ class ConvNetEmbedder(BaseEmbedder):
     Embed using the GPN-inspired ConvNet baseline LM trained in BEND.
     """
 
+    def get_start_end_token_ids(self):
+        return None, None
+
     def load_model(self, model_path, **kwargs):
         """
         Load the GPN-inspired ConvNet baseline LM trained in BEND.
@@ -149,7 +152,6 @@ class ConvNetEmbedder(BaseEmbedder):
             masked_embeddings = []
             for idx, emb in enumerate(embeddings):
                 masked_embeddings.append(emb[attention_mask[idx]])
-
             embeddings = masked_embeddings
 
         # Pooling
