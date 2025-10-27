@@ -117,14 +117,9 @@ class DNABert2Embedder(BaseEmbedder):
                 embeddings, input_ids, chunk_ids
             )  # batch_size x seq_len x emb_dim
         else:
-            # remove padding
-            masked_embeddings = []
-            masked_input_ids = []
-            for emb, tokens, mask in zip(embeddings, input_ids, attention_mask):
-                masked_embeddings.append(emb[mask])
-                masked_input_ids.append(tokens[mask])
-            embeddings = masked_embeddings
-            input_ids = masked_input_ids
+            embeddings, input_ids = self._remove_padding(
+                embeddings, attention_mask.numpy(), input_ids
+            )
 
         # Pooling
         output = {}

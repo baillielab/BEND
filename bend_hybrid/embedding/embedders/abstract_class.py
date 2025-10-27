@@ -225,6 +225,47 @@ class BaseEmbedder:
             pooling,
         )
 
+    def _remove_padding(
+        self,
+        embeddings: np.ndarray,
+        attention_mask: np.ndarray,
+        input_ids: np.ndarray = None,
+    ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
+        """Remove padding from embeddings using the attention mask.
+        Parameters
+        ----------
+        embeddings : np.ndarray
+            Embeddings to process.
+        attention_mask : np.ndarray
+            Attention mask indicating non-padded tokens.
+        input_ids : np.ndarray, optional
+            Input ids corresponding to the embeddings. If provided, will also be returned without padding.
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            Embeddings and input ids with padding removed. If input_ids is None, only embeddings are returned.
+        """
+
+        if not isinstance(attention_mask, np.ndarray):
+            attention_mask = attention_mask.numpy()
+        if attention_mask.dtype != bool:
+            attention_mask = attention_mask.astype(bool)
+
+        if input_ids is not None:
+
+            masked_embeddings = []
+            masked_input_ids = []
+            for emb, tokens, mask in zip(embeddings, input_ids, attention_mask):
+                masked_embeddings.append(emb[mask])
+                masked_input_ids.append(tokens[mask])
+
+            return masked_embeddings, masked_input_ids
+
+        masked_embeddings = []
+        for emb, mask in zip(embeddings, attention_mask):
+            masked_embeddings.append(emb[mask])
+        return masked_embeddings
+
     def _remove_cls_eos_embeddings(
         self, embeddings: np.ndarray | list[np.ndarray]
     ) -> np.ndarray:

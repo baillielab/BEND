@@ -149,10 +149,7 @@ class ConvNetEmbedder(BaseEmbedder):
             attention_mask = output["attention_mask"]
             attention_mask = attention_mask.numpy().astype(bool)
 
-            masked_embeddings = []
-            for idx, emb in enumerate(embeddings):
-                masked_embeddings.append(emb[attention_mask[idx]])
-            embeddings = masked_embeddings
+            embeddings = self._remove_padding(embeddings, attention_mask)
 
         # Pooling
         output = {}
