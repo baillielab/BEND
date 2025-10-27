@@ -1,15 +1,6 @@
 """
-Wrapper classes for embedding sequences with pretrained DNA language models using a common interface.
-The wrapper classes handle loading the models and tokenizers, and embedding even or uneven length sequences.
-As far as possible, models are downloaded automatically.
-They also handle removal of special tokens, and optionally upsample the embeddings to the original sequence length.
-
-- BaseEmbedder: Base class for all embedders.
-- NucleotideTransformerEmbedder: Embed using the Nucleotide Transformer (NT) model
-- AWDLSTMEmbedder: Embed using the AWD-LSTM model
-- ConvNetEmbedder: Embed using the Dilated CNN model
-- DNABert2Embedder: Embed using the DNABert2 model
-- HyenaDNAModel: Embed using the Hyena-DNA model
+Implements the BaseEmbedder interface, allowing embedding of sequences using the DNABERT2 model (https://arxiv.org/pdf/2306.15006.pdf).
+Outputs a dictionary of pooled embeddings based on the specified pooling modes.
 """
 
 import os
@@ -39,6 +30,13 @@ class DNABert2Embedder(BaseEmbedder):
     """
 
     def get_start_end_token_ids(self):
+        """
+        Get the start and end token IDs for the DNABERT2 model.
+        Returns
+        -------
+        Tuple[int, int]
+            The cls and sep token IDs.
+        """
         return self.tokenizer.cls_token_id, self.tokenizer.sep_token_id
 
     def load_model(
@@ -69,8 +67,8 @@ class DNABert2Embedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        sequence_length: int = None,
         pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
+        sequence_length: int = None,
     ):
         """Embeds a list sequences using the DNABERT2 model.
 
@@ -78,7 +76,10 @@ class DNABert2Embedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-
+        pooling : List[PoolingMode], optional
+            List of pooling modes to apply. Defaults to [PoolingMode.DEFAULT].
+        sequence_length : int, optional
+            The length of the sequences.
         Returns
         -------
         embeddings : List[np.ndarray]
@@ -113,7 +114,7 @@ class DNABert2Embedder(BaseEmbedder):
 
         if len(chunk_ids) != len(set(chunk_ids)):
             # concatenate chunks, remove pad and in-between special tokens
-            embeddings, input_ids = self._concatenate_embeddings_chunks(
+            embeddings, input_ids = self._concatenate_chunks(
                 embeddings, input_ids, chunk_ids
             )  # batch_size x seq_len x emb_dim
         else:
@@ -171,6 +172,11 @@ class DNABert2Embedder(BaseEmbedder):
         ------
             ValueError: If the tokenizer does not have a method `convert_ids_to_tokens`.
         """
+
+        if not hasattr(self.tokenizer, "convert_ids_to_tokens"):
+            raise ValueError(
+                "Tokenizer does not have method `convert_ids_to_tokens`, cannot upsample embeddings."
+            )
 
         tokens = self.tokenizer.convert_ids_to_tokens(
             token_ids, skip_special_tokens=False

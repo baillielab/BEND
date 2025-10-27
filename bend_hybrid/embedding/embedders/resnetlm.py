@@ -1,15 +1,7 @@
 """
-Wrapper classes for embedding sequences with pretrained DNA language models using a common interface.
-The wrapper classes handle loading the models and tokenizers, and embedding even or uneven length sequences.
-As far as possible, models are downloaded automatically.
-They also handle removal of special tokens, and optionally upsample the embeddings to the original sequence length.
-
-- BaseEmbedder: Base class for all embedders.
-- NucleotideTransformerEmbedder: Embed using the Nucleotide Transformer (NT) model
-- AWDLSTMEmbedder: Embed using the AWD-LSTM model
-- ConvNetEmbedder: Embed using the Dilated CNN model
-- DNABert2Embedder: Embed using the DNABert2 model
-- HyenaDNAModel: Embed using the Hyena-DNA model
+Implements the BaseEmbedder interface, allowing embedding of sequences using
+the ConvNet baseline LM trained in BEND.
+Outputs a dictionary of pooled embeddings based on the specified pooling modes.
 """
 
 import os
@@ -80,6 +72,13 @@ class ConvNetEmbedder(BaseEmbedder):
     """
 
     def get_start_end_token_ids(self):
+        """
+        Get the start and end token IDs for the ConvNet model.
+        Returns
+        -------
+        Tuple[None, None]
+            None, None as ConvNet does not use special start/end tokens.
+        """
         return None, None
 
     def load_model(self, model_path, **kwargs):
@@ -107,8 +106,8 @@ class ConvNetEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        sequence_length: int = None,
         pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
+        sequence_length: int = None,
     ):
         """
         Embed sequences using the GPN-inspired ConvNet baseline LM trained in BEND.
@@ -117,10 +116,10 @@ class ConvNetEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        sequence_length : int, optional
-            The length of the sequences. If provided, the model will pad or truncate the sequences to this length.
         pooling : List[PoolingMode], optional
             List of pooling modes to apply to the embeddings. Default is [PoolingMode.DEFAULT].
+        sequence_length : int, optional
+            The length of the sequences.
         Returns
         -------
         torch.Tensor

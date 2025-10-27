@@ -1,22 +1,13 @@
 """
-Wrapper classes for embedding sequences with pretrained DNA language models using a common interface.
-The wrapper classes handle loading the models and tokenizers, and embedding even or uneven length sequences.
-As far as possible, models are downloaded automatically.
-They also handle removal of special tokens, and optionally upsample the embeddings to the original sequence length.
-
-- BaseEmbedder: Base class for all embedders.
-- NucleotideTransformerEmbedder: Embed using the Nucleotide Transformer (NT) model
-- AWDLSTMEmbedder: Embed using the AWD-LSTM model
-- ConvNetEmbedder: Embed using the Dilated CNN model
-- DNABert2Embedder: Embed using the DNABert2 model
-- HyenaDNAModel: Embed using the Hyena-DNA model
+Implements the BaseEmbedder interface, allowing embedding of sequences using
+the HyenaDNA model (https://arxiv.org/abs/2306.15794).
+Outputs a dictionary of pooled embeddings based on the specified pooling modes.
 """
 
 import os
 import warnings
 from typing import List
 
-import numpy as np
 import torch
 from transformers import logging
 
@@ -37,6 +28,13 @@ class HyenaDNAEmbedder(BaseEmbedder):
     """Embed using the HyenaDNA model https://arxiv.org/abs/2306.15794"""
 
     def get_start_end_token_ids(self):
+        """
+        Get the start and end token IDs for the HyenaDNA model.
+        Returns
+        -------
+        Tuple[int, int]
+            The cls and eos token IDs.
+        """
         return self.tokenizer.cls_token_id, self.tokenizer.eos_token_id
 
     def load_model(
@@ -54,8 +52,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
             If the path does not exist, the model will be downloaded from HuggingFace. Rather than just downloading the model,
             HyenaDNA's `from_pretrained` method relies on cloning the HuggingFace-hosted repository, and using git lfs to download the model.
             This requires git lfs to be installed on your system, and will fail if it is not.
-        remove_special_tokens : bool, optional
-            Whether to remove the CLS and SEP tokens from the embeddings. Defaults to True.
         """
 
         checkpoint_path, model_name = os.path.split(model_path)
@@ -100,16 +96,18 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        sequence_length: int = None,
         pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
+        sequence_length: int = None,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
         ----------
         sequences : List[str]
             List of sequences to embed.
-        uneven_length : bool, optional
-            Whether the sequences have uneven length. If True, the model should handle padding. Defaults to
+        pooling : List[PoolingMode], optional
+            List of pooling modes to apply. Defaults to [PoolingMode.DEFAULT].
+        sequence_length : int, optional
+            The length of the sequences. If provided, the model will pad or truncate the sequences to this length.
         Returns
         -------
         torch.Tensor
@@ -145,15 +143,15 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         if chunk_ids is not None:
             input_ids = input_ids.numpy()
-            embeddings, _ = self._concatenate_embeddings_chunks(
+            embeddings, _ = self._concatenate_chunks(
                 embeddings, input_ids, chunk_ids
             )  # batch_size x seq_len x emb_dim
 
         # Pooling
         output = {}
         if PoolingMode.CLS in pooling:
-            output[PoolingMode.CLS.value] = pool_name_to_function[PoolingMode.CLS](
-                embeddings
+            warnings.warn(
+                f"Pooling mode {PoolingMode.CLS.value} not supported for HyenaDNA. Skipping."
             )
             pooling.remove(PoolingMode.CLS)
         if PoolingMode.EOS in pooling:

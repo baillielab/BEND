@@ -124,8 +124,8 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                 with log_time("dataset/batch_embed_time", step=batch_step):
                     output = embedder(
                         sequences,
-                        cfg.task.dataset.sequence_length,
                         pooling,
+                        cfg.task.dataset.sequence_length,
                     )
 
                 for mode, embeddings in output.items():

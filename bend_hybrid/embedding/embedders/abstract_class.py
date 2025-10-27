@@ -1,15 +1,11 @@
 """
-Wrapper classes for embedding sequences with pretrained DNA language models using a common interface.
-The wrapper classes handle loading the models and tokenizers, and embedding even or uneven length sequences.
-As far as possible, models are downloaded automatically.
-They also handle removal of special tokens, and optionally upsample the embeddings to the original sequence length.
-
-- BaseEmbedder: Base class for all embedders.
-- NucleotideTransformerEmbedder: Embed using the Nucleotide Transformer (NT) model
-- AWDLSTMEmbedder: Embed using the AWD-LSTM model
-- ConvNetEmbedder: Embed using the Dilated CNN model
-- DNABert2Embedder: Embed using the DNABert2 model
-- HyenaDNAModel: Embed using the Hyena-DNA model
+Provides the BaseEmbedder class that all embedders should inherit from.
+The BaseEmbedder class implements common functionality for all embedders, such as:
+-  _split_tokens_into_chunks: chunking long sequences into smaller pieces
+-  _concatenate_chunks: concatenating chunked sequences back into full sequences
+-  _remove_padding: removing padding.
+-  _remove_cls_eos_embeddings: removing CLS and EOS/SEP token embeddings, if present.
+Specific embedders should implement the `get_start_end_token_ids`, `load_model` and `embed` methods.
 """
 
 import os
@@ -83,23 +79,38 @@ class BaseEmbedder:
 
     def embed(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        chunk_ids: list[int] = None,
-        **kwargs,
+        sequence: List[str],
+        pooling: List[PoolingMode],
+        sequence_length: int = None,
     ):
-        # Embed the input sequences, get hidden layers
-
-        # If chunking was used:
-        # - concatenate chunks back into full sequences
-        # - remove in-between special tokens and padding
-        # - Add new padding -> after concat, different sequences lengths
-
-        # Set pad embeddings to nan
-        # log hidden layers metrics
-
-        # Return last hidden layer
+        """Embed and pools the input sequences. Should be implemented by the inheriting class."""
         raise NotImplementedError
+
+    def __call__(
+        self,
+        sequence: List[str],
+        pooling: List[PoolingMode],
+        sequence_length: int = None,
+    ):
+        """Embed and pools a list of sequences. Calls `embed` with the given arguments.
+
+        Parameters
+        ----------
+        sequence : List[str]
+            The sequences to embed.
+        pooling : List[PoolingMode]
+            The pooling modes to use for the embeddings.
+        Returns
+        -------
+        torch.Tensor
+            The embeddings of the sequences.
+        """
+
+        return self.embed(
+            sequence,
+            pooling,
+            sequence_length,
+        )
 
     def _split_tokens_into_chunks(
         self,
@@ -130,7 +141,7 @@ class BaseEmbedder:
 
         return chunked_input, np.array(chunk_ids)
 
-    def _concatenate_embeddings_chunks(
+    def _concatenate_chunks(
         self,
         embeddings: List[np.ndarray],
         tokens: np.ndarray,
@@ -141,14 +152,15 @@ class BaseEmbedder:
         Parameters
         ----------
         embeddings : List[np.ndarray]
-            List of hidden states for each chunk.
+            List of embeddings for each chunk.
+        tokens : np.ndarray
+            Array of token ids for each chunk.
         chunk_ids : list[int]
             List of chunk ids indicating which chunk belongs to which sequence.
-
         Returns
         -------
         List[np.ndarray]
-            List of concatenated hidden states for each layer.
+            List of concatenated embeddings for each sequence.
         """
 
         unique_ids = sorted(np.unique(chunk_ids))
@@ -198,32 +210,6 @@ class BaseEmbedder:
             all_concat_tokens.append(concat_tokens)
 
         return all_concat_emb, all_concat_tokens
-
-    def __call__(
-        self,
-        sequence: List[str],
-        sequence_length: List[int],
-        pooling: List[PoolingMode],
-    ):
-        """Embed a list of sequences. Calls `embed` with the given arguments.
-
-        Parameters
-        ----------
-        sequence : List[str]
-            The sequences to embed.
-        pooling : List[PoolingMode]
-            The pooling modes to use for the embeddings.
-        Returns
-        -------
-        torch.Tensor
-            The embeddings of the sequences.
-        """
-
-        return self.embed(
-            sequence,
-            sequence_length,
-            pooling,
-        )
 
     def _remove_padding(
         self,
