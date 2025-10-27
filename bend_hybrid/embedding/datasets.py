@@ -33,7 +33,7 @@ def collate_fn(batch) -> tuple:
     return sequences, labels
 
 
-class Fasta(pysam.FastaFile):
+class Fasta(pysam.FastaFile):  # pylint: disable=E1101
     """Class for fetching sequences from a reference genome fasta file."""
 
     def fetch(
@@ -184,7 +184,7 @@ class DataSupervised(Dataset):
             )
         else:
             # generate labels as multi-hot encodings
-            self.samples = self._get_data_multi_hot(
+            self.samples, removed_samples = self._get_data_multi_hot(
                 annotations,
                 genome,
                 label_depth,
@@ -192,6 +192,14 @@ class DataSupervised(Dataset):
                 strand_column_idx,
                 flank,
             )
+            if len(removed_samples) > 0:
+                # update samples_idx_by_split to remove indices of removed samples
+                for split in self.samples_idx_by_split:
+                    self.samples_idx_by_split[split] = [
+                        idx
+                        for idx in self.samples_idx_by_split[split]
+                        if idx not in removed_samples
+                    ]
 
     def _undersample(self, annotations, split_column_idx, n_samples) -> pd.DataFrame:
         """
@@ -360,8 +368,9 @@ class DataSupervised(Dataset):
         )
 
         samples = []
+        removed_samples = []
 
-        for _, item in tqdm(annotations.iterrows(), total=len(annotations)):
+        for idx, item in tqdm(annotations.iterrows(), total=len(annotations)):
 
             # fetch sequence from genome
             chrom, start, end, strand = (
@@ -372,9 +381,12 @@ class DataSupervised(Dataset):
             )
             sequence = genome.fetch(chrom, start, end, strand=strand, flank=flank)
 
-            if self.sequence_length is not None:
-                if len(sequence) != self.sequence_length:
-                    continue  # skip sequences that do not match the desired length
+            if (
+                self.sequence_length is not None
+                and len(sequence) != self.sequence_length
+            ):
+                removed_samples.append(idx)
+                continue
 
             # compute labels
             label = item.iloc[label_column_idx]
@@ -385,7 +397,7 @@ class DataSupervised(Dataset):
 
             samples.append((sequence, label))
 
-        return samples
+        return samples, removed_samples
 
     def _multi_hot(self, labels: list, num_labels: int) -> np.ndarray:
         """
