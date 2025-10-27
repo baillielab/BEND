@@ -43,7 +43,12 @@ def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
             emb = embeddings[:, 0:1, :]
         case PoolingMode.EOS:
             emb = embeddings[:, -1:, :]
-        case PoolingMode.MEAN | PoolingMode.MEAN_NO_UPSAMPLE:
+        case PoolingMode.MEAN_NO_UPSAMPLE:
+            emb = []
+            for emb_seq in embeddings:
+                emb.append(np.mean(emb_seq, axis=0, keepdims=True))
+            emb = np.concatenate(emb, axis=0)
+        case PoolingMode.MEAN:
             emb = np.mean(embeddings, axis=1, keepdims=True)
         case PoolingMode.MAX:
             emb = np.max(embeddings, axis=1, keepdims=True)

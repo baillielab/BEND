@@ -305,7 +305,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 list_embeddings.append(emb)
 
             embeddings = np.array(list_embeddings)
-            embeddings_no_upsample = np.array(list_embeddings_no_upsample)
 
             output.extend(
                 [
@@ -314,7 +313,9 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 ]
             )
             output.append(
-                pool_embeddings(embeddings_no_upsample, PoolingMode.MEAN_NO_UPSAMPLE)
+                pool_embeddings(
+                    list_embeddings_no_upsample, PoolingMode.MEAN_NO_UPSAMPLE
+                )
             )
             return output
 
@@ -886,16 +887,17 @@ class DNABert2Embedder(BaseEmbedder):
                 emb = self._upsample(token_ids, emb)
                 list_upsampled.append(emb)
 
-            embeddings = np.array(list_embeddings)
             upsampled = np.array(list_upsampled)
 
             output.extend(
                 [
-                    pool_embeddings(embeddings, mode)
+                    pool_embeddings(upsampled, mode)
                     for mode in [PoolingMode.DEFAULT, PoolingMode.MEAN, PoolingMode.MAX]
                 ]
             )
-            output.append(pool_embeddings(upsampled, PoolingMode.MEAN_NO_UPSAMPLE))
+            output.append(
+                pool_embeddings(list_embeddings, PoolingMode.MEAN_NO_UPSAMPLE)
+            )
 
             return output
 
