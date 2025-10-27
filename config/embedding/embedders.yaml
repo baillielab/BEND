@@ -1,5 +1,5 @@
 dnabert2:
-  _target_: bend_hybrid.embedding.embedders.DNABert2Embedder
+  _target_: bend_hybrid.embedding.embedders.dnabert2.DNABert2Embedder
   model_name: zhihan1996/DNABERT-2-117M
   upsample_embeddings: true
   embeddings_dim: 768
