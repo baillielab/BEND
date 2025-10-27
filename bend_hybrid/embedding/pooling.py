@@ -21,38 +21,97 @@ class PoolingMode(enum.Enum):
     EOS = "eos"
 
 
-def pool_embeddings(embeddings: np.ndarray, mode: PoolingMode) -> np.ndarray:
+def pool_mean(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
     """
-    Pool embeddings according to the specified mode.
+    Pool embeddings by taking the mean across the sequence length dimension.
     Parameters
     ----------
     embeddings : np.ndarray
         Embeddings to pool.
-    mode : PoolingMode
-        Pooling mode to use.
+    Returns
+    -------
+    np.ndarray
+        Pooled embeddings.
+    """
+    if isinstance(embeddings, list):
+        pooled = []
+        for emb in embeddings:
+            pooled.append(np.nanmean(emb, axis=0, keepdims=True))
+        return np.stack(pooled)
+
+    return np.nanmean(embeddings, axis=1, keepdims=True)
+
+
+def pool_max(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
+    """
+    Pool embeddings by taking the max across the sequence length dimension.
+    Parameters
+    ----------
+    embeddings : np.ndarray
+        Embeddings to pool.
+    Returns
+    -------
+    np.ndarray
+        Pooled embeddings.
+    """
+    if isinstance(embeddings, list):
+        pooled = []
+        for emb in embeddings:
+            pooled.append(np.nanmax(emb, axis=0, keepdims=True))
+        return np.stack(pooled)
+
+    return np.nanmax(embeddings, axis=1, keepdims=True)
+
+
+def pool_cls(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
+    """
+    Pool embeddings by taking the CLS token embedding.
+    Parameters
+    ----------
+    embeddings : np.ndarray
+        Embeddings to pool.
     Returns
     -------
     np.ndarray
         Pooled embeddings.
     """
 
-    match mode:
-        case PoolingMode.DEFAULT:
-            emb = embeddings
-        case PoolingMode.CLS:
-            emb = embeddings[:, 0:1, :]
-        case PoolingMode.EOS:
-            emb = embeddings[:, -1:, :]
-        case PoolingMode.MEAN_NO_UPSAMPLE:
-            emb = []
-            for emb_seq in embeddings:
-                emb.append(np.mean(emb_seq, axis=0, keepdims=True))
-            emb = np.concatenate(emb, axis=0)
-        case PoolingMode.MEAN:
-            emb = np.mean(embeddings, axis=1, keepdims=True)
-        case PoolingMode.MAX:
-            emb = np.max(embeddings, axis=1, keepdims=True)
-        case _:
-            raise ValueError(f"Unknown pooling mode: {mode}")
+    if isinstance(embeddings, list):
+        cls = []
+        for emb in embeddings:
+            cls.append(emb[0:1, :])
+        return np.stack(cls)
 
-    return emb, mode.value
+    return embeddings[:, 0:1, :]
+
+
+def pool_eos(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
+    """
+    Pool embeddings by taking the EOS token embedding.
+    Parameters
+    ----------
+    embeddings : np.ndarray
+        Embeddings to pool.
+    Returns
+    -------
+    np.ndarray
+        Pooled embeddings.
+    """
+
+    if isinstance(embeddings, list):
+        eos = []
+        for emb in embeddings:
+            eos.append(emb[-1:, :])
+        return np.stack(eos)
+
+    return embeddings[:, -1:, :]
+
+
+pool_name_to_function = {
+    PoolingMode.DEFAULT: lambda x: x,
+    PoolingMode.MEAN: pool_mean,
+    PoolingMode.MEAN_NO_UPSAMPLE: pool_mean,
+    PoolingMode.MAX: pool_max,
+    PoolingMode.CLS: pool_cls,
+    PoolingMode.EOS: pool_eos,
+}

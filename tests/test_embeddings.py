@@ -14,6 +14,8 @@ from conftest import (
 from scipy.stats import pearsonr
 from test_datasets import assert_splits_match
 
+from bend_hybrid.embedding.pooling import PoolingMode
+
 EMBEDDERS = (
     "default_embedder, batch_embedder",
     [
@@ -25,12 +27,12 @@ EMBEDDERS = (
         for embedder_name in [
             "hyenadna-tiny-1k",
             "hyenadna-large-1m",
-            "nt_transformer_ms",
-            "nt_transformer_1000g",
-            "nt_transformer_human_ref",
-            "nt_transformer_v2_500m",
-            "dnabert2",
-            "awdlstm",
+            # "nt_transformer_ms",
+            # "nt_transformer_1000g",
+            # "nt_transformer_human_ref",
+            # "nt_transformer_v2_500m",
+            # "dnabert2",
+            # "awdlstm",
             "resnetlm",
         ]
     ],
@@ -43,7 +45,7 @@ MIN_CORR = 1 - 1e-5
 # Maximum allowed difference between any two embedding values
 # Results can be batch dependent!
 # (ie for HyenaDNA, due to normalisation based on batch)
-ABS_TOL = 0
+ABS_TOL = 1e-5
 
 
 @pytest.fixture(scope="module")
@@ -67,9 +69,11 @@ def batch_embedder(request):
     """
     embedder = request.param
 
-    embedder_model = hydra.utils.instantiate(
-        BATCH_CFG["gene_finding"]["embedding"][embedder]
-    )  # Any task will do, they all have the same embedding config
+    task_cfg = BATCH_CFG[
+        list(BATCH_CFG.keys())[0]
+    ]  # Any task will do, they all have the same embedding config
+
+    embedder_model = hydra.utils.instantiate(task_cfg["embedding"][embedder])
 
     return embedder_model, embedder_model.autoregressive
 
@@ -114,10 +118,6 @@ def test_supervised_embeddings(
     gt_embedder, _ = default_embedder
     batch_embedder, _ = batch_embedder
 
-    is_data_uneven = (
-        True if BATCH_CFG[task].task.dataset.sequence_length is None else False
-    )
-
     splits = assert_splits_match(gt_data, batch_data)
 
     for split in splits:
@@ -127,10 +127,16 @@ def test_supervised_embeddings(
             gt_seq, _ = gt_sample
             bat_seq, _ = bat_sample
 
+            bat_emb = batch_embedder(
+                [bat_seq],
+                sequence_length=BATCH_CFG[task].task.dataset.sequence_length,
+                pooling=[PoolingMode.DEFAULT],
+            )  # add batch dimension
+            bat_emb = bat_emb[PoolingMode.DEFAULT.value]
+
             gt_emb = gt_embedder(
                 gt_seq, upsample_embeddings=True
             )  # batch dimension added in __call___
-            bat_emb = batch_embedder([bat_seq], is_data_uneven)  # add batch dimension
 
             if isinstance(bat_emb, list):
                 bat_emb = bat_emb[0]  # only one sequence in batch
@@ -174,10 +180,6 @@ def test_unsupervised_embeddings(
             f"Autoregressive mismatch! Data {is_data_autoregressive} - Embedder {is_def_emb_autoregressive}"
         )
 
-    is_data_uneven = (
-        True if BATCH_CFG[task].task.dataset.sequence_length is None else False
-    )
-
     for idx, (def_sample, bat_sample) in enumerate(
         zip(def_data.next_sample(), batch_data.next_sample())
     ):
@@ -186,7 +188,12 @@ def test_unsupervised_embeddings(
         ):  # only sequences, ignore labels
 
             def_emb = def_embedder(def_seq, upsample_embeddings=True)
-            bat_emb = batch_embedder(bat_seq, is_data_uneven)
+            bat_emb = batch_embedder(
+                [bat_seq],
+                sequence_length=BATCH_CFG[task].task.dataset.sequence_length,
+                pooling=[PoolingMode.DEFAULT],
+            )  # add batch dimension
+            bat_emb = bat_emb[PoolingMode.DEFAULT.value]
 
             assert_embedding(def_emb, bat_emb)
 

@@ -2,6 +2,7 @@ name: enhancer_annotation
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
+embeddings_pooling: default # Options: "default"
 dataset:
   _target_: bend_hybrid.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed

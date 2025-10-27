@@ -16,7 +16,8 @@ from tqdm.auto import tqdm
 
 import wandb
 from bend_hybrid.embedding.datasets import collate_fn
-from bend_hybrid.embedding.embedders import BaseEmbedder
+from bend_hybrid.embedding.embedders.abstract_class import BaseEmbedder
+from bend_hybrid.embedding.pooling import PoolingMode
 from bend_hybrid.utils import log_time, set_seed, wandb_login
 
 set_seed()
@@ -87,8 +88,11 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
         samples_idx_by_split = dataset.get_samples_idx_by_split()
     wandb.summary["dataset/n_samples"] = len(dataset)
 
-    embeddings_modes = set()
-
+    pooling = (
+        [mode for mode in PoolingMode]
+        if cfg.task.embeddings_pooling == "all"
+        else [PoolingMode(cfg.task.embeddings_pooling)]
+    )
     batch_step = 0
 
     for split, indices in samples_idx_by_split.items():
@@ -118,10 +122,15 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             ):
 
                 with log_time("dataset/batch_embed_time", step=batch_step):
-                    output = embedder(sequences, uneven_length=dataset.is_uneven())
+                    output = embedder(
+                        sequences,
+                        cfg.task.dataset.sequence_length,
+                        pooling,
+                    )
 
-                for embeddings, mode in output:
-                    embeddings_modes.add(mode)
+                for mode, embeddings in output.items():
+                    if embeddings is None:
+                        continue
 
                     futures.append(
                         executor.submit(
@@ -142,9 +151,10 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             ):
                 future.result()
 
-    wandb.summary["dataset/embeddings_modes"] = list(embeddings_modes)
+    wandb.summary["dataset/embeddings_modes"] = []
 
-    for mode in wandb.summary["dataset/embeddings_modes"]:
+    for mode in pooling:
+        mode = mode.value
         tar_path = os.path.join(cfg.embeddings_output_dir, mode)
 
         if os.path.exists(tar_path):
@@ -155,6 +165,8 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             )
             wandb.summary[f"dataset/{mode}/tar_size_bytes"] = tar_size
             wandb.summary[f"dataset/{mode}/n_shards"] = len(os.listdir(tar_path))
+
+            wandb.summary["dataset/embeddings_modes"].append(mode)
 
 
 @hydra.main(config_path="../config", config_name="config", version_base=None)

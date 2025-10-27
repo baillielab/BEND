@@ -4,24 +4,20 @@ This file sets up fixtures and configurations for testing datasets in the BEND p
 """
 
 import abc
-
 from typing import Generator
 
 import h5py
 import hydra
 import pandas as pd
 import pytest
-from bend.io import sequtils
 from bend.io.sequtils import Fasta, multi_hot
-from bend.utils import Annotation
 from hydra import compose, initialize
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
-from bend_hybrid.embedding.datasets import (
-    DataVariantEffects,
-    collate_fn,
-)
+from bend.io import sequtils
+from bend.utils import Annotation
+from bend_hybrid.embedding.datasets import DataVariantEffects, collate_fn
 
 SUPERVISED_TASKS = [
     "gene_finding",

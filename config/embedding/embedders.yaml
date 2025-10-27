@@ -6,14 +6,14 @@ dnabert2:
   autoregressive: false
   max_sequence_length: 10000 # https://github.com/Zhihan1996/DNABERT_2/issues/2
 hyenadna-large-1m:
-  _target_: bend_hybrid.embedding.embedders.HyenaDNAEmbedder
+  _target_: bend_hybrid.embedding.embedders.hyenadna.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-large-1m-seqlen
   upsample_embeddings: false
   embeddings_dim: 256
   max_sequence_length: 1_000_000
   autoregressive: true
 hyenadna-tiny-1k:
-  _target_: bend_hybrid.embedding.embedders.HyenaDNAEmbedder
+  _target_: bend_hybrid.embedding.embedders.hyenadna.HyenaDNAEmbedder
   model_path: ${embedders_dir}/hyenadna/hyenadna-tiny-1k-seqlen
   upsample_embeddings: false
   embeddings_dim: 128
