@@ -34,7 +34,7 @@ awdlstm:
   max_sequence_length: null
   autoregressive: true
 nt_transformer_ms:
-  _target_: bend_hybrid.embedding.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedding.embedders.nt.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-multi-species
   upsample_embeddings: true
   embeddings_dim: 2560
@@ -42,7 +42,7 @@ nt_transformer_ms:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_human_ref:
-  _target_: bend_hybrid.embedding.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedding.embedders.nt.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-500m-human-ref
   upsample_embeddings: true
   embeddings_dim: 1280
@@ -50,7 +50,7 @@ nt_transformer_human_ref:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_1000g:
-  _target_: bend_hybrid.embedding.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedding.embedders.nt.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-2.5b-1000g
   upsample_embeddings: true
   embeddings_dim: 2560
@@ -58,7 +58,7 @@ nt_transformer_1000g:
   max_tokens: 1000
   autoregressive: false
 nt_transformer_v2_500m:
-  _target_: bend_hybrid.embedding.embedders.NucleotideTransformerEmbedder
+  _target_: bend_hybrid.embedding.embedders.nt.NucleotideTransformerEmbedder
   model_name: InstaDeepAI/nucleotide-transformer-v2-500m-multi-species
   upsample_embeddings: true
   embeddings_dim: 1024
