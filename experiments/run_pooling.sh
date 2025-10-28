@@ -25,7 +25,7 @@ if [ $compute_embeddings = "true" ]; then
         task.dataloaders.num_workers=$num_workers
 fi
 
-for mode in mean max mean_no_upsample eos cls swe;
+for mode in mean mean_upsample max cls eos swe;
 do
     echo "Running task: $task with model: $embedder using $mode pooling"
     python3 scripts/train_downstream.py \

@@ -159,11 +159,11 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
         embeddings = self._remove_cls_eos_embeddings(embeddings)
 
-        if PoolingMode.MEAN_NO_UPSAMPLE in pooling:
-            output[PoolingMode.MEAN_NO_UPSAMPLE.value] = pool_name_to_function[
-                PoolingMode.MEAN_NO_UPSAMPLE
-            ](embeddings)
-            pooling.remove(PoolingMode.MEAN_NO_UPSAMPLE)
+        if PoolingMode.MEAN in pooling:
+            output[PoolingMode.MEAN.value] = pool_name_to_function[PoolingMode.MEAN](
+                embeddings
+            )
+            pooling.remove(PoolingMode.MEAN)
 
         if self.upsample_embeddings:
             embeddings = self._upsample(

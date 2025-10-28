@@ -156,7 +156,7 @@ class ConvNetEmbedder(BaseEmbedder):
             if (
                 mode is PoolingMode.CLS
                 or mode is PoolingMode.EOS
-                or mode is PoolingMode.MEAN_NO_UPSAMPLE
+                or mode is PoolingMode.MEAN_UPSAMPLE
             ):
                 warnings.warn(
                     f"Pooling mode {mode.value} not supported for ResNetLM. Skipping."

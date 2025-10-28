@@ -15,7 +15,7 @@ class PoolingMode(enum.Enum):
 
     DEFAULT = "default"
     MEAN = "mean"
-    MEAN_NO_UPSAMPLE = "mean_no_upsample"
+    MEAN_UPSAMPLE = "mean_upsample"
     MAX = "max"
     CLS = "cls"
     EOS = "eos"
@@ -110,7 +110,7 @@ def pool_eos(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
 pool_name_to_function = {
     PoolingMode.DEFAULT: lambda x: x,
     PoolingMode.MEAN: pool_mean,
-    PoolingMode.MEAN_NO_UPSAMPLE: pool_mean,
+    PoolingMode.MEAN_UPSAMPLE: pool_mean,
     PoolingMode.MAX: pool_max,
     PoolingMode.CLS: pool_cls,
     PoolingMode.EOS: pool_eos,
