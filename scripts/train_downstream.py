@@ -119,17 +119,6 @@ def run_experiment(cfg: DictConfig) -> None:
 
     pooling_mode = cfg.task.model.get("pooling", "default")
 
-    wandb_login()
-    wandb.init(
-        anonymous="allow",
-        project=cfg.wandb.project,
-        name=f"{cfg.task.name}_{cfg.embedder}_{pooling_mode}",
-        config=OmegaConf.to_container(cfg),
-    )
-    wandb.summary["task"] = cfg.task.name
-    wandb.summary["embedder"] = cfg.embedder
-    wandb.summary["downstream/pooling"] = pooling_mode
-
     cfg.embeddings_output_dir = os.path.join(
         cfg.embeddings_output_dir,
         cfg.task.name,
@@ -140,6 +129,13 @@ def run_experiment(cfg: DictConfig) -> None:
             else PoolingMode.DEFAULT.value
         ),
     )
+
+    if not os.path.exists(cfg.embeddings_output_dir):
+        raise ValueError(
+            f"Embeddings directory {cfg.embeddings_output_dir} does not exist. "
+            "If the selected pooling mode is supported by embedder, please compute embeddings first by running scripts/compute_embeddings.py"
+        )
+
     cfg.output_dir = os.path.join(
         cfg.output_dir,
         cfg.task.name,
@@ -149,6 +145,17 @@ def run_experiment(cfg: DictConfig) -> None:
     )
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
+
+    wandb_login()
+    wandb.init(
+        anonymous="allow",
+        project=cfg.wandb.project,
+        name=f"{cfg.task.name}_{cfg.embedder}_{pooling_mode}",
+        config=OmegaConf.to_container(cfg),
+    )
+    wandb.summary["task"] = cfg.task.name
+    wandb.summary["embedder"] = cfg.embedder
+    wandb.summary["downstream/pooling"] = pooling_mode
 
     print(
         f"=== Training model for task: {cfg.task.name} with embedder: {cfg.embedder} ==="

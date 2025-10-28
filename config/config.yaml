@@ -14,7 +14,6 @@ embeddings_output_dir: ./data/embeddings/ # scripts will add /{task}/{embedder}
 output_dir: ./results/ # scripts will add /{task}/{embedder}/
 
 embedder: hyenadna-tiny-1k
-max_shard_size: 3000000000 # max size of each shard in bytes
 
 wandb:
   project: bend-pooling-testing

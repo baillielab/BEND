@@ -25,7 +25,7 @@ if [ $compute_embeddings = "true" ]; then
         task.dataloaders.num_workers=$num_workers
 fi
 
-for mode in mean max min-max mean_no_upsample;
+for mode in mean max mean_no_upsample swe;
 do
     echo "Running task: $task with model: $embedder using $mode pooling"
     python3 scripts/train_downstream.py \
@@ -35,7 +35,7 @@ do
         embedders_dir=$embedders_dir \
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir \
-        pooling_mode=$mode \
+        task.model.pooling=$mode \
         task.dataloaders.num_workers=$num_workers
 done
 
@@ -48,6 +48,6 @@ if [ $run_without_pooling = "true" ]; then
         embedders_dir=$embedders_dir \
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir \
-        pooling_mode=none \
+        task.model.pooling=default \
         task.dataloaders.num_workers=$num_workers
 fi

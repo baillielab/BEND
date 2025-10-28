@@ -154,6 +154,13 @@ class HyenaDNAEmbedder(BaseEmbedder):
                 f"Pooling mode {PoolingMode.CLS.value} not supported for HyenaDNA. Skipping."
             )
             pooling.remove(PoolingMode.CLS)
+
+        if PoolingMode.MEAN_NO_UPSAMPLE in pooling:
+            warnings.warn(
+                f"Pooling mode {PoolingMode.MEAN_NO_UPSAMPLE.value} not supported for HyenaDNA. Skipping."
+            )
+            pooling.remove(PoolingMode.MEAN_NO_UPSAMPLE)
+
         if PoolingMode.EOS in pooling:
             output[PoolingMode.EOS.value] = pool_name_to_function[PoolingMode.EOS](
                 embeddings
