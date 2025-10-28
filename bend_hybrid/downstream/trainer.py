@@ -545,7 +545,7 @@ class BaseTrainer:
                 epoch,
                 train_loss,
                 val_loss,
-                0,
+                val_metric,
                 time.process_time_ns() - start_time_epoch,
             )
 
