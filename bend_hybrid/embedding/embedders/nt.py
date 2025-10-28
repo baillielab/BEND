@@ -211,7 +211,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         upsampled_embeddings = []
         for token_ids, emb in zip(input_ids, embeddings):
             tokens = self.tokenizer.convert_ids_to_tokens(
-                token_ids, skip_special_tokens=False
+                token_ids, skip_special_tokens=True
             )
 
             repetitions = np.array([len(token) for token in tokens], dtype=np.int64)
