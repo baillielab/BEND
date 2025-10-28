@@ -2,7 +2,7 @@ name: chromatin_accessibility
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
-embeddings_pooling: all # Options: "all", "default", "mean", "mean_no_upsample","max", "cls", "eos"
+embeddings_pooling: all # Options: "all", "default", "mean", "mean_no_upsample", "max", "cls", "eos"
 dataset:
   _target_: bend_hybrid.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/chromatin_accessibility/chromatin_accessibility.bed
@@ -24,7 +24,7 @@ model:
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64
-  pooling: "swe" # Options: "default", "swe", "mean", "max", "mean_no_upsample"
+  pooling: "swe" # Options: "default", "swe", "mean", "mean_no_upsample", "max", "cls", "eos"
   # only used for "default" pooling
   kernel_size: 3
   output_downsample_window: ${task.dataset.sequence_length}
