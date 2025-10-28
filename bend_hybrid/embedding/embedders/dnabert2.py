@@ -146,25 +146,35 @@ class DNABert2Embedder(BaseEmbedder):
             pooling.remove(PoolingMode.MEAN_NO_UPSAMPLE)
 
         if self.upsample_embeddings:
-            upsampled_embeddings = []
-            for token_ids, emb in zip(input_ids, embeddings):
-                upsampled_embeddings.append(self._upsample(token_ids, emb))
-            embeddings = np.stack(upsampled_embeddings)
+            embeddings = self._upsample(
+                input_ids,
+                embeddings,
+                same_length_sequences=sequence_length is not None,
+            )
 
         for mode in pooling:
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output
 
-    def _upsample(self, token_ids: np.ndarray, embedding: np.ndarray) -> np.ndarray:
+    def _upsample(
+        self,
+        input_ids: np.ndarray,
+        embeddings: np.ndarray,
+        same_length_sequences: bool = False,
+    ) -> np.ndarray | List[np.ndarray]:
         """
         Upsamples the embeddings based on the number of characters in each non-special token.
         CLS and SEP tokens are ignored, and the [UNK] token is repeated once.
 
         Parameters
         ----------
-            token_ids (np.ndarray): The 1D array of token IDs.
-            embedding (np.ndarray): The embeddings array to be upsampled.
+        input_ids (np.ndarray):
+            The 1D array of token IDs.
+        embeddings (np.ndarray):
+            The embeddings array to be upsampled.
+        same_length_sequences (bool):
+            Whether all sequences have the same length.
         Returns
         -------
             np.ndarray: The upsampled embeddings array.
@@ -178,24 +188,31 @@ class DNABert2Embedder(BaseEmbedder):
                 "Tokenizer does not have method `convert_ids_to_tokens`, cannot upsample embeddings."
             )
 
-        tokens = self.tokenizer.convert_ids_to_tokens(
-            token_ids, skip_special_tokens=False
-        )
+        upsampled_embeddings = []
+        for token_ids, emb in zip(input_ids, embeddings):
+            tokens = self.tokenizer.convert_ids_to_tokens(
+                token_ids, skip_special_tokens=False
+            )
 
-        repetitions = []
-        for token in tokens:
-            if (
-                token == self.tokenizer.cls_token
-                or token == self.tokenizer.sep_token
-                or token == self.tokenizer.pad_token
-            ):
-                continue
+            repetitions = []
+            for token in tokens:
+                if token in [
+                    self.tokenizer.cls_token,
+                    self.tokenizer.sep_token,
+                    self.tokenizer.pad_token,
+                ]:
+                    continue
 
-            if token == self.tokenizer.unk_token:
-                repetitions.append(1)
-            else:
-                repetitions.append(len(token))
+                if token == self.tokenizer.unk_token:
+                    repetitions.append(1)
+                else:
+                    repetitions.append(len(token))
 
-        repetitions = np.array(repetitions, dtype=np.int32)
+            repetitions = np.array(repetitions, dtype=np.int32)
 
-        return np.repeat(embedding, repetitions, axis=0)
+            upsampled_embeddings.append(np.repeat(emb, repetitions, axis=0))
+
+        if same_length_sequences:
+            upsampled_embeddings = np.stack(upsampled_embeddings)
+
+        return upsampled_embeddings

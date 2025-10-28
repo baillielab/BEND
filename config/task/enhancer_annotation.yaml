@@ -22,11 +22,11 @@ dataloaders:
   shardshuffle: 32
   fold_idx: null # When null, perform cross-validation across all folds
 model:
-  _target_: bend_hybrid.models.downstream.DownstreamModel
+  _target_: bend_hybrid.downstream.model.Classifier
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 2
-  pooling_mode: "default" # Only option
+  pooling: "default" # Only option
   kernel_size: 3
   output_downsample_window: 128
 optimizer:

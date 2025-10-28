@@ -166,37 +166,59 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             pooling.remove(PoolingMode.MEAN_NO_UPSAMPLE)
 
         if self.upsample_embeddings:
-            upsampled_embeddings = []
-            for token_ids, emb in zip(input_ids, embeddings):
-                upsampled_embeddings.append(self._upsample(token_ids, emb))
-            embeddings = np.stack(upsampled_embeddings)
+            embeddings = self._upsample(
+                input_ids,
+                embeddings,
+                same_length_sequences=sequence_length is not None,
+            )
 
         for mode in pooling:
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output
 
-    def _upsample(self, token_ids: np.ndarray, embedding: np.ndarray) -> np.ndarray:
+    def _upsample(
+        self,
+        input_ids: np.ndarray,
+        embeddings: np.ndarray,
+        same_length_sequences: bool = False,
+    ) -> np.ndarray | List[np.ndarray]:
         """
         Upsamples the embeddings based on the number of characters in each non-special token.
         Skips repeating any special tokens, such as CLS, UNK or PAD.
 
         Parameters
         ----------
-            token_ids (np.ndarray): The 1D array of token IDs.
-            embedding (np.ndarray): The embeddings array to be upsampled.
+        token_ids (np.ndarray):
+            The 1D arrays of token IDs.
+        embeddings (np.ndarray):
+            The embeddings arrays to be upsampled.
+        same_length_sequences (bool):
+            Whether all sequences have the same length.
         Returns
         -------
-            np.ndarray: The upsampled embeddings array.
+            np.ndarray: The upsampled embeddings arrays.
         Raises
         ------
             ValueError: If the tokenizer does not have a method `convert_ids_to_tokens`.
         """
 
-        tokens = self.tokenizer.convert_ids_to_tokens(
-            token_ids, skip_special_tokens=True
-        )
+        if not hasattr(self.tokenizer, "convert_ids_to_tokens"):
+            raise ValueError(
+                "Tokenizer does not have method `convert_ids_to_tokens`, cannot upsample embeddings."
+            )
 
-        repetitions = np.array([len(token) for token in tokens], dtype=np.int64)
+        upsampled_embeddings = []
+        for token_ids, emb in zip(input_ids, embeddings):
+            tokens = self.tokenizer.convert_ids_to_tokens(
+                token_ids, skip_special_tokens=False
+            )
 
-        return np.repeat(embedding, repetitions, axis=0)
+            repetitions = np.array([len(token) for token in tokens], dtype=np.int64)
+
+            upsampled_embeddings.append(np.repeat(emb, repetitions, axis=0))
+
+        if same_length_sequences:
+            upsampled_embeddings = np.stack(upsampled_embeddings)
+
+        return upsampled_embeddings

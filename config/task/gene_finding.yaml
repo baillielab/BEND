@@ -21,10 +21,11 @@ dataloaders:
   shuffle: 128
   shardshuffle: 32
 model:
-  _target_: bend_hybrid.models.downstream.CNN
+  _target_: bend_hybrid.downstream.model.Classifier
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64
+  pooling: "default" # Only option
   kernel_size: 3
 optimizer:
   _target_: torch.optim.AdamW
