@@ -96,7 +96,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
         sequence_length: int = None,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
@@ -104,8 +103,6 @@ class HyenaDNAEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        pooling : List[PoolingMode], optional
-            List of pooling modes to apply. Defaults to [PoolingMode.DEFAULT].
         sequence_length : int, optional
             The length of the sequences. If provided, the model will pad or truncate the sequences to this length.
         Returns
@@ -143,33 +140,21 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         if chunk_ids is not None:
             input_ids = input_ids.numpy()
-            embeddings, _ = self._concatenate_chunks(
-                embeddings, input_ids, chunk_ids
-            )  # batch_size x seq_len x emb_dim
+            embeddings, _ = self._concatenate_chunks(embeddings, input_ids, chunk_ids)
 
         # Pooling
         output = {}
-        if PoolingMode.CLS in pooling:
-            warnings.warn(
-                f"Pooling mode {PoolingMode.CLS.value} not supported for HyenaDNA. Skipping."
-            )
-            pooling.remove(PoolingMode.CLS)
 
-        if PoolingMode.MEAN_UPSAMPLE in pooling:
-            warnings.warn(
-                f"Pooling mode {PoolingMode.MEAN_UPSAMPLE.value} not supported for HyenaDNA. Skipping."
-            )
-            pooling.remove(PoolingMode.MEAN_UPSAMPLE)
-
-        if PoolingMode.EOS in pooling:
+        if PoolingMode.EOS in self.pooling_modes:
             output[PoolingMode.EOS.value] = pool_name_to_function[PoolingMode.EOS](
                 embeddings
             )
-            pooling.remove(PoolingMode.EOS)
 
         embeddings = self._remove_cls_eos_embeddings(embeddings)
 
-        for mode in pooling:
+        for mode in self.pooling_modes:
+            if mode == PoolingMode.EOS:
+                continue
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output

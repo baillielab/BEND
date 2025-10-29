@@ -27,11 +27,11 @@ EMBEDDERS = (
         for embedder_name in [
             "hyenadna-tiny-1k",
             "hyenadna-large-1m",
-            # "nt_transformer_ms",
-            # "nt_transformer_1000g",
-            # "nt_transformer_human_ref",
-            # "nt_transformer_v2_500m",
-            # "dnabert2",
+            "nt_transformer_ms",
+            "nt_transformer_1000g",
+            "nt_transformer_human_ref",
+            "nt_transformer_v2_500m",
+            "dnabert2",
             # "awdlstm",
             "resnetlm",
         ]
@@ -45,7 +45,7 @@ MIN_CORR = 1 - 1e-5
 # Maximum allowed difference between any two embedding values
 # Results can be batch dependent!
 # (ie for HyenaDNA, due to normalisation based on batch)
-ABS_TOL = 1e-5
+ABS_TOL = 0
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +73,9 @@ def batch_embedder(request):
         list(BATCH_CFG.keys())[0]
     ]  # Any task will do, they all have the same embedding config
 
-    embedder_model = hydra.utils.instantiate(task_cfg["embedding"][embedder])
+    embedder_model = hydra.utils.instantiate(
+        task_cfg["embedding"][embedder], pooling_modes=[PoolingMode.DEFAULT]
+    )
 
     return embedder_model, embedder_model.autoregressive
 
@@ -128,10 +130,9 @@ def test_supervised_embeddings(
             bat_seq, _ = bat_sample
 
             bat_emb = batch_embedder(
-                [bat_seq],
-                sequence_length=BATCH_CFG[task].task.dataset.sequence_length,
-                pooling=[PoolingMode.DEFAULT],
-            )  # add batch dimension
+                [bat_seq],  # add batch dimension
+                BATCH_CFG[task].task.dataset.sequence_length,
+            )
             bat_emb = bat_emb[PoolingMode.DEFAULT.value]
 
             gt_emb = gt_embedder(
@@ -189,10 +190,9 @@ def test_unsupervised_embeddings(
 
             def_emb = def_embedder(def_seq, upsample_embeddings=True)
             bat_emb = batch_embedder(
-                [bat_seq],
-                sequence_length=BATCH_CFG[task].task.dataset.sequence_length,
-                pooling=[PoolingMode.DEFAULT],
-            )  # add batch dimension
+                [bat_seq],  # add batch dimension
+                BATCH_CFG[task].task.dataset.sequence_length,
+            )
             bat_emb = bat_emb[PoolingMode.DEFAULT.value]
 
             assert_embedding(def_emb, bat_emb)

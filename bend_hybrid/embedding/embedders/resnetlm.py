@@ -106,7 +106,6 @@ class ConvNetEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
         sequence_length: int = None,
     ):
         """
@@ -152,17 +151,7 @@ class ConvNetEmbedder(BaseEmbedder):
 
         # Pooling
         output = {}
-        for mode in pooling:
-            if (
-                mode is PoolingMode.CLS
-                or mode is PoolingMode.EOS
-                or mode is PoolingMode.MEAN_UPSAMPLE
-            ):
-                warnings.warn(
-                    f"Pooling mode {mode.value} not supported for ResNetLM. Skipping."
-                )
-                continue
-
+        for mode in self.pooling_modes:
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output

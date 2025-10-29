@@ -31,7 +31,13 @@ class BaseEmbedder:
     """
 
     def __init__(
-        self, autoregressive, max_sequence_length, upsample_embeddings, *args, **kwargs
+        self,
+        autoregressive,
+        max_sequence_length,
+        upsample_embeddings,
+        pooling_modes,
+        *args,
+        **kwargs
     ):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
@@ -45,6 +51,8 @@ class BaseEmbedder:
         self.autoregressive = autoregressive
         self.max_tokens = max_sequence_length
         self.upsample_embeddings = upsample_embeddings
+
+        self.pooling_modes = self.filter_pooling_modes(pooling_modes)
 
         self.tokenizer = None
         self.model = None
@@ -69,6 +77,57 @@ class BaseEmbedder:
             self.max_tokens - 1 if self.start_token_id is not None else self.max_tokens
         )
 
+    def filter_pooling_modes(
+        self, pooling_modes: list[PoolingMode]
+    ) -> list[PoolingMode]:
+        """Filter the given pooling modes based on the embedder's capabilities.
+
+        Parameters
+        ----------
+        pooling_modes : list[PoolingMode]
+            List of pooling modes to filter.
+        Returns
+        -------
+        list[PoolingMode]
+            List of valid pooling modes.
+        Raises
+        -------
+        ValueError
+            If no valid pooling modes are found.
+        """
+
+        modes = []
+        for mode in pooling_modes:
+            if (
+                (
+                    mode is PoolingMode.EOS
+                    and (not self.autoregressive or self.start_token_id is None)
+                )
+                or (mode is PoolingMode.MEAN_UPSAMPLE and not self.upsample_embeddings)
+                or (
+                    mode is PoolingMode.CLS
+                    and (self.autoregressive or self.end_token_id is None)
+                )
+            ):
+                continue
+            modes.append(mode)
+
+        if len(modes) == 0:
+            raise ValueError("No valid pooling modes available for this embedder.")
+
+        return modes
+
+    def get_pooling_modes(self) -> list[PoolingMode]:
+        """Get the valid pooling modes for this embedder.
+
+        Returns
+        -------
+        list[PoolingMode]
+            List of valid pooling modes.
+        """
+
+        return self.pooling_modes
+
     def get_start_end_token_ids(self):
         """Get the start and end token ids. Should be implemented by the inheriting class."""
         raise NotImplementedError
@@ -80,7 +139,6 @@ class BaseEmbedder:
     def embed(
         self,
         sequence: List[str],
-        pooling: List[PoolingMode],
         sequence_length: int = None,
     ):
         """Embed and pools the input sequences. Should be implemented by the inheriting class."""
@@ -89,7 +147,6 @@ class BaseEmbedder:
     def __call__(
         self,
         sequence: List[str],
-        pooling: List[PoolingMode],
         sequence_length: int = None,
     ):
         """Embed and pools a list of sequences. Calls `embed` with the given arguments.
@@ -108,7 +165,6 @@ class BaseEmbedder:
 
         return self.embed(
             sequence,
-            pooling,
             sequence_length,
         )
 

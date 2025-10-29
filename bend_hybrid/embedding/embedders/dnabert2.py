@@ -67,7 +67,6 @@ class DNABert2Embedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        pooling: List[PoolingMode] = [PoolingMode.DEFAULT],
         sequence_length: int = None,
     ):
         """Embeds a list sequences using the DNABERT2 model.
@@ -76,8 +75,6 @@ class DNABert2Embedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        pooling : List[PoolingMode], optional
-            List of pooling modes to apply. Defaults to [PoolingMode.DEFAULT].
         sequence_length : int, optional
             The length of the sequences.
         Returns
@@ -116,7 +113,7 @@ class DNABert2Embedder(BaseEmbedder):
             # concatenate chunks, remove pad and in-between special tokens
             embeddings, input_ids = self._concatenate_chunks(
                 embeddings, input_ids, chunk_ids
-            )  # batch_size x seq_len x emb_dim
+            )
         else:
             embeddings, input_ids = self._remove_padding(
                 embeddings, attention_mask.numpy(), input_ids
@@ -125,25 +122,17 @@ class DNABert2Embedder(BaseEmbedder):
         # Pooling
         output = {}
 
-        if PoolingMode.CLS in pooling:
+        if PoolingMode.CLS in self.pooling_modes:
             output[PoolingMode.CLS.value] = pool_name_to_function[PoolingMode.CLS](
                 embeddings
             )
-            pooling.remove(PoolingMode.CLS)
-
-        if PoolingMode.EOS in pooling:
-            warnings.warn(
-                "EOS pooling is not supported for DNABERT2, as sequences do not have an EOS token."
-            )
-            pooling.remove(PoolingMode.EOS)
 
         embeddings = self._remove_cls_eos_embeddings(embeddings)
 
-        if PoolingMode.MEAN in pooling:
+        if PoolingMode.MEAN in self.pooling_modes:
             output[PoolingMode.MEAN.value] = pool_name_to_function[PoolingMode.MEAN](
                 embeddings
             )
-            pooling.remove(PoolingMode.MEAN)
 
         if self.upsample_embeddings:
             embeddings = self._upsample(
@@ -152,7 +141,10 @@ class DNABert2Embedder(BaseEmbedder):
                 same_length_sequences=sequence_length is not None,
             )
 
-        for mode in pooling:
+        for mode in self.pooling_modes:
+            if mode in [PoolingMode.CLS, PoolingMode.MEAN]:
+                continue
+
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output

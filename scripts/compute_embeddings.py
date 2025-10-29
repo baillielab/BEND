@@ -5,7 +5,9 @@ Configuration is set through Hydra in config/config.yaml.
 """
 
 import os
+import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import List
 
 import hydra
 import numpy as np
@@ -87,12 +89,10 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         samples_idx_by_split = dataset.get_samples_idx_by_split()
     wandb.summary["dataset/n_samples"] = len(dataset)
+    wandb.summary["dataset/embeddings_modes"] = [
+        mode.value for mode in embedder.get_pooling_modes()
+    ]
 
-    pooling = (
-        [mode for mode in PoolingMode]
-        if cfg.task.embeddings_pooling == "all"
-        else [PoolingMode(cfg.task.embeddings_pooling)]
-    )
     batch_step = 0
 
     for split, indices in samples_idx_by_split.items():
@@ -124,14 +124,10 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                 with log_time("dataset/batch_embed_time", step=batch_step):
                     output = embedder(
                         sequences,
-                        pooling,
                         cfg.task.dataset.sequence_length,
                     )
 
                 for mode, embeddings in output.items():
-                    if embeddings is None:
-                        continue
-
                     futures.append(
                         executor.submit(
                             write_batch,
@@ -151,10 +147,7 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             ):
                 future.result()
 
-    wandb.summary["dataset/embeddings_modes"] = []
-
-    for mode in pooling:
-        mode = mode.value
+    for mode in wandb.summary["dataset/embeddings_modes"]:
         tar_path = os.path.join(cfg.embeddings_output_dir, mode)
 
         if os.path.exists(tar_path):
@@ -166,7 +159,34 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
             wandb.summary[f"dataset/{mode}/tar_size_bytes"] = tar_size
             wandb.summary[f"dataset/{mode}/n_shards"] = len(os.listdir(tar_path))
 
-            wandb.summary["dataset/embeddings_modes"].append(mode)
+
+def get_pooling_modes(cfg: DictConfig) -> List[PoolingMode]:
+    """
+    Get the pooling modes to use based on the configuration.
+    Parameters
+    ----------
+    cfg : DictConfig
+        Hydra configuration object.
+    Returns
+    -------
+    List[PoolingMode]
+        List of pooling modes to use.
+    """
+
+    if cfg.task.embeddings_pooling != "all":
+        pooling_modes = [
+            PoolingMode(cfg.task.embeddings_pooling),
+        ]
+        return pooling_modes
+
+    sequence_length = cfg.task.dataset.get("sequence_length", None)
+    if sequence_length is None and pooling_modes != [PoolingMode.DEFAULT]:
+        warnings.warn(
+            "Sequence length is not fixed in the dataset. Only 'default' pooling mode will be used."
+        )
+        return [PoolingMode.DEFAULT]
+
+    return [mode for mode in PoolingMode]
 
 
 @hydra.main(config_path="../config", config_name="config", version_base=None)
@@ -195,7 +215,11 @@ def run_experiment(cfg: DictConfig) -> None:
     )
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
 
-    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
+    pooling_modes = get_pooling_modes(cfg)
+
+    embedder = hydra.utils.instantiate(
+        cfg.embedding[cfg.embedder], pooling_modes=pooling_modes
+    )
 
     print(
         f"=== Embedding sequences for task: {cfg.task.name} with model: {cfg.embedder} ==="
