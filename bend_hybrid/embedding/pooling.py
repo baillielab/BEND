@@ -104,7 +104,7 @@ def pool_eos(embeddings: np.ndarray | list[np.ndarray]) -> np.ndarray:
             eos.append(emb[-1:, :])
         return np.stack(eos)
 
-    return embeddings[:, -1:, :]
+    return embeddings[:, -1, :]
 
 
 pool_name_to_function = {
