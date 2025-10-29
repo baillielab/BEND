@@ -85,7 +85,7 @@ class DNABert2Embedder(BaseEmbedder):
 
         # Tokenize input sequences
         chunk_ids = None
-        if sequence_length is None or sequence_length <= self.max_length:
+        if sequence_length is None or sequence_length > self.max_length:
             sequences, chunk_ids = self._split_sequences_into_chunks(
                 sequences,
                 self.max_length,
