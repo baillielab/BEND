@@ -33,11 +33,11 @@ class BaseEmbedder:
     def __init__(
         self,
         autoregressive,
-        max_sequence_length,
+        max_length,
         upsample_embeddings,
         pooling_modes,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """Initialize the embedder. Calls `load_model` with the given arguments.
 
@@ -49,10 +49,8 @@ class BaseEmbedder:
             Keyword arguments. Passed to `load_model`.
         """
         self.autoregressive = autoregressive
-        self.max_tokens = max_sequence_length
+        self.max_length = max_length
         self.upsample_embeddings = upsample_embeddings
-
-        self.pooling_modes = self.filter_pooling_modes(pooling_modes)
 
         self.tokenizer = None
         self.model = None
@@ -70,12 +68,14 @@ class BaseEmbedder:
 
         self.start_token_id, self.end_token_id = self.get_start_end_token_ids()
 
-        self.max_tokens = (
-            self.max_tokens - 1 if self.end_token_id is not None else self.max_tokens
+        self.max_length = (
+            self.max_length - 1 if self.end_token_id is not None else self.max_length
         )
-        self.max_tokens = (
-            self.max_tokens - 1 if self.start_token_id is not None else self.max_tokens
+        self.max_length = (
+            self.max_length - 1 if self.start_token_id is not None else self.max_length
         )
+
+        self.pooling_modes = self.filter_pooling_modes(pooling_modes)
 
     def filter_pooling_modes(
         self, pooling_modes: list[PoolingMode]
@@ -168,6 +168,31 @@ class BaseEmbedder:
             sequence_length,
         )
 
+    def _split_sequences_into_chunks(self, sequences: List[str], max_length: int):
+        """Split sequences into chunks of max_length.
+        Parameters
+        ----------
+        sequences : List[str]
+            List of sequences to split.
+        max_length : int
+            Maximum length of each chunk.
+        Returns
+        -------
+        chunk_inputs : List[str]
+            List of chunked sequences.
+        chunks_ids : List[int]
+            List of chunk ids indicating which chunk belongs to which sequence.
+        """
+
+        chunks_ids = []
+        chunk_inputs = []
+
+        for idx, seq in enumerate(sequences):
+            chunks = [seq[i : i + max_length] for i in range(0, len(seq), max_length)]
+            chunk_inputs.extend(chunks)
+            chunks_ids.extend([idx] * len(chunks))
+        return chunk_inputs, chunks_ids
+
     def _split_tokens_into_chunks(
         self,
         input_ids: List[int],
@@ -179,8 +204,8 @@ class BaseEmbedder:
 
         for seq_idx, seq in enumerate(input_ids):
             for input_ids_chunk in [
-                seq[i : i + self.max_tokens]
-                for i in range(0, len(seq), self.max_tokens)
+                seq[i : i + self.max_length]
+                for i in range(0, len(seq), self.max_length)
             ]:
 
                 if self.start_token_id is not None:
@@ -248,6 +273,7 @@ class BaseEmbedder:
                 )
 
             # remove in-between special tokens from embeddings and tokens
+            # append average cls/eos embeddings at beginning/end
             mask_special = (concat_tokens != self.end_token_id) & (
                 concat_tokens != self.start_token_id
             )

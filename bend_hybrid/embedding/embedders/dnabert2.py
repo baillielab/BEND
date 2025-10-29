@@ -83,30 +83,29 @@ class DNABert2Embedder(BaseEmbedder):
             List of embeddings.
         """
 
-        # BPE tokeniser generates len(tokens)<len(sequence), hence do not check here if sequence length > max_tokens, set max_length=None
-        input_ids = self.tokenizer(
-            sequences,
-            padding=False,
-            max_length=None,
-            return_attention_mask=False,
-            add_special_tokens=False,
-        )["input_ids"]
+        # Tokenize input sequences
+        chunk_ids = None
+        if sequence_length is None or sequence_length <= self.max_length:
+            sequences, chunk_ids = self._split_sequences_into_chunks(
+                sequences,
+                self.max_length,
+            )
 
-        # Iterate over tokens, split if necessary, add special tokens, pad into tensor
-        input_ids, chunk_ids = self._split_tokens_into_chunks(input_ids)
-        attention_mask = input_ids != self.tokenizer.pad_token_id
+        output = self.tokenizer(sequences, return_tensors="pt", padding="longest")
+        input_ids = output["input_ids"]
+        attention_mask = output["attention_mask"]
 
         with torch.no_grad():
             embeddings = (
                 self.model(
                     input_ids.to(DEVICE),
                     attention_mask=attention_mask.to(DEVICE),
-                    encoder_attention_mask=attention_mask.to(DEVICE),
+                    output_hidden_states=True,
                 )["hidden_states"]
                 .detach()
                 .cpu()
                 .numpy()
-            )  # n_chunks or batch_size x seq_len x emb_dim
+            )
             input_ids = input_ids.numpy()
 
         if len(chunk_ids) != len(set(chunk_ids)):
@@ -119,7 +118,6 @@ class DNABert2Embedder(BaseEmbedder):
                 embeddings, attention_mask.numpy(), input_ids
             )
 
-        # Pooling
         output = {}
 
         if PoolingMode.CLS in self.pooling_modes:

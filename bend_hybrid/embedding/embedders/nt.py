@@ -42,7 +42,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     def load_model(
         self,
         model_name,
-        max_tokens=1000,
         **kwargs,
     ):
         """
@@ -60,8 +59,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         upsample_embeddings : bool, optional
             Whether to upsample the embeddings to the length of the input sequence. Defaults to False.
         """
-
-        self.max_tokens = max_tokens
 
         self.model = AutoModelForMaskedLM.from_pretrained(
             model_name, trust_remote_code=True
@@ -118,11 +115,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                         if attention_mask is not None
                         else None
                     ),
-                    encoder_attention_mask=(
-                        attention_mask.to(DEVICE)
-                        if attention_mask is not None
-                        else None
-                    ),
                     output_hidden_states=True,
                 )["hidden_states"][-1]
                 .detach()
@@ -135,7 +127,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             # concatenate chunks, remove pad and in-between special tokens
             embeddings, input_ids = self._concatenate_chunks(
                 embeddings, input_ids, chunk_ids
-            )  # batch_size x seq_len x emb_dim
+            )
         else:
             embeddings, input_ids = self._remove_padding(
                 embeddings, attention_mask.numpy(), input_ids

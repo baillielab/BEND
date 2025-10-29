@@ -88,8 +88,8 @@ class HyenaDNAEmbedder(BaseEmbedder):
         # create tokenizer - NOTE this adds CLS and SEP tokens when add_special_tokens=False
         self.tokenizer = CharacterTokenizer(
             characters=["A", "C", "G", "T", "N"],  # add DNA characters, N is uncertain
-            model_max_length=None,  # we handle max length ourselves
-            add_special_tokens=False,  # we handle special tokens elsewhere
+            model_max_length=self.max_length,
+            add_special_tokens=False,
             padding_side="right",  # as we are interested in the embeddings, and not in generating sequences, we pad on the right
         )
 
@@ -113,22 +113,16 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         # Tokenize input sequences
         chunk_ids = None
-        if sequence_length is not None and sequence_length <= self.max_tokens:
-            input_ids = self.tokenizer(
+        if sequence_length is None or sequence_length <= self.max_length:
+            sequences, chunk_ids = self._split_sequences_into_chunks(
                 sequences,
-                return_tensors="pt",
-            )["input_ids"]
-        else:
-            input_ids = self.tokenizer(
-                sequences,
-                return_token_type_ids=False,
-                return_attention_mask=False,
-                padding=False,
-                add_special_tokens=False,
-            )["input_ids"]
+                self.max_length,  # Single nucleotide tokenizer -> max tokens = max sequence length
+            )
 
-            input_ids, chunk_ids = self._split_tokens_into_chunks(input_ids)
-
+        input_ids = self.tokenizer(
+            sequences,
+            return_tensors="pt",
+        )["input_ids"]
         input_ids = torch.LongTensor(input_ids)
 
         # Embed the input sequences
@@ -136,13 +130,11 @@ class HyenaDNAEmbedder(BaseEmbedder):
             embeddings = (
                 self.model(input_ids=input_ids.to(DEVICE)).detach().cpu().numpy()
             )
-            # n_chunks or batch_size x seq_len x emb_dim
 
         if chunk_ids is not None:
             input_ids = input_ids.numpy()
             embeddings, _ = self._concatenate_chunks(embeddings, input_ids, chunk_ids)
 
-        # Pooling
         output = {}
 
         if PoolingMode.EOS in self.pooling_modes:
