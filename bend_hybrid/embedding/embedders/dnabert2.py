@@ -108,7 +108,7 @@ class DNABert2Embedder(BaseEmbedder):
             )
             input_ids = input_ids.numpy()
 
-        if len(chunk_ids) != len(set(chunk_ids)):
+        if chunk_ids is not None and len(chunk_ids) != len(set(chunk_ids)):
             # concatenate chunks, remove pad and in-between special tokens
             embeddings, input_ids = self._concatenate_chunks(
                 embeddings, input_ids, chunk_ids
