@@ -101,12 +101,12 @@ class BaseEmbedder:
             if (
                 (
                     mode is PoolingMode.EOS
-                    and (not self.autoregressive or self.start_token_id is None)
+                    and (not self.autoregressive or self.end_token_id is None)
                 )
                 or (mode is PoolingMode.MEAN_UPSAMPLE and not self.upsample_embeddings)
                 or (
                     mode is PoolingMode.CLS
-                    and (self.autoregressive or self.end_token_id is None)
+                    and (self.autoregressive or self.start_token_id is None)
                 )
             ):
                 continue
