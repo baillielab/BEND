@@ -16,7 +16,7 @@ from Bio import SeqIO
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
-from bend_hybrid.utils import SEED
+from bend_batch.utils import SEED
 
 DEFAULT_FLANK = 0  # Default flank size for sequence fetching
 DEFAULT_LABEL_COLUMN_IDX = 6  # Default index for label column in BED file

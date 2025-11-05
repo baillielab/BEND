@@ -1,33 +1,9 @@
-"""
-basset.py
-====================================
-This module contains the implementation of the Basset model.
-
-- :class:`~bend.models.downstream.Basset`: The Basset CNN model architecture.
-"""
-
 from typing import Union
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from bend_hybrid.models.dilated_cnn import OneHotEmbedding
-
-
-class CustomDataParallel(torch.nn.DataParallel):
-    """
-    A custom DataParallel class that allows for attribute access to the
-    wrapped module.
-    """
-
-    def __getattr__(self, name):
-        """Forward attribute access to the module."""
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
+from bend_batch.models.dilated_cnn import OneHotEmbedding
 
 
 class TransposeLayer(nn.Module):
@@ -104,106 +80,114 @@ class UpsampleLayer(nn.Module):
         return x  # torch.reshape(x, (x.shape[0], -1, self.input_size))
 
 
-class Basset(nn.Module):
+class DefaultPooling(nn.Module):
     """
-    The Basset model.
+    A two-layer CNN with step size 1, ReLU activation, and a linear layer.
     """
 
     def __init__(
         self,
         input_size=5,
-        input_len=512,
         output_size=2,
+        hidden_size=64,
+        kernel_size=3,
         upsample_factor: Union[bool, int] = False,
+        output_downsample_window=None,
         encoder=None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
-        Build the Basset model.
-
+        Build a two-layer CNN with step size 1, ReLU activation, and a linear layer.
 
         Parameters
         ----------
         input_size: int
             The embedding size of the input sequence.
-        input_len: int
-            The length of the input sequence.
         output_size: int
             The size of the output sequence.
+        hidden_size: int
+            The embedding size of the hidden layer.
+        kernel_size: int
+            The kernel size of the convolutional layers.
         upsample_factor: int
             The factor by which to upsample the input.
+        output_downsample_window: int
+            The window size for downsampling the output along the sequence dimension.
+            This is done by taking the average of the output values in the window.
         """
-        super(Basset, self).__init__()
+        super(DefaultPooling, self).__init__()
         self.encoder = encoder
         self.output_size = output_size
         self.onehot_embedding = OneHotEmbedding(input_size)
         if upsample_factor:
             self.upsample = UpsampleLayer(scale_factor=upsample_factor)
 
-        self.inp_tranpose = TransposeLayer()
-
-        layers = []
-        prev_input_size = input_size
-        out_len = None
-        for i, (kernels, kernel_size, pool) in enumerate(
-            [(300, 19, 3), (200, 11, 4), (200, 7, 4)]
-        ):
-            layers.append(
-                nn.Conv1d(prev_input_size, kernels, kernel_size, padding="same")
-            )
-            layers.append(nn.BatchNorm1d(kernels))
-            layers.append(nn.ReLU())
-            layers.append(nn.MaxPool1d(pool, pool))
-            prev_input_size = kernels
-            out_len = input_len // pool
-            input_len = out_len
-            # 170 out_len 0
-            # 128 out_len 1
-            # 128 out_len 2
-
-        self.conv_net = nn.Sequential(*layers)
-
-        self.clf = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(prev_input_size * out_len, 1000),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(1000, 1000),
-            nn.Dropout(0.3),
-            nn.Linear(1000, output_size),
+        self.conv1 = nn.Sequential(
+            TransposeLayer(),
+            nn.Conv1d(input_size, hidden_size, kernel_size, stride=1, padding=1),
+            TransposeLayer(),
+            nn.GELU(),
         )
-        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x, activation="none", length=None, **kwargs):
+        self.conv2 = nn.Sequential(
+            TransposeLayer(),
+            nn.Conv1d(hidden_size, hidden_size, kernel_size, stride=1, padding=1),
+            TransposeLayer(),
+            nn.GELU(),
+        )
+
+        self.downsample = (
+            nn.Sequential(
+                TransposeLayer(),
+                nn.AvgPool1d(
+                    kernel_size=output_downsample_window,
+                    stride=output_downsample_window,
+                ),
+                TransposeLayer(),
+            )
+            if output_downsample_window is not None
+            else None
+        )
+
+    def forward(self, x, **kwargs):
         """
-        Forward pass of Basset.
+        Forward pass of the CNN.
 
         Parameters
         ----------
         x: torch.Tensor
             Input tensor. Should have shape (batch_size, length, embedding_size).
-        activation: str
-            The activation function to use. Can be 'sigmoid', or 'none'.
         length: int
             The actual length (in nucleotides) of the input sequence. Only required when embedding upsampling is used.
         Returns
         -------
         torch.Tensor
-            Output tensor. Has shape (batch_size, output_size).
+            Output tensor. Has shape (batch_size, output_length, output_size).
             output_length is determined by the input length, the upsampling factor, and the output downsampling window.
 
         """
+        length = kwargs.pop("length", None)
+
         x = self.onehot_embedding(x)
         if hasattr(self, "upsample"):
             x = self.upsample(x)[:, :length]
         if self.encoder is not None:
             x = self.encoder(input_ids=x, **kwargs).last_hidden_state
 
-        x = self.inp_tranpose(x)
-        x = self.conv_net(x)
-        x = self.clf(x)
+        # 1st conv layer
+        x = self.conv1(x)
+        # 2nd conv layer
+        x = self.conv2(x)
 
-        if activation == "sigmoid":
-            x = self.sigmoid(x)
+        # print(f"After conv layers shape: {x.shape}")
+
+        if self.downsample is not None:
+            x = self.downsample(x)
+            # print(f"After downsample shape: {x.shape}")
+
+        if self.output_size == 1 and x.dim() > 2 or self.downsample:
+            x = torch.flatten(x, 1)
+            # print(f"After flatten shape: {x.shape}")
+
         return x

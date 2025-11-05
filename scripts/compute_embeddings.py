@@ -17,10 +17,10 @@ from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 
 import wandb
-from bend_hybrid.embedding.datasets import collate_fn
-from bend_hybrid.embedding.embedders.abstract_class import BaseEmbedder
-from bend_hybrid.embedding.pooling import PoolingMode
-from bend_hybrid.utils import log_time, set_seed, wandb_login
+from bend_batch.embedding.datasets import collate_fn
+from bend_batch.embedding.embedders.abstract_class import BaseEmbedder
+from bend_batch.embedding.pooling import PoolingMode
+from bend_batch.utils import log_time, set_seed, wandb_login
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"

@@ -8,14 +8,11 @@ import os
 import time
 
 import hydra
-
 from omegaconf import DictConfig
-
 from torch.utils.data import DataLoader
 
-from bend_hybrid.embedding.datasets import DataVariantEffects
-from bend_hybrid.utils import set_seed
-
+from bend_batch.embedding.datasets import DataVariantEffects
+from bend_batch.utils import set_seed
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"

@@ -21,7 +21,7 @@ from sklearn.metrics import (
 )
 
 import wandb
-from bend_hybrid.utils import log_time
+from bend_batch.utils import log_time
 
 
 class CrossEntropyLoss(nn.Module):

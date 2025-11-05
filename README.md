@@ -102,7 +102,7 @@ While each task has different input data and gorund truth labels, the process of
 
 ## Embedders overview
 
-If you need to make embeddings for other purposes than preparing downstream task data, [`bend_hybrid.embedding.embedders`](bend_hybrid.embedding.embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.
+If you need to make embeddings for other purposes than preparing downstream task data, [`bend_batch.embedding.embedders`](bend_batch.embedding.embedders.py) contains wrapper classes around the individual models. Each embedder takes a path (or name, if available on HuggingFace) of a checkpoint as the first argument, and provides an `embed()` method that takes a list of sequences and returns a list of embeddings.
 For models that return less embedding vectors than their number of input nucleotides, [embeddings can be upsampled](#how-are-embeddings-upsampled) to the original input sequence length using the `upsample_embeddings=True` argument in `config/embedding/embedders.yml`.
 
 | Embedder                                                                                                                                         | Reference                                                                      | Models                                                                                                        | Info                                                                                                                                                                                                                                        |
@@ -149,18 +149,18 @@ If desired, the config files can be modified to change parameters, output/input 
 
 ### Adding a new embedder
 
-All embedders are defined in `bend_hybrid/embedding/embedders.py` and inherit `BaseEmbedder `. A new embedder needs to implement `load_model `, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed `, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
+All embedders are defined in `bend_batch/embedding/embedders.py` and inherit `BaseEmbedder `. A new embedder needs to implement `load_model `, which should set up all required attributes of the class and handle loading the model checkpoint into memory. It also needs to implement `embed `, which takes a list of sequences, and returns a list of embedding matrices formatted as numpy arrays. The `embed` method should be able to handle sequences of different lengths.
 
 Hence, to add a new embedder:
 
-1. Define the new embedder model to `bend_hybrid/models/`
+1. Define the new embedder model to `bend_batch/models/`
 2. Store model weights into `pretrained_models/`
 3. Inherit from `BaseEmbedder` and implement `load_model()` and `embed()` functions
 4. Update `config/embedding/embedders.yaml` with your model name and hyperparameters.
 
 ### Adding a new task
 
-1. Create custom, modify or use existing PytTorch datasets (found in `bend_hybrid/embedding/datasets.py`) to load annotations and generate sequences and labels.
+1. Create custom, modify or use existing PytTorch datasets (found in `bend_batch/embedding/datasets.py`) to load annotations and generate sequences and labels.
 2. If using an entirely new dataset, create a new script file or modify `run_supervised_tasks.py` or `run_variant_effects.py` to use the custom dataset.
 3. Create a new config under  `config/task/` named after the task.
 

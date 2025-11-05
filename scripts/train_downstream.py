@@ -10,13 +10,13 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 import wandb
-from bend_hybrid.downstream.dataloaders import (
+from bend_batch.downstream.dataloaders import (
     get_samples_idx_by_split,
     undersample_dataloaders,
 )
-from bend_hybrid.downstream.trainer import BaseTrainer
-from bend_hybrid.embedding.pooling import PoolingMode
-from bend_hybrid.utils import get_device, set_seed, wandb_login
+from bend_batch.downstream.trainer import BaseTrainer
+from bend_batch.embedding.pooling import PoolingMode
+from bend_batch.utils import get_device, set_seed, wandb_login
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"

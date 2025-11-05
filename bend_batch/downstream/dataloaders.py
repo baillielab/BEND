@@ -3,17 +3,18 @@ Data loading and processing for training downstream tasks on embeddings saved in
 """
 
 import glob
+import math
 import os
 from functools import partial
-from omegaconf import DictConfig
-import pandas as pd
-from bend_hybrid.embedding.datasets import DEFAULT_SPLIT_COLUMN_IDX
 from typing import List, Union
-import math
+
+import pandas as pd
 import torch
 import webdataset as wds
+from omegaconf import DictConfig
 
-from bend_hybrid.utils import SEED, seed_worker
+from bend_batch.embedding.datasets import DEFAULT_SPLIT_COLUMN_IDX
+from bend_batch.utils import SEED, seed_worker
 
 
 def pad_to_longest(sequences: List[torch.Tensor], padding_value=-100, batch_first=True):

@@ -5,15 +5,14 @@ Outputs a dictionary of pooled embeddings based on the specified pooling modes.
 """
 
 import os
-import warnings
 from typing import List
 
 import torch
 from transformers import logging
 
-from bend_hybrid.embedding.pooling import PoolingMode, pool_name_to_function
-from bend_hybrid.models.hyena_dna import CharacterTokenizer, HyenaDNAPreTrainedModel
-from bend_hybrid.utils import get_device
+from bend_batch.embedding.pooling import PoolingMode, pool_name_to_function
+from bend_batch.models.hyena_dna import CharacterTokenizer, HyenaDNAPreTrainedModel
+from bend_batch.utils import get_device
 
 from .abstract_class import BaseEmbedder
 

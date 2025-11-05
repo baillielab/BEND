@@ -12,9 +12,9 @@ from typing import Union
 import numpy as np
 import torch.nn as nn
 
-from bend_hybrid.downstream.pooling.default import DefaultPooling
-from bend_hybrid.downstream.pooling.swe import SWE_Pooling
-from bend_hybrid.downstream.pooling.upstream import UpstreamPooling
+from bend_batch.downstream.pooling.default import DefaultPooling
+from bend_batch.downstream.pooling.swe import SWE_Pooling
+from bend_batch.downstream.pooling.upstream import UpstreamPooling
 
 
 class Classifier(nn.Module):

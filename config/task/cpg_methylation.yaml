@@ -4,14 +4,14 @@ output_dir: ${output_dir} # used in trainer class
 
 embeddings_pooling: all # Options: "all", "default", "mean", "max", "cls", "eos"
 dataset:
-  _target_: bend_hybrid.embedding.datasets.DataSupervised
+  _target_: bend_batch.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/cpg_methylation/cpg_methylation.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   label_depth: 7
   sequence_length: 512
   n_samples: null # Set to an integer to undersample the dataset
 dataloaders:
-  _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
+  _target_: bend_batch.downstream.dataloaders.get_dataloaders
   shards_dir: ${embeddings_output_dir}
   batch_size: 256
   num_workers: 32
@@ -20,7 +20,7 @@ dataloaders:
   shuffle: 512
   shardshuffle: 32
 model:
-  _target_: bend_hybrid.downstream.model.Classifier
+  _target_: bend_batch.downstream.model.Classifier
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64

@@ -4,7 +4,7 @@ output_dir: ${output_dir} # used in trainer class
 
 embeddings_pooling: default # Options: "default"
 dataset:
-  _target_: bend_hybrid.embedding.datasets.DataSupervised
+  _target_: bend_batch.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/gene_finding/gene_finding.bed
   genome_path: ${data_dir}/genomes/GRCh38.primary_assembly.genome.fa
   hdf5_path: ${data_dir}/gene_finding/gene_finding.hdf5
@@ -12,7 +12,7 @@ dataset:
   sequence_length: null # When null, indicates uneven length sequences
   n_samples: null # Set to an integer to undersample the dataset
 dataloaders:
-  _target_: bend_hybrid.downstream.dataloaders.get_dataloaders
+  _target_: bend_batch.downstream.dataloaders.get_dataloaders
   shards_dir: ${embeddings_output_dir}
   batch_size: 64
   num_workers: 2
@@ -21,7 +21,7 @@ dataloaders:
   shuffle: 128
   shardshuffle: 32
 model:
-  _target_: bend_hybrid.downstream.model.Classifier
+  _target_: bend_batch.downstream.model.Classifier
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 64

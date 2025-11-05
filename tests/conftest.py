@@ -17,7 +17,7 @@ from tqdm.auto import tqdm
 
 from bend.io import sequtils
 from bend.utils import Annotation
-from bend_hybrid.embedding.datasets import DataVariantEffects, collate_fn
+from bend_batch.embedding.datasets import DataVariantEffects, collate_fn
 
 SUPERVISED_TASKS = [
     "gene_finding",

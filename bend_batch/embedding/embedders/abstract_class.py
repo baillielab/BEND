@@ -15,8 +15,8 @@ import numpy as np
 import torch
 from transformers import logging
 
-from bend_hybrid.embedding.pooling import PoolingMode
-from bend_hybrid.utils import get_device
+from bend_batch.embedding.pooling import PoolingMode
+from bend_batch.utils import get_device
 
 logging.set_verbosity_error()
 DEVICE = get_device()

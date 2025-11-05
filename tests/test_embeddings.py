@@ -14,7 +14,7 @@ from conftest import (
 from scipy.stats import pearsonr
 from test_datasets import assert_splits_match
 
-from bend_hybrid.embedding.pooling import PoolingMode
+from bend_batch.embedding.pooling import PoolingMode
 
 EMBEDDERS = (
     "default_embedder, batch_embedder",
@@ -32,7 +32,6 @@ EMBEDDERS = (
             "nt_transformer_human_ref",
             "nt_transformer_v2_500m",
             "dnabert2",
-            # "awdlstm",
             "resnetlm",
         ]
     ],
