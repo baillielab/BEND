@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script runs a series of supervised tasks using specified models and datasets.
-# Usage: . <script_path> <task_name> <model_name> <data_dir> <embedders_dir> <embeddings_output_dir (root)>  <output_dir (root)> <compute_embeddings> <run_without_pooling> <num_workers (default=32)>
+# Usage: . <script_path> <task_name> <model_name> <data_dir> <embedders_dir> <embeddings_output_dir (root)>  <output_dir (root)> <compute_embeddings> <run_without_pooling> <num_workers (default=64)> <prefetch_factor (default=4)>
 
 task=$1
 embedder=$2
@@ -10,8 +10,8 @@ embeddings_output_dir=$5
 output_dir=$6
 compute_embeddings=$7
 run_without_pooling=$8
-num_workers=${9:-32}
-
+num_workers=${9:-64}
+prefetch_factor=${10:-4}
 
 if [ $compute_embeddings = "true" ]; then
     echo "Embedding task: $task with model: $embedder"
@@ -35,8 +35,7 @@ do
         embedders_dir=$embedders_dir \
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir \
-        task.model.pooling=$mode \
-        task.dataloaders.num_workers=$num_workers
+        task.model.pooling=$mode
 done
 
 if [ $run_without_pooling = "true" ]; then
@@ -49,5 +48,6 @@ if [ $run_without_pooling = "true" ]; then
         embeddings_output_dir=$embeddings_output_dir \
         output_dir=$output_dir \
         task.model.pooling=default \
-        task.dataloaders.num_workers=$num_workers
+        task.dataloaders.num_workers=$num_workers \
+        task.dataloaders.prefetch_factor=$prefetch_factor
 fi
