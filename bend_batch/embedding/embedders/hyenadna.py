@@ -5,8 +5,9 @@ Outputs a dictionary of pooled embeddings based on the specified pooling modes.
 """
 
 import os
-from typing import List
+from typing import List, Tuple
 
+import numpy as np
 import torch
 from transformers import logging
 
@@ -95,7 +96,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
     def embed(
         self,
         sequences: List[str],
-        sequence_length: int = None,
+        sequence_length: int | None = None,
     ):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
@@ -149,3 +150,113 @@ class HyenaDNAEmbedder(BaseEmbedder):
             output[mode.value] = pool_name_to_function[mode](embeddings)
 
         return output
+
+    def _split_sequences_into_chunks(
+        self, sequences: List[str], max_length: int, padding: bool = True
+    ) -> Tuple[List[str], List[int]]:
+        """Split sequences into chunks of max_length.
+        Parameters
+        ----------
+        sequences : List[str]
+            List of sequences to split.
+        max_length : int
+            Maximum length of each chunk.
+        padding : bool, optional
+            Whether to pad, using N character, the last chunk to max_length. Default True.
+        Returns
+        -------
+        chunk_inputs : List[str]
+            List of chunked sequences.
+        chunks_ids : List[int]
+            List of chunk ids indicating which chunk belongs to which sequence.
+        """
+
+        chunks_ids = []
+        chunk_inputs = []
+
+        for idx, seq in enumerate(sequences):
+            chunks = [seq[i : i + max_length] for i in range(0, len(seq), max_length)]
+
+            # Pad the last chunk if necessary
+            if padding and len(chunks[-1]) < max_length:
+                chunks[-1] += "N" * (max_length - len(chunks[-1]))
+
+            chunk_inputs.extend(chunks)
+            chunks_ids.extend([idx] * len(chunks))
+        return chunk_inputs, chunks_ids
+
+    def _concatenate_chunks(
+        self,
+        embeddings: List[np.ndarray],
+        tokens: np.ndarray,
+        chunk_ids: list[int],
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Concatenate chunks back into full sequences.
+
+        Parameters
+        ----------
+        embeddings : List[np.ndarray]
+            List of embeddings for each chunk.
+        tokens : np.ndarray
+            Array of token ids for each chunk.
+        chunk_ids : list[int]
+            List of chunk ids indicating which chunk belongs to which sequence.
+        Returns
+        -------
+        List[np.ndarray]
+            List of concatenated embeddings for each sequence.
+        List[np.ndarray]
+            List of concatenated token ids for each sequence.
+        """
+
+        unique_ids = sorted(np.unique(chunk_ids))
+        token_id_n = self.tokenizer._convert_token_to_id("N")  # pylint: disable=W0212
+
+        all_concat_tokens = []
+        all_concat_emb = []
+
+        for chunk_id in unique_ids:
+
+            concat_emb = np.concatenate(embeddings[chunk_ids == chunk_id], axis=0)
+            concat_tokens = np.concatenate(tokens[chunk_ids == chunk_id], axis=0)
+
+            # remove padding tokens
+            mask_pad = (concat_tokens != self.tokenizer.pad_token_id) & (
+                concat_tokens != token_id_n
+            )
+            concat_emb = concat_emb[mask_pad]
+            concat_tokens = concat_tokens[mask_pad]
+
+            # average eos/cls embeddings if multiple chunks
+            cls_emb = None
+            if self.start_token_id is not None:
+                cls_emb = concat_emb[concat_tokens == self.start_token_id].mean(
+                    axis=0, keepdims=True
+                )
+
+            eos_emb = None
+            if self.end_token_id is not None:
+                eos_emb = concat_emb[concat_tokens == self.end_token_id].mean(
+                    axis=0, keepdims=True
+                )
+
+            # remove in-between special tokens from embeddings and tokens
+            # append average cls/eos embeddings at beginning/end
+            mask_special = (concat_tokens != self.end_token_id) & (
+                concat_tokens != self.start_token_id
+            )
+            concat_emb = concat_emb[mask_special]
+            if cls_emb is not None:
+                concat_emb = np.concatenate([cls_emb, concat_emb], axis=0)
+            if eos_emb is not None:
+                concat_emb = np.concatenate([concat_emb, eos_emb], axis=0)
+            all_concat_emb.append(concat_emb)
+
+            if cls_emb is not None:
+                mask_special[0] = True
+            if eos_emb is not None:
+                mask_special[-1] = True
+            concat_tokens = concat_tokens[mask_special]
+            all_concat_tokens.append(concat_tokens)
+
+        return all_concat_emb, all_concat_tokens
