@@ -35,7 +35,7 @@ class BaseEmbedder:
         autoregressive,
         max_length,
         upsample_embeddings,
-        pooling_modes,
+        pooling_modes=[PoolingMode.DEFAULT],
         *args,
         **kwargs,
     ):
