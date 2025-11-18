@@ -4,21 +4,22 @@ train_on_task.py
 Train a model on a downstream task.
 """
 
-import hydra
-from omegaconf import DictConfig, OmegaConf, open_dict
-import torch
-from bend.utils.task_trainer import (
-    BaseTrainer,
-    MSELoss,
-    BCEWithLogitsLoss,
-    PoissonLoss,
-    CrossEntropyLoss,
-)
-import wandb
-from bend.models.downstream import CustomDataParallel
 import os
 import sys
+
+import hydra
+import torch
+from omegaconf import DictConfig, OmegaConf, open_dict
+
+from bend.models.downstream import CustomDataParallel
 from bend.utils.set_seed import set_seed
+from bend.utils.task_trainer import (
+    BaseTrainer,
+    BCEWithLogitsLoss,
+    CrossEntropyLoss,
+    MSELoss,
+    PoissonLoss,
+)
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
@@ -38,22 +39,24 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Hydra configuration object.
     """
-    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    # mkdir output_dir
+
+    task_dir = f"{cfg.task}_shuffled" if cfg.shuffle else cfg.task
+
+    # create output directory
+    cfg.output_dir = os.path.join(cfg.output_dir, task_dir, cfg.embedder)
+    if "cross_validation" in cfg.data and cfg.data.cross_validation is not False:
+        print("Cross validation enabled, using partition", cfg.data.cross_validation)
+        cfg.output_dir = os.path.join(
+            cfg.output_dir, f"split_{cfg.data.cross_validation}"
+        )
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
     print("output_dir", cfg.output_dir)
-    # init wandb
-    run = wandb.init(**cfg.wandb, dir=cfg.output_dir, config=cfg)
 
-    OmegaConf.save(
-        cfg, f"{cfg.output_dir}/config.yaml"
-    )  # save the config to the experiment dir
-    # set device
+    # create data directory
+    cfg.data.data_dir = os.path.join(cfg.data.data_dir, task_dir, cfg.embedder)
+    print("data_dir", cfg.data.data_dir)
 
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device", device)
 
     # instantiate model
@@ -80,30 +83,6 @@ def run_experiment(cfg: DictConfig) -> None:
     # instantiate optimizer
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
-    # define criterion
-    print(f"Use {cfg.params.criterion} loss function")
-    if cfg.params.criterion == "cross_entropy":
-        criterion = CrossEntropyLoss(
-            ignore_index=cfg.data.padding_value,
-            weight=(
-                torch.tensor(cfg.params.class_weights).to(device)
-                if cfg.params.class_weights is not None
-                else None
-            ),
-        )
-    elif cfg.params.criterion == "poisson_nll":
-        criterion = PoissonLoss()
-    elif cfg.params.criterion == "mse":
-        criterion = MSELoss()
-    elif cfg.params.criterion == "bce":
-        criterion = BCEWithLogitsLoss(
-            class_weights=(
-                torch.tensor(cfg.params.class_weights).to(device)
-                if cfg.params.class_weights is not None
-                else None
-            )
-        )
-
     # init dataloaders
     if "supervised" in cfg.embedder:
         cfg.data.data_dir = cfg.data.data_dir.replace(cfg.embedder, "onehot")
@@ -114,11 +93,12 @@ def run_experiment(cfg: DictConfig) -> None:
     trainer = BaseTrainer(
         model=model,
         optimizer=optimizer,
-        criterion=criterion,
         device=device,
         config=cfg,
         overwrite_dir=True,
     )
+
+    OmegaConf.save(cfg, f"{cfg.output_dir}/config.yaml")
 
     if cfg.params.mode == "train":
         # train

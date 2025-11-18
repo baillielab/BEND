@@ -4,24 +4,23 @@ task_trainer.py
 Trainer class for training downstream models on supervised tasks.
 """
 
+import glob
+import os
+import time
+from typing import List, Union
+
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
-import wandb
-import os
-from sklearn.metrics import (
-    matthews_corrcoef,
-    roc_auc_score,
-    recall_score,
-    precision_score,
-    average_precision_score,
-    confusion_matrix,
-)
 from sklearn.feature_selection import r_regression
-import pandas as pd
-from typing import Union, List
-import numpy as np
-import glob
-import pandas as pd
+from sklearn.metrics import (
+    average_precision_score,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 
 class CrossEntropyLoss(nn.Module):
@@ -197,7 +196,6 @@ class BaseTrainer:
         self,
         model,
         optimizer,
-        criterion,
         device,
         config,
         overwrite_dir=False,
@@ -212,8 +210,6 @@ class BaseTrainer:
             Model to train.
         optimizer : torch.optim.Optimizer
             Optimizer to use for training.
-        criterion : torch.nn.Module
-            Loss function to use for training.
         device : torch.device
             Device to use for training.
         config : OmegaConf
@@ -226,10 +222,10 @@ class BaseTrainer:
 
         self.model = model
         self.optimizer = optimizer
-        self.criterion = criterion
         self.device = device
         self.config = config
         self.overwrite_dir = overwrite_dir
+        self.criterion = self.get_criterion()
         self._create_output_dir(
             self.config.output_dir
         )  # create the output dir for the model
@@ -237,6 +233,48 @@ class BaseTrainer:
         self.scaler = torch.amp.GradScaler(
             "cuda", enabled=True
         )  # init scaler for mixed precision training
+
+    def get_criterion(self):
+        """
+        Get the criterion to use for training.
+
+        Returns
+        -------
+        criterion : torch.nn.Module
+            Criterion to use for training.
+        Raises
+        ------
+        ValueError
+            If the criterion is not recognized.
+        """
+
+        print(f"Use {self.config.params.criterion} loss function")
+        match self.config.params.criterion:
+            case "cross_entropy":
+                criterion = CrossEntropyLoss(
+                    ignore_index=self.config.data.padding_value,
+                    weight=(
+                        torch.tensor(self.config.params.class_weights).to(self.device)
+                        if self.config.params.class_weights is not None
+                        else None
+                    ),
+                )
+            case "poisson_nll":
+                criterion = PoissonLoss()
+            case "mse":
+                criterion = MSELoss()
+            case "bce":
+                criterion = BCEWithLogitsLoss(
+                    class_weights=(
+                        torch.tensor(self.config.params.class_weights).to(self.device)
+                        if self.config.params.class_weights is not None
+                        else None
+                    )
+                )
+            case _:
+                raise ValueError(f"Unknown criterion {self.config.params.criterion}.")
+
+        return criterion
 
     def _create_output_dir(self, path):
         os.makedirs(f"{path}/checkpoints/", exist_ok=True)
@@ -257,6 +295,7 @@ class BaseTrainer:
                     "train_loss",
                     "val_loss",
                     f"val_{self.config.params.metric}",
+                    "training_time",
                 ]
             ).to_csv(f"{path}/losses.csv", index=False)
 
@@ -293,37 +332,25 @@ class BaseTrainer:
         )
         return
 
-    def _log_loss(self, epoch, train_loss, val_loss, val_metric):
+    def _log_loss(self, epoch, train_loss, val_loss, val_metric, training_time):
         df = pd.read_csv(f"{self.config.output_dir}/losses.csv")
         df = pd.concat(
             [
                 df,
                 pd.DataFrame(
-                    [[epoch, train_loss, val_loss, val_metric]],
+                    [[epoch, train_loss, val_loss, val_metric, training_time]],
                     columns=[
                         "Epoch",
                         "train_loss",
                         "val_loss",
                         f"val_{self.config.params.metric}",
+                        "training_time",
                     ],
                 ),
             ],
             ignore_index=True,
         )
         df.to_csv(f"{self.config.output_dir}/losses.csv", index=False)
-        return
-
-    def _log_wandb(self, epoch, train_loss, val_loss, val_metric):
-        wandb.log(
-            {
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                f"val_{self.config.params.metric}": val_metric,
-            },
-            step=epoch,
-        )
-
-        # wandb.log({"Training latent with labels": wandb.Image(plt)})
         return
 
     def _calculate_metric(self, y_true, y_pred) -> List[float]:
@@ -500,6 +527,9 @@ class BaseTrainer:
 
         for epoch in range(1 + start_epoch, epochs + 1):
             print(f"Epoch {epoch}/{epochs}")
+
+            start_time_epoch = time.time()
+
             train_loss = self.train_epoch(train_loader)
             val_loss, val_metrics = self.validate(val_loader)
             val_metric = val_metrics[0]
@@ -508,9 +538,9 @@ class BaseTrainer:
             # save epoch in output dir
             self._save_checkpoint(epoch, train_loss, val_loss, val_metric)
             # log losses to csv
-            self._log_loss(epoch, train_loss, val_loss, val_metric)
-            # log to wandb
-            self._log_wandb(epoch, train_loss, val_loss, val_metric)
+            self._log_loss(
+                epoch, train_loss, val_loss, val_metric, time.time() - start_time_epoch
+            )
             print(
                 f"Epoch: {epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val {self.config.params.metric}: {val_metric:.4f}"
             )
@@ -543,12 +573,7 @@ class BaseTrainer:
                 activation=self.config.params.activation,
             )
 
-            if self.device == torch.device("mps"):
-                target = target.to(
-                    self.device, non_blocking=True, dtype=torch.float32
-                ).long()
-            else:
-                target = target.to(self.device, non_blocking=True).long()
+            target = target.to(self.device, non_blocking=True).long()
 
             loss = self.criterion(output, target)
 
@@ -590,10 +615,7 @@ class BaseTrainer:
                     data.to(self.device), activation=self.config.params.activation
                 )
 
-                if self.device == torch.device("mps"):
-                    target = target.to(self.device, dtype=torch.float32).long()
-                else:
-                    target = target.to(self.device).long()
+                target = target.to(self.device).long()
                 loss += self.criterion(output, target).item()
 
                 if self.config.params.criterion == "bce":
