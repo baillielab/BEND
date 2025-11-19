@@ -6,18 +6,17 @@ nucleotide at the variant position.
 """
 
 import os
-import time
 
 import hydra
-import pandas as pd
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from scipy import spatial
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+import wandb
 
 from bend_batch.embedding.datasets import DataVariantEffects
-from bend_batch.utils import set_seed
+from bend_batch.utils import set_seed, wandb_login, log_time
 
 set_seed()
 os.environ["WDS_VERBOSE_CACHE"] = "1"
@@ -37,6 +36,16 @@ def run_experiment(cfg: DictConfig) -> None:
     cfg.output_dir = os.path.join(cfg.output_dir, cfg.task.name, cfg.embedder)
     print("Output directory", cfg.output_dir)
     os.makedirs(cfg.output_dir, exist_ok=True)
+
+    wandb_login()
+    wandb.init(
+        anonymous="allow",
+        project=cfg.wandb.project,
+        name=f"{cfg.task.name}_{cfg.embedder}",
+        config=OmegaConf.to_container(cfg),
+    )
+    wandb.summary["task"] = cfg.task.name
+    wandb.summary["embedder"] = cfg.embedder
 
     print(f"Computing embeddings for {cfg.task.name} using {cfg.embedder}")
     embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
@@ -69,31 +78,31 @@ def run_experiment(cfg: DictConfig) -> None:
         shuffle=False,
     )
 
-    start = time.time()
-    cosine_distances = []
-    labels = []
+    with log_time("running_time", log_type="summary"):
+        cosine_distances = []
+        labels = []
 
-    for _, (dna_seqs, alt_dna_seqs, batch_labels) in tqdm(
-        enumerate(dataloader), total=len(dataloader)
-    ):
-        ref_embeddings = embedder.embed(dna_seqs)[:, embedding_idx, :]
-        snp_embeddings = embedder.embed(alt_dna_seqs)[:, embedding_idx, :]
-
-        for ref_emb, snp_emb, label in zip(
-            ref_embeddings, snp_embeddings, batch_labels
+        for _, (dna_seqs, alt_dna_seqs, batch_labels) in tqdm(
+            enumerate(dataloader), total=len(dataloader)
         ):
-            cosine_distances.append(spatial.distance.cosine(ref_emb, snp_emb))
-            labels.append(label)
+            ref_embeddings = embedder(dna_seqs, cfg.task.dataset.sequence_length)[
+                :, embedding_idx, :
+            ]
+            snp_embeddings = embedder(alt_dna_seqs, cfg.task.dataset.sequence_length)[
+                :, embedding_idx, :
+            ]
 
-    end = time.time()
-    print(f"Running time: {end - start} seconds")
+            for ref_emb, snp_emb, label in zip(
+                ref_embeddings, snp_embeddings, batch_labels
+            ):
+                cosine_distances.append(spatial.distance.cosine(ref_emb, snp_emb))
+                labels.append(label)
 
     score = roc_auc_score(labels, cosine_distances)
     print(f"ROC AUC: {score} for {cfg.embedder}")
+    wandb.summary["downstream/test/metric"] = score
 
-    pd.DataFrame(
-        {"model": [cfg.embedder], "roc_auc": [score], "time": [end - start]}
-    ).to_csv(os.path.join(cfg.output_dir, "roc_auc_scores.csv"), index=False)
+    wandb.finish()
 
 
 if __name__ == "__main__":
