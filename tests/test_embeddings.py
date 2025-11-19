@@ -71,7 +71,10 @@ def batch_embedder(request):
         list(BATCH_CFG.keys())[0]
     ]  # Any task will do, they all have the same embedding config
 
-    embedder_model = hydra.utils.instantiate(task_cfg["embedding"][embedder])
+    embedder_model = hydra.utils.instantiate(
+        task_cfg["embedding"][embedder],
+        task_input_length=task_cfg.task.dataset.sequence_length,
+    )
 
     return embedder_model, embedder_model.autoregressive
 
@@ -127,7 +130,6 @@ def test_supervised_embeddings(
 
             bat_emb = batch_embedder(
                 [bat_seq],  # add batch dimension
-                BATCH_CFG[task].task.dataset.sequence_length,
             )
 
             gt_emb = gt_embedder(

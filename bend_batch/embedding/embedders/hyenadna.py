@@ -96,18 +96,12 @@ class HyenaDNAEmbedder(BaseEmbedder):
             padding_side="right",  # as we are interested in the embeddings, and not in generating sequences, we pad on the right
         )
 
-    def embed(
-        self,
-        sequences: List[str],
-        sequence_length: int | None = None,
-    ):
+    def embed(self, sequences: List[str]):
         """Embeds a list of sequences using the HyenaDNA model.
         Parameters
         ----------
         sequences : List[str]
             List of sequences to embed.
-        sequence_length : int, optional
-            The length of the sequences. If provided, the model will pad or truncate the sequences to this length.
         Returns
         -------
         torch.Tensor
@@ -116,7 +110,7 @@ class HyenaDNAEmbedder(BaseEmbedder):
 
         # Tokenize input sequences
         chunk_ids = None
-        if sequence_length is None or sequence_length > self.max_length:
+        if self.task_input_length is None or self.task_input_length > self.max_length:
             sequences, chunk_ids = self._split_sequences_into_chunks(
                 sequences,
                 self.max_length,  # Single nucleotide tokenizer -> max tokens = max sequence length

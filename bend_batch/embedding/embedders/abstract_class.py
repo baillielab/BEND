@@ -34,6 +34,7 @@ class BaseEmbedder:
         autoregressive,
         max_length,
         upsample_embeddings,
+        task_input_length=None,
         *args,
         **kwargs,
     ):
@@ -49,6 +50,7 @@ class BaseEmbedder:
         self.autoregressive = autoregressive
         self.max_length = max_length
         self.upsample_embeddings = upsample_embeddings
+        self.task_input_length = task_input_length
 
         self.tokenizer = None
         self.model = None
@@ -83,37 +85,24 @@ class BaseEmbedder:
         """Load the model and tokenizer. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def embed(
-        self,
-        sequence: List[str],
-        sequence_length: int = None,
-    ):
-        """Embed and pools the input sequences. Should be implemented by the inheriting class."""
+    def embed(self, sequences: List[str]):
+        """Embed  the input sequences. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
-    def __call__(
-        self,
-        sequence: List[str],
-        sequence_length: int = None,
-    ):
-        """Embed and pools a list of sequences. Calls `embed` with the given arguments.
+    def __call__(self, sequences: List[str]):
+        """Embed a list of sequences. Calls `embed` with the given arguments.
 
         Parameters
         ----------
         sequence : List[str]
             The sequences to embed.
-        pooling : List[PoolingMode]
-            The pooling modes to use for the embeddings.
         Returns
         -------
         torch.Tensor
             The embeddings of the sequences.
         """
 
-        return self.embed(
-            sequence,
-            sequence_length,
-        )
+        return self.embed(sequences)
 
     def _split_sequences_into_chunks(self, sequences: List[str], max_length: int):
         """Split sequences into chunks of max_length.
@@ -217,7 +206,7 @@ class BaseEmbedder:
         embeddings: np.ndarray,
         input_ids: np.ndarray,
     ) -> tuple[List[np.ndarray], List[np.ndarray]] | List[np.ndarray]:
-        """Remove padding from embeddings using the attention mask.
+        """Remove padding embeddings and padding tokens.
         Parameters
         ----------
         embeddings : np.ndarray

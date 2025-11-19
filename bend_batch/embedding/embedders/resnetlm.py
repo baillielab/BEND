@@ -101,11 +101,7 @@ class ConvNetEmbedder(BaseEmbedder):
         # load model
         self.model = ConvNetModel.from_pretrained(model_path).to(DEVICE).eval()
 
-    def embed(
-        self,
-        sequences: List[str],
-        sequence_length: int = None,
-    ):
+    def embed(self, sequences: List[str]):
         """
         Embed sequences using the GPN-inspired ConvNet baseline LM trained in BEND.
 
@@ -113,10 +109,6 @@ class ConvNetEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        pooling : List[PoolingMode], optional
-            List of pooling modes to apply to the embeddings. Default is [PoolingMode.DEFAULT].
-        sequence_length : int, optional
-            The length of the sequences.
         Returns
         -------
         torch.Tensor

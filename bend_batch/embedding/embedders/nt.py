@@ -70,11 +70,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         self.model.to(DEVICE)
         self.model.eval()
 
-    def embed(
-        self,
-        sequences: List[str],
-        sequence_length: int = None,
-    ):
+    def embed(self, sequences: List[str]):
         """
         Embed sequences using the Nuclieotide Transformer (NT) model.
 
@@ -82,10 +78,6 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         ----------
         sequences : List[str]
             List of sequences to embed.
-        pooling : List[PoolingMode], optional
-            List of pooling modes to apply to the embeddings. Default is [PoolingMode.DEFAULT].
-        sequence_length : int, optional
-            The length of the sequences.
         Returns
         -------
         torch.Tensor
@@ -133,7 +125,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
             embeddings = self._upsample(
                 input_ids,
                 embeddings,
-                same_length_sequences=sequence_length is not None,
+                same_length_sequences=self.task_input_length is not None,
             )
 
         return embeddings

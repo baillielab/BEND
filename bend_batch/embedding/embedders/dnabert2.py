@@ -66,19 +66,13 @@ class DNABert2Embedder(BaseEmbedder):
         self.model.eval()
         self.model.to(DEVICE)
 
-    def embed(
-        self,
-        sequences: List[str],
-        sequence_length: int = None,
-    ):
+    def embed(self, sequences: List[str]):
         """Embeds a list sequences using the DNABERT2 model.
 
         Parameters
         ----------
         sequences : List[str]
             List of sequences to embed.
-        sequence_length : int, optional
-            The length of the sequences.
         Returns
         -------
         embeddings : List[np.ndarray]
@@ -87,7 +81,7 @@ class DNABert2Embedder(BaseEmbedder):
 
         # Tokenize input sequences
         chunk_ids = None
-        if sequence_length is None or sequence_length > self.max_length:
+        if self.task_input_length is None or self.task_input_length > self.max_length:
             sequences, chunk_ids = self._split_sequences_into_chunks(
                 sequences,
                 self.max_length,
@@ -122,7 +116,7 @@ class DNABert2Embedder(BaseEmbedder):
             embeddings = self._upsample(
                 input_ids,
                 embeddings,
-                same_length_sequences=sequence_length is not None,
+                same_length_sequences=self.task_input_length is not None,
             )
 
         return embeddings

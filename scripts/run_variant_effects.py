@@ -48,7 +48,9 @@ def run_experiment(cfg: DictConfig) -> None:
     wandb.summary["embedder"] = cfg.embedder
 
     print(f"Computing embeddings for {cfg.task.name} using {cfg.embedder}")
-    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
+    embedder = hydra.utils.instantiate(
+        cfg.embedding[cfg.embedder], task_input_length=cfg.task.dataset.sequence_length
+    )
 
     embedding_idx = 256
     extra_context_left = extra_context_right = 256
@@ -85,12 +87,8 @@ def run_experiment(cfg: DictConfig) -> None:
         for _, (dna_seqs, alt_dna_seqs, batch_labels) in tqdm(
             enumerate(dataloader), total=len(dataloader)
         ):
-            ref_embeddings = embedder(dna_seqs, cfg.task.dataset.sequence_length)[
-                :, embedding_idx, :
-            ]
-            snp_embeddings = embedder(alt_dna_seqs, cfg.task.dataset.sequence_length)[
-                :, embedding_idx, :
-            ]
+            ref_embeddings = embedder(dna_seqs)[:, embedding_idx, :]
+            snp_embeddings = embedder(alt_dna_seqs)[:, embedding_idx, :]
 
             for ref_emb, snp_emb, label in zip(
                 ref_embeddings, snp_embeddings, batch_labels

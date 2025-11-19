@@ -5,9 +5,7 @@ Configuration is set through Hydra in config/config.yaml.
 """
 
 import os
-import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import List
 
 import hydra
 import numpy as np
@@ -115,10 +113,7 @@ def compute_embeddings(cfg: DictConfig, embedder: BaseEmbedder) -> None:
                     desc=f"Embedding {split}",
                 ):
 
-                    embeddings = embedder(
-                        sequences,
-                        cfg.task.dataset.sequence_length,
-                    )
+                    embeddings = embedder(sequences)
 
                     futures.append(
                         executor.submit(
@@ -176,10 +171,8 @@ def run_experiment(cfg: DictConfig) -> None:
     )
     os.makedirs(cfg.embeddings_output_dir, exist_ok=True)
 
-    embedder = hydra.utils.instantiate(cfg.embedding[cfg.embedder])
-
-    print(
-        f"=== Embedding sequences for task: {cfg.task.name} with model: {cfg.embedder} ==="
+    embedder = hydra.utils.instantiate(
+        cfg.embedding[cfg.embedder], task_input_length=cfg.task.dataset.sequence_length
     )
 
     compute_embeddings(cfg, embedder)
