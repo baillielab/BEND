@@ -142,9 +142,6 @@ class ConvNetEmbedder(BaseEmbedder):
 
         # Remove padding embeddings
         if self.pad_token_id in input_ids:
-            attention_mask = output["attention_mask"]
-            attention_mask = attention_mask.numpy().astype(bool)
-
-            embeddings = self._remove_padding_embeddings(embeddings, attention_mask)
+            embeddings, _ = self._remove_padding_tokens(embeddings, input_ids)
 
         return embeddings
