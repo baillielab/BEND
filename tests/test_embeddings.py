@@ -14,7 +14,6 @@ from conftest import (
 from scipy.stats import pearsonr
 from test_datasets import assert_splits_match
 
-from bend_batch.embedding.pooling import PoolingMode
 
 EMBEDDERS = (
     "default_embedder, batch_embedder",
@@ -72,9 +71,7 @@ def batch_embedder(request):
         list(BATCH_CFG.keys())[0]
     ]  # Any task will do, they all have the same embedding config
 
-    embedder_model = hydra.utils.instantiate(
-        task_cfg["embedding"][embedder], pooling_modes=[PoolingMode.DEFAULT]
-    )
+    embedder_model = hydra.utils.instantiate(task_cfg["embedding"][embedder])
 
     return embedder_model, embedder_model.autoregressive
 
@@ -132,7 +129,6 @@ def test_supervised_embeddings(
                 [bat_seq],  # add batch dimension
                 BATCH_CFG[task].task.dataset.sequence_length,
             )
-            bat_emb = bat_emb[PoolingMode.DEFAULT.value]
 
             gt_emb = gt_embedder(
                 gt_seq, upsample_embeddings=True
@@ -192,7 +188,6 @@ def test_unsupervised_embeddings(
                 [bat_seq],  # add batch dimension
                 BATCH_CFG[task].task.dataset.sequence_length,
             )
-            bat_emb = bat_emb[PoolingMode.DEFAULT.value]
 
             assert_embedding(def_emb, bat_emb)
 

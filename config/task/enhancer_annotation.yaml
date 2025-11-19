@@ -2,7 +2,6 @@ name: enhancer_annotation
 embedder: ${embedder} # used in trainer class
 output_dir: ${output_dir} # used in trainer class
 
-embeddings_pooling: default # Options: "default"
 dataset:
   _target_: bend_batch.embedding.datasets.DataSupervised
   annotations_path: ${data_dir}/enhancer_annotation/enhancer_annotation.bed
@@ -26,7 +25,6 @@ model:
   input_size: ${embedding.${embedder}.embeddings_dim}
   output_size: ${task.dataset.label_depth}
   hidden_size: 2
-  pooling: "default" # Only option
   kernel_size: 3
   output_downsample_window: 128
 optimizer:

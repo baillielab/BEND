@@ -15,7 +15,6 @@ from bend_batch.downstream.dataloaders import (
     undersample_dataloaders,
 )
 from bend_batch.downstream.trainer import BaseTrainer
-from bend_batch.embedding.pooling import PoolingMode
 from bend_batch.utils import get_device, set_seed, wandb_login
 
 set_seed()
@@ -117,17 +116,8 @@ def run_experiment(cfg: DictConfig) -> None:
         Hydra configuration object.
     """
 
-    pooling_mode = cfg.task.model.get("pooling", "default")
-
     cfg.embeddings_output_dir = os.path.join(
-        cfg.embeddings_output_dir,
-        cfg.task.name,
-        cfg.embedder,
-        (
-            pooling_mode
-            if pooling_mode in [mode.value for mode in PoolingMode]
-            else PoolingMode.DEFAULT.value
-        ),
+        cfg.embeddings_output_dir, cfg.task.name, cfg.embedder
     )
 
     if not os.path.exists(cfg.embeddings_output_dir):
@@ -140,7 +130,6 @@ def run_experiment(cfg: DictConfig) -> None:
         cfg.output_dir,
         cfg.task.name,
         cfg.embedder,
-        pooling_mode,
         "downstream",
     )
     os.makedirs(f"{cfg.output_dir}/checkpoints/", exist_ok=True)
@@ -150,12 +139,11 @@ def run_experiment(cfg: DictConfig) -> None:
     wandb.init(
         anonymous="allow",
         project=cfg.wandb.project,
-        name=f"{cfg.task.name}_{cfg.embedder}_{pooling_mode}",
+        name=f"{cfg.task.name}_{cfg.embedder}",
         config=OmegaConf.to_container(cfg),
     )
     wandb.summary["task"] = cfg.task.name
     wandb.summary["embedder"] = cfg.embedder
-    wandb.summary["downstream/pooling"] = pooling_mode
 
     print(
         f"=== Training model for task: {cfg.task.name} with embedder: {cfg.embedder} ==="

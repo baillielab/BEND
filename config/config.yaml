@@ -16,4 +16,4 @@ output_dir: ./results/ # scripts will add /{task}/{embedder}/
 embedder: hyenadna-tiny-1k
 
 wandb:
-  project: bend-pooling-benchmark
+  project: bend-memo-test

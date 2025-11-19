@@ -10,7 +10,6 @@ from typing import List
 import torch
 from transformers import AutoTokenizer, logging
 
-from bend_batch.embedding.pooling import pool_name_to_function
 from bend_batch.models.dilated_cnn import ConvNetModel
 from bend_batch.utils import get_device
 
@@ -70,7 +69,7 @@ class ConvNetEmbedder(BaseEmbedder):
     Embed using the GPN-inspired ConvNet baseline LM trained in BEND.
     """
 
-    def get_start_end_token_ids(self):
+    def get_special_tokens_ids(self):
         """
         Get the start and end token IDs for the ConvNet model.
         Returns
@@ -78,7 +77,7 @@ class ConvNetEmbedder(BaseEmbedder):
         Tuple[None, None]
             None, None as ConvNet does not use special start/end tokens.
         """
-        return None, None
+        return None, None, self.tokenizer.pad_token_id
 
     def load_model(self, model_path, **kwargs):
         """
@@ -142,15 +141,10 @@ class ConvNetEmbedder(BaseEmbedder):
             )
 
         # Remove padding embeddings
-        if self.tokenizer.pad_token_id in input_ids:
+        if self.pad_token_id in input_ids:
             attention_mask = output["attention_mask"]
             attention_mask = attention_mask.numpy().astype(bool)
 
-            embeddings = self._remove_padding(embeddings, attention_mask)
+            embeddings = self._remove_padding_embeddings(embeddings, attention_mask)
 
-        # Pooling
-        output = {}
-        for mode in self.pooling_modes:
-            output[mode.value] = pool_name_to_function[mode](embeddings)
-
-        return output
+        return embeddings

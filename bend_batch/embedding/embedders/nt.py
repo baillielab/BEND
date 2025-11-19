@@ -11,7 +11,6 @@ import numpy as np
 import torch
 from transformers import AutoModelForMaskedLM, AutoTokenizer, logging
 
-from bend_batch.embedding.pooling import PoolingMode, pool_name_to_function
 from bend_batch.utils import get_device
 
 from .abstract_class import BaseEmbedder
@@ -28,7 +27,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
     Embed using the Nucleotide Transformer (NT) model (https://www.biorxiv.org/content/10.1101/2023.01.11.523679v2.full).
     """
 
-    def get_start_end_token_ids(self):
+    def get_special_tokens_ids(self):
         """
         Get the start and end token IDs for the Nucleotide Transformer model.
         Returns
@@ -36,7 +35,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
         Tuple[int, None]
             The cls token ID and None (no end token).
         """
-        return self.tokenizer.cls_token_id, None
+        return self.tokenizer.cls_token_id, None, self.tokenizer.pad_token_id
 
     def load_model(
         self,
@@ -103,7 +102,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
         # Iterate over tokens, split if necessary, add special tokens, pad into tensor
         input_ids, chunk_ids = self._split_tokens_into_chunks(input_ids)
-        attention_mask = input_ids != self.tokenizer.pad_token_id
+        attention_mask = input_ids != self.pad_token_id
 
         with torch.no_grad():
             embeddings = (
@@ -124,27 +123,11 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
 
         if len(chunk_ids) != len(set(chunk_ids)):
             # concatenate chunks, remove pad and in-between special tokens
-            embeddings, input_ids = self._concatenate_chunks(
+            embeddings, input_ids = self._merge_embeddings(
                 embeddings, input_ids, chunk_ids
             )
         else:
-            embeddings, input_ids = self._remove_padding(
-                embeddings, attention_mask.numpy(), input_ids
-            )
-
-        # Pooling
-        output = {}
-
-        if PoolingMode.CLS in self.pooling_modes:
-            output[PoolingMode.CLS.value] = pool_name_to_function[PoolingMode.CLS](
-                embeddings
-            )
-        embeddings = self._remove_cls_eos_embeddings(embeddings)
-
-        if PoolingMode.MEAN in self.pooling_modes:
-            output[PoolingMode.MEAN.value] = pool_name_to_function[PoolingMode.MEAN](
-                embeddings
-            )
+            embeddings, input_ids = self._remove_special_tokens(embeddings, input_ids)
 
         if self.upsample_embeddings:
             embeddings = self._upsample(
@@ -153,12 +136,7 @@ class NucleotideTransformerEmbedder(BaseEmbedder):
                 same_length_sequences=sequence_length is not None,
             )
 
-        for mode in self.pooling_modes:
-            if mode in [PoolingMode.CLS, PoolingMode.MEAN]:
-                continue
-            output[mode.value] = pool_name_to_function[mode](embeddings)
-
-        return output
+        return embeddings
 
     def _upsample(
         self,

@@ -15,7 +15,6 @@ import numpy as np
 import torch
 from transformers import logging
 
-from bend_batch.embedding.pooling import PoolingMode
 from bend_batch.utils import get_device
 
 logging.set_verbosity_error()
@@ -35,7 +34,6 @@ class BaseEmbedder:
         autoregressive,
         max_length,
         upsample_embeddings,
-        pooling_modes,
         *args,
         **kwargs,
     ):
@@ -66,7 +64,9 @@ class BaseEmbedder:
                 "Model is not initialized. Please check the `load_model` method."
             )
 
-        self.start_token_id, self.end_token_id = self.get_start_end_token_ids()
+        self.start_token_id, self.end_token_id, self.pad_token_id = (
+            self.get_special_tokens_ids()
+        )
 
         self.max_length = (
             self.max_length - 1 if self.end_token_id is not None else self.max_length
@@ -75,57 +75,8 @@ class BaseEmbedder:
             self.max_length - 1 if self.start_token_id is not None else self.max_length
         )
 
-        self.pooling_modes = self.filter_pooling_modes(pooling_modes)
-
-    def filter_pooling_modes(
-        self, pooling_modes: list[PoolingMode]
-    ) -> list[PoolingMode]:
-        """Filter the given pooling modes based on the embedder's capabilities.
-
-        Parameters
-        ----------
-        pooling_modes : list[PoolingMode]
-            List of pooling modes to filter.
-        Returns
-        -------
-        list[PoolingMode]
-            List of valid pooling modes.
-        Raises
-        -------
-        ValueError
-            If no valid pooling modes are found.
-        """
-
-        modes = []
-        for mode in pooling_modes:
-            if (
-                mode is PoolingMode.EOS
-                and (not self.autoregressive or self.end_token_id is None)
-            ) or (
-                mode is PoolingMode.CLS
-                and (self.autoregressive or self.start_token_id is None)
-            ):
-                continue
-            modes.append(mode)
-
-        if len(modes) == 0:
-            raise ValueError("No valid pooling modes available for this embedder.")
-
-        return modes
-
-    def get_pooling_modes(self) -> list[PoolingMode]:
-        """Get the valid pooling modes for this embedder.
-
-        Returns
-        -------
-        list[PoolingMode]
-            List of valid pooling modes.
-        """
-
-        return self.pooling_modes
-
-    def get_start_end_token_ids(self):
-        """Get the start and end token ids. Should be implemented by the inheriting class."""
+    def get_special_tokens_ids(self):
+        """Get the start, end and pad token ids. Should be implemented by the inheriting class."""
         raise NotImplementedError
 
     def load_model(self, *args, **kwargs):
@@ -213,17 +164,17 @@ class BaseEmbedder:
                 chunk_ids.append(seq_idx)
 
         chunked_input = torch.nn.utils.rnn.pad_sequence(
-            chunk_inputs, batch_first=True, padding_value=self.tokenizer.pad_token_id
+            chunk_inputs, batch_first=True, padding_value=self.pad_token_id
         )
 
         return chunked_input, np.array(chunk_ids)
 
-    def _concatenate_chunks(
+    def _merge_embeddings(
         self,
         embeddings: List[np.ndarray],
         tokens: np.ndarray,
         chunk_ids: np.ndarray,
-    ) -> List[np.ndarray]:
+    ) -> tuple[List[np.ndarray], List[np.ndarray]]:
         """Concatenate chunks back into full sequences.
 
         Parameters
@@ -236,7 +187,7 @@ class BaseEmbedder:
             List of chunk ids indicating which chunk belongs to which sequence.
         Returns
         -------
-        List[np.ndarray]
+        Tuple[List[np.ndarray],List[np.ndarray]]
             List of concatenated embeddings for each sequence.
         """
 
@@ -250,85 +201,60 @@ class BaseEmbedder:
             concat_emb = np.concatenate(embeddings[chunk_ids == chunk_id], axis=0)
             concat_tokens = np.concatenate(tokens[chunk_ids == chunk_id], axis=0)
 
-            # remove padding tokens
-            mask_pad = concat_tokens != self.tokenizer.pad_token_id
-            concat_emb = concat_emb[mask_pad]
-            concat_tokens = concat_tokens[mask_pad]
-
-            # average eos/cls embeddings if multiple chunks
-            cls_emb = None
-            if self.start_token_id is not None:
-                cls_emb = concat_emb[concat_tokens == self.start_token_id].mean(
-                    axis=0, keepdims=True
-                )
-
-            eos_emb = None
-            if self.end_token_id is not None:
-                eos_emb = concat_emb[concat_tokens == self.end_token_id].mean(
-                    axis=0, keepdims=True
-                )
-
-            # remove in-between special tokens from embeddings and tokens
-            # append average cls/eos embeddings at beginning/end
-            mask_special = (concat_tokens != self.end_token_id) & (
-                concat_tokens != self.start_token_id
+            mask_special = (
+                (concat_tokens != self.pad_token_id)
+                & (concat_tokens != self.end_token_id)
+                & (concat_tokens != self.start_token_id)
             )
-            concat_emb = concat_emb[mask_special]
-            if cls_emb is not None:
-                concat_emb = np.concatenate([cls_emb, concat_emb], axis=0)
-            if eos_emb is not None:
-                concat_emb = np.concatenate([concat_emb, eos_emb], axis=0)
-            all_concat_emb.append(concat_emb)
 
-            if cls_emb is not None:
-                mask_special[0] = True
-            if eos_emb is not None:
-                mask_special[-1] = True
-            concat_tokens = concat_tokens[mask_special]
-            all_concat_tokens.append(concat_tokens)
+            all_concat_emb.append(concat_emb[mask_special])
+            all_concat_tokens.append(concat_tokens[mask_special])
 
         return all_concat_emb, all_concat_tokens
 
-    def _remove_padding(
+    def _remove_padding_tokens(
         self,
         embeddings: np.ndarray,
-        attention_mask: np.ndarray,
-        input_ids: np.ndarray = None,
-    ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
+        input_ids: np.ndarray,
+    ) -> tuple[List[np.ndarray], List[np.ndarray]] | List[np.ndarray]:
         """Remove padding from embeddings using the attention mask.
         Parameters
         ----------
         embeddings : np.ndarray
             Embeddings to process.
-        attention_mask : np.ndarray
-            Attention mask indicating non-padded tokens.
-        input_ids : np.ndarray, optional
-            Input ids corresponding to the embeddings. If provided, will also be returned without padding.
+        input_ids : np.ndarray
+            Input ids corresponding to the embeddings.
         Returns
         -------
-        tuple[np.ndarray, np.ndarray]
+        tuple[List[np.array], List[np.array]]
             Embeddings and input ids with padding removed. If input_ids is None, only embeddings are returned.
         """
 
-        if not isinstance(attention_mask, np.ndarray):
-            attention_mask = attention_mask.numpy()
-        if attention_mask.dtype != bool:
-            attention_mask = attention_mask.astype(bool)
-
-        if input_ids is not None:
-
-            masked_embeddings = []
-            masked_input_ids = []
-            for emb, tokens, mask in zip(embeddings, input_ids, attention_mask):
-                masked_embeddings.append(emb[mask])
-                masked_input_ids.append(tokens[mask])
-
-            return masked_embeddings, masked_input_ids
-
         masked_embeddings = []
-        for emb, mask in zip(embeddings, attention_mask):
+        masked_input_ids = []
+        for emb, tokens_ids in zip(embeddings, input_ids):
+
+            mask = tokens_ids != self.pad_token_id
             masked_embeddings.append(emb[mask])
-        return masked_embeddings
+            masked_input_ids.append(tokens_ids[mask])
+
+        return masked_embeddings, masked_input_ids
+
+    def _remove_special_tokens(self, embeddings, input_ids):
+        all_embeddings = []
+        all_tokens = []
+
+        for emb, tokens in zip(embeddings, input_ids):
+            mask_special = (
+                (tokens != self.pad_token_id)
+                & (tokens != self.end_token_id)
+                & (tokens != self.start_token_id)
+            )
+
+            all_embeddings.append(emb[mask_special])
+            all_tokens.append(tokens[mask_special])
+
+        return all_embeddings, all_tokens
 
     def _remove_cls_eos_embeddings(
         self, embeddings: np.ndarray | list[np.ndarray]
